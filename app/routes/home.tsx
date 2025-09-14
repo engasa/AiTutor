@@ -1,135 +1,110 @@
 import type { Route } from './+types/home';
-import { useEffect, useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import api from '../lib/api';
-import type { Role, User } from '../lib/types';
+import type { User } from '../lib/types';
 import { useLocalUser } from '../hooks/useLocalUser';
 
 export function meta({}: Route.MetaArgs) {
   return [
-    { title: 'AI Tutor Playground' },
-    { name: 'description', content: 'Vibrant AI learning playground for students & instructors' },
+    { title: 'AI Tutor - Login' },
+    { name: 'description', content: 'Login to AI Tutor learning platform' },
   ];
 }
 
 export default function Home() {
   const navigate = useNavigate();
-  const { user, setUser } = useLocalUser();
-  const [role, setRole] = useState<Role>(user?.role ?? 'STUDENT');
-  const [users, setUsers] = useState<User[]>([]);
+  const { setUser } = useLocalUser();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [selected, setSelected] = useState<number | null>(user?.id ?? null);
+  const [error, setError] = useState('');
 
-  useEffect(() => {
+  const onLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
     setLoading(true);
-    api
-      .users(role)
-      .then((data) => setUsers(data))
-      .finally(() => setLoading(false));
-  }, [role]);
+    setError('');
 
-  const onEnter = () => {
-    const u = users.find((x) => x.id === selected);
-    if (!u) return;
-    setUser({ id: u.id, name: u.name, role: u.role });
-    navigate(u.role === 'STUDENT' ? '/student' : '/instructor');
+    try {
+      const user = await api.login(email, password);
+      setUser({ id: user.id, name: user.name, role: user.role });
+      navigate(user.role === 'STUDENT' ? '/student' : '/instructor');
+    } catch (err) {
+      setError('Invalid email or password');
+    } finally {
+      setLoading(false);
+    }
   };
-
-  const gradients = useMemo(
-    () => ({
-      STUDENT: 'from-fuchsia-500 via-pink-500 to-rose-500',
-      INSTRUCTOR: 'from-cyan-500 via-sky-500 to-indigo-500',
-    }),
-    []
-  );
 
   return (
     <main className="min-h-dvh bg-gradient-to-br from-gray-50 to-white dark:from-gray-950 dark:to-gray-900">
       <div className="container mx-auto px-4 py-16">
         <header className="text-center mb-10">
           <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-pink-600">
-            AI Tutor Playground
+            AI Tutor
           </h1>
           <p className="text-gray-600 dark:text-gray-300 mt-3 max-w-2xl mx-auto">
-            Log in as a Student or Instructor, explore vibrant courses, topics, and interactive question lists with a gentle AI study guide.
+            Login to access your personalized learning experience
           </p>
         </header>
 
-        <section className="max-w-3xl mx-auto">
-          <div className="flex justify-center mb-6">
-            <div className="inline-flex rounded-full p-1 bg-gray-100 dark:bg-gray-800">
-              {(['STUDENT', 'INSTRUCTOR'] as Role[]).map((r) => (
-                <button
-                  key={r}
-                  onClick={() => setRole(r)}
-                  className={`px-5 py-2 rounded-full text-sm font-medium transition-all ${
-                    role === r
-                      ? 'bg-gradient-to-r text-white shadow ' + gradients[r]
-                      : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'
-                  }`}
-                >
-                  {r}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="bg-white/70 dark:bg-gray-900/70 backdrop-blur rounded-3xl border border-gray-200/60 dark:border-gray-800 p-6 shadow-sm">
-            <h2 className="text-lg font-semibold mb-2">Choose a {role.toLowerCase()}</h2>
-            {loading ? (
-              <div className="animate-pulse text-gray-500">Loading users…</div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {users.map((u) => (
-                  <label
-                    key={u.id}
-                    className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition ${
-                      selected === u.id
-                        ? 'border-transparent ring-2 ring-offset-2 ring-purple-500 dark:ring-offset-gray-900 bg-purple-50 dark:bg-purple-950/40'
-                        : 'border-gray-200 dark:border-gray-800 hover:border-purple-300'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="user"
-                      className="sr-only"
-                      checked={selected === u.id}
-                      onChange={() => setSelected(u.id)}
-                    />
-                    <div
-                      className={`w-10 h-10 rounded-full bg-gradient-to-br ${
-                        u.role === 'STUDENT'
-                          ? 'from-fuchsia-500 to-rose-500'
-                          : 'from-sky-500 to-indigo-500'
-                      }`}
-                    />
-                    <div>
-                      <div className="font-semibold">{u.name}</div>
-                      <div className="text-xs text-gray-500">{u.email}</div>
-                    </div>
-                    <div className="ml-auto text-xs px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-800">
-                      {u.role}
-                    </div>
-                  </label>
-                ))}
+        <section className="max-w-md mx-auto">
+          <div className="bg-white/70 dark:bg-gray-900/70 backdrop-blur rounded-3xl border border-gray-200/60 dark:border-gray-800 p-8 shadow-sm">
+            <form onSubmit={onLogin} className="space-y-6">
+              <div>
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Email
+                </label>
+                <input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  placeholder="Enter your email"
+                  required
+                />
               </div>
-            )}
 
-            <div className="mt-6 flex justify-end">
+              <div>
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Password
+                </label>
+                <input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  placeholder="Enter your password"
+                  required
+                />
+              </div>
+
+              {error && (
+                <div className="text-red-600 text-sm text-center">
+                  {error}
+                </div>
+              )}
+
               <button
-                onClick={onEnter}
-                disabled={!selected}
-                className="px-6 py-2 rounded-xl font-semibold text-white bg-gradient-to-r from-purple-600 to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed shadow hover:shadow-md transition"
+                type="submit"
+                disabled={loading || !email || !password}
+                className="w-full px-6 py-3 rounded-xl font-semibold text-white bg-gradient-to-r from-purple-600 to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed shadow hover:shadow-md transition"
               >
-                Enter as {role.toLowerCase()}
+                {loading ? 'Logging in...' : 'Login'}
               </button>
+            </form>
+
+            <div className="mt-8 text-center text-sm text-gray-500">
+              <p className="mb-2">Demo credentials:</p>
+              <div className="space-y-1 text-xs">
+                <p><strong>Student:</strong> student@example.com / student123</p>
+                <p><strong>Instructor:</strong> instructor@example.com / instructor123</p>
+              </div>
             </div>
           </div>
         </section>
-
-        <footer className="text-center mt-12 text-sm text-gray-500">
-          Tip: You can change role anytime by returning home.
-        </footer>
       </div>
     </main>
   );

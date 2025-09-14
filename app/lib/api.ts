@@ -10,8 +10,11 @@ async function http(path: string, init?: RequestInit) {
 }
 
 export const api = {
-  users: (role?: 'STUDENT' | 'INSTRUCTOR') =>
-    http(`/api/users${role ? `?role=${role}` : ''}`),
+  login: (email: string, password: string) =>
+    http('/api/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    }),
   coursesForUser: (userId: number) => http(`/api/courses?userId=${userId}`),
   topicsForCourse: (courseId: number) => http(`/api/courses/${courseId}/topics`),
   listsForTopic: (topicId: number) => http(`/api/topics/${topicId}/lists`),

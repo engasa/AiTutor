@@ -1,10 +1,15 @@
 import { Link, useLocation, useNavigate } from 'react-router';
-import { requireUser } from '../hooks/useLocalUser';
+import { useLocalUser } from '../hooks/useLocalUser';
 
 export default function Nav() {
   const navigate = useNavigate();
   const loc = useLocation();
-  const u = requireUser();
+  const { user, logout } = useLocalUser();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/');
+  };
 
   return (
     <div className="sticky top-0 z-40 backdrop-blur bg-white/60 dark:bg-gray-950/60 border-b border-gray-200/60 dark:border-gray-800">
@@ -14,9 +19,9 @@ export default function Nav() {
           <span className="font-extrabold tracking-tight">AI Tutor</span>
         </Link>
         <nav className="ml-auto flex items-center gap-2 text-sm">
-          {u && (
+          {user && (
             <span className="hidden md:inline text-gray-500">
-              {u.name} • {u.role}
+              {user.name} • {user.role}
             </span>
           )}
           {loc.pathname.startsWith('/student') && (
@@ -29,12 +34,14 @@ export default function Nav() {
               Teaching
             </Link>
           )}
-          <button
-            onClick={() => navigate('/')}
-            className="px-3 py-1 rounded-md bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow hover:shadow-md"
-          >
-            Switch Role
-          </button>
+          {user && (
+            <button
+              onClick={handleLogout}
+              className="px-3 py-1 rounded-md bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-700"
+            >
+              Logout
+            </button>
+          )}
         </nav>
       </div>
     </div>

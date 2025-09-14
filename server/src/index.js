@@ -19,6 +19,30 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
+// Login endpoint
+app.post('/api/login', async (req, res) => {
+  const { email, password } = req.body || {};
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password required' });
+  }
+  
+  try {
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
+    
+    if (!user || user.password !== password) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    
+    // Return user without password
+    const { password: _, ...userWithoutPassword } = user;
+    res.json(userWithoutPassword);
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
 // Users
 app.get('/api/users', async (req, res) => {
   const { role } = req.query;

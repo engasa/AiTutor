@@ -21,7 +21,12 @@ export function useLocalUser() {
     else localStorage.removeItem(KEY);
   };
 
-  return { user, setUser: save };
+  const logout = () => {
+    setUser(null);
+    localStorage.removeItem(KEY);
+  };
+
+  return { user, setUser: save, logout };
 }
 
 export function requireUser(role?: Role) {

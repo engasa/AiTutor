@@ -15,12 +15,9 @@ async function main() {
   await prisma.user.deleteMany();
 
   // Users
-  const [alice, bob, carol, profX, profY] = await Promise.all([
-    prisma.user.create({ data: { name: 'Alice', email: 'alice@example.com', role: 'STUDENT' } }),
-    prisma.user.create({ data: { name: 'Bob', email: 'bob@example.com', role: 'STUDENT' } }),
-    prisma.user.create({ data: { name: 'Carol', email: 'carol@example.com', role: 'STUDENT' } }),
-    prisma.user.create({ data: { name: 'Prof. Xavier', email: 'xavier@example.com', role: 'INSTRUCTOR' } }),
-    prisma.user.create({ data: { name: 'Prof. Yang', email: 'yang@example.com', role: 'INSTRUCTOR' } }),
+  const [student, instructor] = await Promise.all([
+    prisma.user.create({ data: { name: 'Student', email: 'student@example.com', password: 'student123', role: 'STUDENT' } }),
+    prisma.user.create({ data: { name: 'Instructor', email: 'instructor@example.com', password: 'instructor123', role: 'INSTRUCTOR' } }),
   ]);
 
   // Courses
@@ -49,19 +46,18 @@ async function main() {
   // Teachings
   await prisma.teachingAssignment.createMany({
     data: [
-      { userId: profX.id, courseId: algo.id },
-      { userId: profX.id, courseId: physics.id },
-      { userId: profY.id, courseId: linear.id },
+      { userId: instructor.id, courseId: algo.id },
+      { userId: instructor.id, courseId: physics.id },
+      { userId: instructor.id, courseId: linear.id },
     ],
   });
 
   // Enrollments
   await prisma.enrollment.createMany({
     data: [
-      { userId: alice.id, courseId: algo.id },
-      { userId: alice.id, courseId: linear.id },
-      { userId: bob.id, courseId: linear.id },
-      { userId: carol.id, courseId: physics.id },
+      { userId: student.id, courseId: algo.id },
+      { userId: student.id, courseId: linear.id },
+      { userId: student.id, courseId: physics.id },
     ],
   });
 
