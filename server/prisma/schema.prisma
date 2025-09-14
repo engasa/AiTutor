@@ -1,0 +1,103 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  STUDENT
+  INSTRUCTOR
+}
+
+enum QuestionType {
+  MCQ
+  SHORT_TEXT
+}
+
+model User {
+  id          Int                  @id @default(autoincrement())
+  name        String
+  email       String               @unique
+  role        Role
+  enrollments Enrollment[]
+  teachings   TeachingAssignment[]
+  answers     StudentAnswer[]
+  createdAt   DateTime             @default(now())
+}
+
+model Course {
+  id          Int                  @id @default(autoincrement())
+  title       String
+  description String
+  color       String?
+  topics      Topic[]
+  enrollments Enrollment[]
+  teachings   TeachingAssignment[]
+  createdAt   DateTime             @default(now())
+}
+
+model Topic {
+  id          Int           @id @default(autoincrement())
+  name        String
+  description String?
+  course      Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId    Int
+  lists       QuestionList[]
+}
+
+model QuestionList {
+  id        Int        @id @default(autoincrement())
+  title     String
+  topic     Topic      @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  topicId   Int
+  questions Question[]
+  createdAt DateTime   @default(now())
+}
+
+model Question {
+  id        Int           @id @default(autoincrement())
+  prompt    String
+  type      QuestionType
+  options   Json?
+  answer    Json?
+  hints     String[]
+  list      QuestionList   @relation(fields: [listId], references: [id], onDelete: Cascade)
+  listId    Int
+  createdAt DateTime       @default(now())
+  answers   StudentAnswer[]
+}
+
+model Enrollment {
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    Int
+  course    Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId  Int
+  createdAt DateTime @default(now())
+
+  @@id([userId, courseId])
+}
+
+model TeachingAssignment {
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    Int
+  course    Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId  Int
+  createdAt DateTime @default(now())
+
+  @@id([userId, courseId])
+}
+
+model StudentAnswer {
+  id         Int      @id @default(autoincrement())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     Int
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  questionId Int
+  answerText String?
+  answerOption Int?
+  isCorrect  Boolean?
+  createdAt  DateTime @default(now())
+}

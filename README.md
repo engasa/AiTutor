@@ -26,13 +26,30 @@ npm install
 
 ### Development
 
-Start the development server with HMR:
+Start the database and the API server:
+
+```bash
+# Postgres via Docker
+docker compose up -d db
+
+# Prisma migrate + seed (first time)
+cd server
+npx prisma migrate deploy
+npm run seed
+
+# Start the API (http://localhost:4000)
+npm run dev
+```
+
+In a separate terminal, start the React Router dev server:
 
 ```bash
 npm run dev
 ```
 
-Your application will be available at `http://localhost:5173`.
+Frontend runs at `http://localhost:5173`. The app expects the API at `http://localhost:4000` (override with `VITE_API_URL`).
+
+Login is simulated: choose a Student or Instructor on the home page to explore flows.
 
 ## Building for Production
 
