@@ -13,9 +13,6 @@ async function http(path: string, init?: RequestInit) {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  console.log(`Making request to: ${API_BASE}${path}`);
-  console.log('Headers:', headers);
-
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers: {
@@ -24,13 +21,7 @@ async function http(path: string, init?: RequestInit) {
     },
   });
 
-  console.log('Response status:', res.status);
-  console.log('Response ok:', res.ok);
-
   if (!res.ok) {
-    const errorText = await res.text();
-    console.log('Error response body:', errorText);
-
     if (res.status === 401 || res.status === 403) {
       // Token expired or invalid, trigger logout
       if (typeof window !== 'undefined') {
@@ -39,7 +30,7 @@ async function http(path: string, init?: RequestInit) {
       }
       throw new Error('Authentication required');
     }
-    throw new Error(`Request failed: ${res.status} - ${errorText}`);
+    throw new Error(`Request failed: ${res.status}`);
   }
   return res.json();
 }

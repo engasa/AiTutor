@@ -26,15 +26,12 @@ export default function Home() {
     setError('');
 
     try {
-      console.log('Attempting login with:', { email, password });
       const response = await api.login(email, password);
-      console.log('Login response:', response);
       const { token, user } = response;
       saveAuth(token, { id: user.id, name: user.name, role: user.role });
       navigate(user.role === 'STUDENT' ? '/student' : '/instructor');
     } catch (err) {
-      console.error('Login error:', err);
-      setError(`Login failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      setError('Invalid email or password');
     } finally {
       setLoading(false);
     }
