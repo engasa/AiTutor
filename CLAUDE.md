@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-AiTutor is a full-stack educational platform built with React Router v7, TypeScript, Express.js, and PostgreSQL. The app simulates a tutoring system where instructors create question lists and students answer questions, with role-based access and course management.
+AiTutor is a full-stack educational platform built with React Router v7, TypeScript, Express.js, and PostgreSQL. The app provides a secure tutoring system where instructors create question lists and students answer questions, with JWT-based authentication, role-based access control, and comprehensive course management.
 
 ## Architecture
 
@@ -13,18 +13,21 @@ AiTutor is a full-stack educational platform built with React Router v7, TypeScr
 - `app/routes/` - Route modules (e.g., `instructor.list.tsx`, `student.course.tsx`)
 - `app/lib/` - Shared utilities (`api.ts` for HTTP client, `types.ts` for TypeScript definitions)
 - `app/components/` - Reusable UI components
-- `app/hooks/` - Custom React hooks (e.g., `useLocalUser.ts` for local auth simulation)
+- `app/hooks/` - Custom React hooks (e.g., `useLocalUser.ts` for JWT token management and authentication state)
 
 **Backend (Express + Prisma):**
-- `server/src/` - Express.js API server
-- `server/prisma/` - Database schema, migrations, and seed data
+- `server/src/` - Express.js API server with JWT authentication middleware
+- `server/src/middleware/` - Authentication middleware with JWT verification and role-based access control
+- `server/prisma/` - Database schema, migrations, and seed data with bcrypt-hashed passwords
 - Database models: User, Course, Topic, QuestionList, Question, StudentAnswer, Enrollment, TeachingAssignment
 
 **Key Patterns:**
-- Role-based access (STUDENT/INSTRUCTOR) with different UI flows
+- JWT-based authentication with bcrypt password hashing and 24-hour token expiration
+- Role-based access control (STUDENT/INSTRUCTOR) enforced on both frontend and backend
+- Protected routes with automatic token validation and logout on expiration
 - Nested data hierarchy: Course → Topic → QuestionList → Question
-- Local authentication simulation (no real auth, just role selection)
-- API client with centralized error handling in `app/lib/api.ts`
+- API client with Authorization headers and centralized error handling in `app/lib/api.ts`
+- SSR-compatible authentication that works with React Router v7 server-side rendering
 
 ## Development Commands
 
@@ -68,9 +71,10 @@ The Prisma schema defines a complete educational platform:
 - Data loading happens in route loaders with React Router's data APIs
 
 **State Management:**
-- Local user simulation via `useLocalUser` hook
-- API state managed through React Router's data loading
-- No global state management - relies on URL state and server data
+- JWT token management via `useLocalUser` hook with automatic expiration handling
+- Authentication state synchronized between localStorage and React state
+- API state managed through React Router's data loading with protected route guards
+- No global state management - relies on URL state, server data, and JWT tokens
 
 **Styling:**
 - TailwindCSS v4 for styling
@@ -79,13 +83,29 @@ The Prisma schema defines a complete educational platform:
 
 ## API Design
 
-RESTful API with endpoints organized by resource:
-- `/api/login` - Simulated authentication
+RESTful API with JWT-based authentication and role-based protection:
+
+**Public Endpoints:**
+- `/api/health` - Health check endpoint
+- `/api/login` - JWT authentication (returns token + user data)
+
+**Protected Endpoints (Require JWT token):**
 - `/api/courses` - Course management and user-specific course lists
 - `/api/courses/:id/topics` - Topic management within courses
 - `/api/topics/:id/lists` - Question list management
 - `/api/lists/:id` and `/api/lists/:id/questions` - Question management
 - `/api/questions/:id/answer` - Answer submission
+
+**Instructor-Only Endpoints:**
+- `/api/users` - User management (instructor role required)
+- `/api/lists` (POST) - Create question lists (instructor role required)
+- `/api/lists/:id/questions` (POST) - Create questions (instructor role required)
+
+**Authentication Flow:**
+1. Send POST to `/api/login` with email/password
+2. Receive JWT token + user data
+3. Include `Authorization: Bearer <token>` header in all subsequent requests
+4. Token expires after 24 hours, triggering automatic logout
 
 ## Environment Configuration
 
@@ -94,7 +114,16 @@ RESTful API with endpoints organized by resource:
 
 **Backend:**
 - `DATABASE_URL` - PostgreSQL connection string (example: postgresql://postgres:postgres@localhost:54321/aitutor)
+- `JWT_SECRET` - Secret key for JWT token signing and verification (REQUIRED for security)
+- `PORT` - Server port (defaults to 4000)
 - Environment variables loaded from `server/.env`
+
+**Security Notes:**
+- `JWT_SECRET` must be a strong, unique secret in production
+- Never commit `.env` files to version control
+- Passwords are hashed with bcrypt (salt rounds: 10)
+- JWT tokens expire after 24 hours
+- All API endpoints except `/api/health` and `/api/login` require authentication
 
 ## Testing Strategy
 
@@ -102,3 +131,69 @@ No test framework is currently configured. When adding tests:
 - Frontend: Use Vitest + React Testing Library under `app/__tests__/`
 - Backend: Use Vitest/Jest + Supertest under `server/test/`
 - Focus testing on route loaders, API endpoints, and critical user flows
+
+**Authentication Testing Priorities:**
+- JWT token generation and validation
+- Password hashing and verification with bcrypt
+- Protected route access control (401/403 responses)
+- Role-based authorization (STUDENT vs INSTRUCTOR)
+- Token expiration and automatic logout
+- SSR compatibility for authentication hooks
+
+## Authentication System
+
+**Demo Credentials:**
+- **Student**: `student@example.com` / `student123`
+- **Instructor**: `instructor@example.com` / `instructor123`
+
+**Key Components:**
+- `server/src/middleware/auth.js` - JWT verification and role-based access control
+- `app/hooks/useLocalUser.ts` - JWT token management and authentication state
+- `app/components/ProtectedRoute.tsx` - Route-level authentication guards
+- `app/lib/api.ts` - Automatic Authorization header injection
+
+**Security Features:**
+- Bcrypt password hashing with salt rounds
+- JWT tokens with 24-hour expiration
+- Automatic token validation on every API request
+- Role-based endpoint protection
+- SSR-compatible token management
+- Automatic logout on token expiration
+- CORS configuration for cross-origin requests
+
+**Authentication Flow:**
+1. User submits email/password through login form
+2. Backend verifies password with bcrypt.compare()
+3. Backend generates JWT token with user ID and role
+4. Frontend stores token in localStorage
+5. All subsequent API requests include Authorization header
+6. Backend middleware validates token on every protected request
+7. Frontend automatically redirects to login if token expires
+
+## Development Workflow & Troubleshooting
+
+**Database Reset (if auth issues occur):**
+```bash
+cd server
+npm run seed  # Re-runs seed with fresh bcrypt-hashed passwords
+```
+
+**Common Authentication Issues:**
+1. **"Invalid email or password"** - Check if database was seeded properly with hashed passwords
+2. **"Access token required"** - Ensure JWT_SECRET is set in `server/.env`
+3. **SSR errors with localStorage** - Authentication hooks have SSR compatibility checks
+4. **CORS issues** - Backend is configured with `cors({ origin: true, credentials: true })`
+5. **Token expiration** - Tokens expire after 24 hours, requiring re-login
+
+**Development Tips:**
+- Use browser DevTools → Application → Local Storage to inspect stored JWT tokens
+- Check Network tab for Authorization headers in API requests
+- Backend logs show JWT verification errors if tokens are invalid
+- Use demo credentials for quick testing (see Authentication System section)
+- All routes except login/health require valid authentication
+
+**Production Deployment Notes:**
+- Generate strong JWT_SECRET for production environment
+- Use HTTPS in production for secure token transmission
+- Consider shorter token expiration for higher security environments
+- Set up proper CORS configuration for production domains
