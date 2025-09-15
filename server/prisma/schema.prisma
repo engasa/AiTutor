@@ -41,10 +41,10 @@ model Course {
 }
 
 model Topic {
-  id          Int           @id @default(autoincrement())
+  id          Int            @id @default(autoincrement())
   name        String
   description String?
-  course      Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  course      Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
   courseId    Int
   lists       QuestionList[]
 }
@@ -59,22 +59,22 @@ model QuestionList {
 }
 
 model Question {
-  id        Int           @id @default(autoincrement())
+  id        Int             @id @default(autoincrement())
   prompt    String
   type      QuestionType
   options   Json?
   answer    Json?
   hints     String[]
-  list      QuestionList   @relation(fields: [listId], references: [id], onDelete: Cascade)
+  list      QuestionList    @relation(fields: [listId], references: [id], onDelete: Cascade)
   listId    Int
-  createdAt DateTime       @default(now())
+  createdAt DateTime        @default(now())
   answers   StudentAnswer[]
 }
 
 model Enrollment {
-  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId    Int
-  course    Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
   courseId  Int
   createdAt DateTime @default(now())
 
@@ -82,9 +82,9 @@ model Enrollment {
 }
 
 model TeachingAssignment {
-  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId    Int
-  course    Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
   courseId  Int
   createdAt DateTime @default(now())
 
@@ -92,13 +92,13 @@ model TeachingAssignment {
 }
 
 model StudentAnswer {
-  id         Int      @id @default(autoincrement())
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId     Int
-  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  questionId Int
-  answerText String?
+  id           Int      @id @default(autoincrement())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       Int
+  question     Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  questionId   Int
+  answerText   String?
   answerOption Int?
-  isCorrect  Boolean?
-  createdAt  DateTime @default(now())
+  isCorrect    Boolean?
+  createdAt    DateTime @default(now())
 }

@@ -1,11 +1,15 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
 import { PrismaClient } from '@prisma/client';
+import { authenticateToken, requireRole } from './middleware/auth.js';
 
 dotenv.config();
 const app = express();
 const prisma = new PrismaClient();
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
@@ -25,26 +29,52 @@ app.post('/api/login', async (req, res) => {
   if (!email || !password) {
     return res.status(400).json({ error: 'Email and password required' });
   }
-  
+
   try {
     const user = await prisma.user.findUnique({
       where: { email },
     });
-    
-    if (!user || user.password !== password) {
+
+    if (!user) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
-    
-    // Return user without password
+
+    // Verify password with bcrypt
+    const isValidPassword = await bcrypt.compare(password, user.password);
+    if (!isValidPassword) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId: user.id, role: user.role },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    // Return token and user without password
     const { password: _, ...userWithoutPassword } = user;
-    res.json(userWithoutPassword);
+    res.json({
+      token,
+      user: userWithoutPassword
+    });
   } catch (e) {
     res.status(500).json({ error: String(e) });
   }
 });
 
-// Users
-app.get('/api/users', async (req, res) => {
+// Protect all API routes except health and login
+app.use('/api', (req, res, next) => {
+  // Skip auth for public endpoints
+  if (req.path === '/health' || req.path === '/login') {
+    return next();
+  }
+  // Apply auth middleware for all other API routes
+  authenticateToken(req, res, next);
+});
+
+// Users (instructor only)
+app.get('/api/users', requireRole('INSTRUCTOR'), async (req, res) => {
   const { role } = req.query;
   try {
     const users = await prisma.user.findMany({
@@ -186,7 +216,7 @@ app.post('/api/questions/:id/answer', async (req, res) => {
 });
 
 // Create list (instructor)
-app.post('/api/lists', async (req, res) => {
+app.post('/api/lists', requireRole('INSTRUCTOR'), async (req, res) => {
   const { title, topicId } = req.body || {};
   if (!title || !topicId) return res.status(400).json({ error: 'title and topicId required' });
   try {
@@ -198,7 +228,7 @@ app.post('/api/lists', async (req, res) => {
 });
 
 // Create question in list (instructor)
-app.post('/api/lists/:listId/questions', async (req, res) => {
+app.post('/api/lists/:listId/questions', requireRole('INSTRUCTOR'), async (req, res) => {
   const listId = Number(req.params.listId);
   const { prompt, type, options, answer, hints } = req.body || {};
   if (!prompt || !type) return res.status(400).json({ error: 'prompt and type required' });

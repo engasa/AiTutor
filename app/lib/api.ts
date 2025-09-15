@@ -1,11 +1,46 @@
+import { getAuthToken } from '../hooks/useLocalUser';
+
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
 async function http(path: string, init?: RequestInit) {
+  const token = getAuthToken();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  // Add Authorization header if token exists
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  console.log(`Making request to: ${API_BASE}${path}`);
+  console.log('Headers:', headers);
+
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
     ...init,
+    headers: {
+      ...headers,
+      ...(init?.headers || {}),
+    },
   });
-  if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+
+  console.log('Response status:', res.status);
+  console.log('Response ok:', res.ok);
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    console.log('Error response body:', errorText);
+
+    if (res.status === 401 || res.status === 403) {
+      // Token expired or invalid, trigger logout
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('aitutor_auth_token');
+        window.location.href = '/';
+      }
+      throw new Error('Authentication required');
+    }
+    throw new Error(`Request failed: ${res.status} - ${errorText}`);
+  }
   return res.json();
 }
 

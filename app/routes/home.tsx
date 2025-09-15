@@ -14,7 +14,7 @@ export function meta({}: Route.MetaArgs) {
 
 export default function Home() {
   const navigate = useNavigate();
-  const { setUser } = useLocalUser();
+  const { saveAuth } = useLocalUser();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -26,11 +26,15 @@ export default function Home() {
     setError('');
 
     try {
-      const user = await api.login(email, password);
-      setUser({ id: user.id, name: user.name, role: user.role });
+      console.log('Attempting login with:', { email, password });
+      const response = await api.login(email, password);
+      console.log('Login response:', response);
+      const { token, user } = response;
+      saveAuth(token, { id: user.id, name: user.name, role: user.role });
       navigate(user.role === 'STUDENT' ? '/student' : '/instructor');
     } catch (err) {
-      setError('Invalid email or password');
+      console.error('Login error:', err);
+      setError(`Login failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
