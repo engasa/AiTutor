@@ -2,7 +2,6 @@ import type { Route } from './+types/home';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import api from '../lib/api';
-import type { User } from '../lib/types';
 import { useLocalUser } from '../hooks/useLocalUser';
 
 export function meta({}: Route.MetaArgs) {
