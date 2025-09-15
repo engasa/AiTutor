@@ -89,6 +89,16 @@ app.get('/api/users', requireRole('INSTRUCTOR'), async (req, res) => {
 
 app.get('/api/users/:id', async (req, res) => {
   const id = Number(req.params.id);
+  if (!Number.isFinite(id)) {
+    return res.status(400).json({ error: 'Invalid user id' });
+  }
+
+  const authUser = req.user;
+  if (!authUser) return res.status(401).json({ error: 'Authentication required' });
+  if (authUser.role !== 'INSTRUCTOR' && authUser.id !== id) {
+    return res.status(403).json({ error: 'Not authorized to view this user' });
+  }
+
   try {
     const user = await prisma.user.findUnique({ where: { id } });
     if (!user) return res.status(404).json({ error: 'User not found' });
@@ -100,21 +110,34 @@ app.get('/api/users/:id', async (req, res) => {
 
 // Courses for user (student enrollments or instructor teachings)
 app.get('/api/courses', async (req, res) => {
-  const userId = Number(req.query.userId);
-  if (!userId) return res.status(400).json({ error: 'userId required' });
-  try {
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) return res.status(404).json({ error: 'User not found' });
+  const authUser = req.user;
+  if (!authUser) return res.status(401).json({ error: 'Authentication required' });
 
-    if (user.role === 'STUDENT') {
+  let lookupId = authUser.id;
+  if (req.query.userId !== undefined) {
+    const requestedId = Number(req.query.userId);
+    if (!Number.isFinite(requestedId)) {
+      return res.status(400).json({ error: 'userId must be a number' });
+    }
+    if (authUser.role !== 'INSTRUCTOR' && requestedId !== authUser.id) {
+      return res.status(403).json({ error: 'Not authorized to view courses for this user' });
+    }
+    lookupId = requestedId;
+  }
+
+  try {
+    const targetUser = await prisma.user.findUnique({ where: { id: lookupId } });
+    if (!targetUser) return res.status(404).json({ error: 'User not found' });
+
+    if (targetUser.role === 'STUDENT') {
       const enrollments = await prisma.enrollment.findMany({
-        where: { userId },
+        where: { userId: lookupId },
         include: { course: true },
       });
       res.json(enrollments.map((e) => e.course));
     } else {
       const teachings = await prisma.teachingAssignment.findMany({
-        where: { userId },
+        where: { userId: lookupId },
         include: { course: true },
       });
       res.json(teachings.map((t) => t.course));
