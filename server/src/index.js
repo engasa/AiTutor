@@ -244,7 +244,7 @@ app.post('/api/lists', requireRole('INSTRUCTOR'), async (req, res) => {
   if (!title || !topicId) return res.status(400).json({ error: 'title and topicId required' });
   try {
     const list = await prisma.questionList.create({ data: { title, topicId: Number(topicId) } });
-    res.status(201).json(list);
+    res.status(201).json(list); 
   } catch (e) {
     res.status(500).json({ error: String(e) });
   }

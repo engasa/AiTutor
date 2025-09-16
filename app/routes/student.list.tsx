@@ -19,6 +19,7 @@ export default function StudentListPlayer() {
   const [assistant, setAssistant] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<string | null>(null);
+  const [wasCorrect, setWasCorrect] = useState(false);
 
   useEffect(() => {
     if (!user || !listId) return;
@@ -37,6 +38,7 @@ export default function StudentListPlayer() {
     setText('');
     setAssistant([]);
     setResult(null);
+    setWasCorrect(false);
   }, [idx]);
 
   const q = questions[idx];
@@ -54,16 +56,23 @@ export default function StudentListPlayer() {
       else payload.answerText = text;
       const res = await api.submitAnswer(q.id, payload);
       setResult(res.isCorrect ? 'Correct! 🎉' : 'Not quite. Keep going!');
-      if (res.assistantCue) setAssistant((a) => [...a, res.assistantCue]);
+      if (res.isCorrect) {
+        setWasCorrect(true);
+        setAssistant([res.message || 'Great job! Proceed when you are ready for the next question.']);
+      } else {
+        setWasCorrect(false);
+        if (res.assistantCue) setAssistant((a) => [...a, res.assistantCue]);
+      }
     } catch (e) {
       setResult('There was a problem submitting.');
+      setWasCorrect(false);
     } finally {
       setSubmitting(false);
     }
   };
 
   const nudge = () => {
-    if (!q) return;
+    if (!q || wasCorrect) return;
     // lightweight guidance: progressively reveal hints without answers.
     const next = q.hints[assistant.length] || 'Break the question down into smaller parts.';
     setAssistant((a) => [...a, next]);
@@ -139,7 +148,8 @@ export default function StudentListPlayer() {
                     </button>
                     <button
                       onClick={nudge}
-                      className="px-4 py-2 rounded-xl font-semibold bg-gray-100 dark:bg-gray-800"
+                      disabled={wasCorrect}
+                      className="px-4 py-2 rounded-xl font-semibold bg-gray-100 dark:bg-gray-800 disabled:opacity-50"
                     >
                       Guide me
                     </button>
