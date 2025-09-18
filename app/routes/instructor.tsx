@@ -183,12 +183,12 @@ export default function InstructorHome() {
                       navigate(`/instructor/courses/${c.id}`);
                     }
                   }}
-                  className="text-left p-5 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-950/60 hover:shadow-md transition group focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-500 cursor-pointer"
+                  className="text-left p-5 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-950/60 hover:shadow-md transition group focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-500 cursor-pointer flex flex-col h-full"
                 >
                   <div className="font-semibold text-lg group-hover:underline">{c.title}</div>
                   {c.description && <div className="text-sm text-gray-500 mt-1">{c.description}</div>}
-                  <div className="mt-5 flex flex-col gap-1 text-sm text-gray-500">
-                    <span className="text-xs font-semibold uppercase tracking-wide">Status</span>
+                  <div className="flex-grow"></div>
+                  <div className="flex justify-end mt-4">
                     <div
                       className="relative inline-flex"
                       onClick={(event) => event.stopPropagation()}
@@ -201,8 +201,7 @@ export default function InstructorHome() {
                           event.stopPropagation();
                           updateCourseStatus(c.id, event.target.value as CourseStatus);
                         }}
-                        className="appearance-none w-auto min-w-[6rem] px-4 pr-8 py-2 text-xs font-semibold tracking-wide rounded-full bg-gradient-to-r from-purple-500 via-fuchsia-500 to-pink-600 text-white border border-purple-400/60 shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-300 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-950"
-                        style={{ backgroundImage: 'none' }}
+                        className="appearance-none w-[100px] px-3 pr-6 py-1.5 text-xs font-semibold rounded-full bg-gradient-to-r from-purple-500 via-fuchsia-500 to-pink-600 text-white border-0 shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-300 text-center"
                       >
                         <option value="DRAFT">Draft</option>
                         <option value="ACTIVE">Active</option>
