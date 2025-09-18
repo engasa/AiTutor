@@ -8,7 +8,6 @@ async function http(path: string, init?: RequestInit) {
     'Content-Type': 'application/json',
   };
 
-  // Add Authorization header if token exists
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
@@ -23,14 +22,14 @@ async function http(path: string, init?: RequestInit) {
 
   if (!res.ok) {
     if (res.status === 401 || res.status === 403) {
-      // Token expired or invalid, trigger logout
       if (typeof window !== 'undefined') {
         localStorage.removeItem('aitutor_auth_token');
         window.location.href = '/';
       }
       throw new Error('Authentication required');
     }
-    throw new Error(`Request failed: ${res.status}`);
+    const text = await res.text();
+    throw new Error(text || `Request failed: ${res.status}`);
   }
   return res.json();
 }
@@ -41,23 +40,94 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     }),
-  coursesForUser: (userId: number) => http(`/api/courses?userId=${userId}`),
-  topicsForCourse: (courseId: number) => http(`/api/courses/${courseId}/topics`),
-  listsForTopic: (topicId: number) => http(`/api/topics/${topicId}/lists`),
-  listById: (listId: number) => http(`/api/lists/${listId}`),
-  questionsForList: (listId: number) => http(`/api/lists/${listId}/questions`),
-  submitAnswer: (questionId: number, payload: any) =>
-    http(`/api/questions/${questionId}/answer`, {
+  listCourses: () => http('/api/courses'),
+  createCourse: (payload: {
+    title: string;
+    description?: string;
+    templateId?: number;
+    cloneContent?: boolean;
+    startDate?: string;
+    endDate?: string;
+    status?: 'DRAFT' | 'ACTIVE' | 'ARCHIVED';
+  }) =>
+    http('/api/courses', {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
-  createList: (title: string, topicId: number) =>
-    http(`/api/lists`, { method: 'POST', body: JSON.stringify({ title, topicId }) }),
-  createQuestion: (
-    listId: number,
-    data: { prompt: string; type: 'MCQ' | 'SHORT_TEXT'; options?: any; answer?: any; hints?: string[] }
-  ) => http(`/api/lists/${listId}/questions`, { method: 'POST', body: JSON.stringify(data) }),
+  updateCourse: (
+    courseId: number,
+    payload: {
+      status?: 'DRAFT' | 'ACTIVE' | 'ARCHIVED';
+      title?: string;
+      description?: string | null;
+      startDate?: string | null;
+      endDate?: string | null;
+    }
+  ) =>
+    http(`/api/courses/${courseId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+  importIntoCourse: (
+    courseId: number,
+    payload: {
+      templateId?: number;
+      moduleTemplateIds?: number[];
+      lessonTemplateIds?: number[];
+      sourceLessonIds?: number[];
+      targetModuleId?: number;
+    }
+  ) =>
+    http(`/api/courses/${courseId}/import`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  modulesForCourse: (courseId: number) => http(`/api/courses/${courseId}/modules`),
+  moduleById: (moduleId: number) => http(`/api/modules/${moduleId}`),
+  createModule: (
+    courseId: number,
+    payload: { title: string; description?: string; position?: number }
+  ) =>
+    http(`/api/courses/${courseId}/modules`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  lessonsForModule: (moduleId: number) => http(`/api/modules/${moduleId}/lessons`),
+  createLesson: (
+    moduleId: number,
+    payload: { title: string; contentMd?: string; position?: number }
+  ) =>
+    http(`/api/modules/${moduleId}/lessons`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  lessonById: (lessonId: number) => http(`/api/lessons/${lessonId}`),
+  activitiesForLesson: (lessonId: number) => http(`/api/lessons/${lessonId}/activities`),
+  createActivity: (
+    lessonId: number,
+    payload: {
+      title?: string;
+      prompt: string;
+      type?: 'MCQ' | 'SHORT_TEXT';
+      options?: { choices?: string[] } | null;
+      answer?: any;
+      hints?: string[];
+      instructionsMd?: string;
+      activityTypeId?: number;
+      promptTemplateId?: number;
+    }
+  ) =>
+    http(`/api/lessons/${lessonId}/activities`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  submitAnswer: (activityId: number, payload: any) =>
+    http(`/api/questions/${activityId}/answer`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  listTemplates: () => http('/api/templates'),
+  templateById: (templateId: number) => http(`/api/templates/${templateId}`),
 };
 
 export default api;
-

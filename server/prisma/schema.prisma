@@ -12,93 +12,220 @@ enum Role {
   INSTRUCTOR
 }
 
+enum CourseOfferingStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum InstructorRole {
+  LEAD
+  ASSISTANT
+}
+
 enum QuestionType {
   MCQ
   SHORT_TEXT
 }
 
 model User {
-  id          Int                  @id @default(autoincrement())
+  id          Int                @id @default(autoincrement())
   name        String
-  email       String               @unique
+  email       String             @unique
   password    String
   role        Role
-  enrollments Enrollment[]
-  teachings   TeachingAssignment[]
-  answers     StudentAnswer[]
-  createdAt   DateTime             @default(now())
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  instructorOf CourseInstructor[]
+  enrolledIn   CourseEnrollment[]
+  submissions  Submission[]
 }
 
-model Course {
-  id          Int                  @id @default(autoincrement())
+model CourseTemplate {
+  id          Int               @id @default(autoincrement())
   title       String
-  description String
-  color       String?
-  topics      Topic[]
-  enrollments Enrollment[]
-  teachings   TeachingAssignment[]
-  createdAt   DateTime             @default(now())
-}
-
-model Topic {
-  id          Int            @id @default(autoincrement())
-  name        String
   description String?
-  course      Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  courseId    Int
-  lists       QuestionList[]
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  modules   ModuleTemplate[]
+  offerings CourseOffering[]
 }
 
-model QuestionList {
-  id        Int        @id @default(autoincrement())
-  title     String
-  topic     Topic      @relation(fields: [topicId], references: [id], onDelete: Cascade)
-  topicId   Int
-  questions Question[]
-  createdAt DateTime   @default(now())
+model ModuleTemplate {
+  id               Int             @id @default(autoincrement())
+  title            String
+  description      String?
+  position         Int             @default(0)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  courseTemplate   CourseTemplate  @relation(fields: [courseTemplateId], references: [id], onDelete: Cascade)
+  courseTemplateId Int
+
+  lessons LessonTemplate[]
+  modules Module[]
 }
 
-model Question {
-  id        Int             @id @default(autoincrement())
-  prompt    String
-  type      QuestionType
-  options   Json?
-  answer    Json?
-  hints     String[]
-  list      QuestionList    @relation(fields: [listId], references: [id], onDelete: Cascade)
-  listId    Int
-  createdAt DateTime        @default(now())
-  answers   StudentAnswer[]
+model LessonTemplate {
+  id              Int             @id @default(autoincrement())
+  title           String
+  contentMd       String?
+  position        Int             @default(0)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  moduleTemplate  ModuleTemplate  @relation(fields: [moduleTemplateId], references: [id], onDelete: Cascade)
+  moduleTemplateId Int
+
+  activities ActivityTemplate[]
+  lessons    Lesson[]
 }
 
-model Enrollment {
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId    Int
-  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  courseId  Int
-  createdAt DateTime @default(now())
+model ActivityType {
+  id               Int                @id @default(autoincrement())
+  name             String             @unique
+  description      String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
 
-  @@id([userId, courseId])
+  promptTemplates  PromptTemplate[]
+  activityTemplates ActivityTemplate[]
+  activities        Activity[]
 }
 
-model TeachingAssignment {
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId    Int
-  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  courseId  Int
-  createdAt DateTime @default(now())
+model PromptTemplate {
+  id             Int           @id @default(autoincrement())
+  name           String
+  systemPrompt   String
+  userPrompt     String
+  temperature    Float?
+  topP           Float?
+  isActive       Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  activityType   ActivityType  @relation(fields: [activityTypeId], references: [id], onDelete: Cascade)
+  activityTypeId Int
 
-  @@id([userId, courseId])
+  activityTemplates ActivityTemplate[]
+  activities        Activity[]
 }
 
-model StudentAnswer {
+model ActivityTemplate {
+  id               Int            @id @default(autoincrement())
+  title            String?
+  instructionsMd   String
+  config           Json?
+  position         Int            @default(0)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  lessonTemplate   LessonTemplate @relation(fields: [lessonTemplateId], references: [id], onDelete: Cascade)
+  lessonTemplateId Int
+  activityType     ActivityType   @relation(fields: [activityTypeId], references: [id])
+  activityTypeId   Int
+  promptTemplate   PromptTemplate? @relation(fields: [promptTemplateId], references: [id])
+  promptTemplateId Int?
+
+  activities Activity[]
+}
+
+model CourseOffering {
+  id          Int                   @id @default(autoincrement())
+  title       String
+  description String?
+  startDate   DateTime?
+  endDate     DateTime?
+  status      CourseOfferingStatus  @default(DRAFT)
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+  template    CourseTemplate?       @relation(fields: [templateId], references: [id])
+  templateId  Int?
+
+  modules      Module[]
+  instructors  CourseInstructor[]
+  enrollments  CourseEnrollment[]
+}
+
+model CourseInstructor {
+  courseOffering   CourseOffering  @relation(fields: [courseOfferingId], references: [id], onDelete: Cascade)
+  courseOfferingId Int
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId           Int
+  role             InstructorRole  @default(LEAD)
+  assignedAt       DateTime        @default(now())
+
+  @@id([courseOfferingId, userId])
+}
+
+model CourseEnrollment {
+  courseOffering   CourseOffering @relation(fields: [courseOfferingId], references: [id], onDelete: Cascade)
+  courseOfferingId Int
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId           Int
+  enrolledAt       DateTime       @default(now())
+
+  @@id([courseOfferingId, userId])
+}
+
+model Module {
+  id               Int             @id @default(autoincrement())
+  title            String
+  description      String?
+  position         Int             @default(0)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  courseOffering   CourseOffering  @relation(fields: [courseOfferingId], references: [id], onDelete: Cascade)
+  courseOfferingId Int
+  template         ModuleTemplate? @relation(fields: [templateId], references: [id])
+  templateId       Int?
+
+  lessons Lesson[]
+}
+
+model Lesson {
+  id         Int      @id @default(autoincrement())
+  title      String
+  contentMd  String?
+  position   Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  module     Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  moduleId   Int
+  template   LessonTemplate? @relation(fields: [templateId], references: [id])
+  templateId Int?
+
+  activities Activity[]
+}
+
+model Activity {
+  id             Int            @id @default(autoincrement())
+  title          String?
+  instructionsMd String
+  config         Json?
+  position       Int            @default(0)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  lesson         Lesson         @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  lessonId       Int
+  template       ActivityTemplate? @relation(fields: [templateId], references: [id])
+  templateId     Int?
+  activityType   ActivityType    @relation(fields: [activityTypeId], references: [id])
+  activityTypeId Int
+  promptTemplate PromptTemplate? @relation(fields: [promptTemplateId], references: [id])
+  promptTemplateId Int?
+
+  submissions Submission[]
+}
+
+model Submission {
   id           Int      @id @default(autoincrement())
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId       Int
-  question     Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  questionId   Int
-  answerText   String?
-  answerOption Int?
+  attemptNumber Int     @default(1)
+  response     Json?
+  aiFeedback   Json?
+  score        Float?
   isCorrect    Boolean?
   createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       Int
+  activity     Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  activityId   Int
 }

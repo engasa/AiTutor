@@ -3,15 +3,15 @@ import { useNavigate, useParams } from 'react-router';
 import Nav from '../components/Nav';
 import ProtectedRoute from '../components/ProtectedRoute';
 import api from '../lib/api';
-import type { Question } from '../lib/types';
+import type { Activity, Lesson } from '../lib/types';
 import { requireUser } from '../hooks/useLocalUser';
 
-export default function StudentListPlayer() {
+export default function StudentLessonPlayer() {
   const navigate = useNavigate();
-  const { listId } = useParams();
+  const { lessonId } = useParams();
   const user = requireUser('STUDENT');
-  const [title, setTitle] = useState<string>('');
-  const [questions, setQuestions] = useState<Question[]>([]);
+  const [lesson, setLesson] = useState<Lesson | null>(null);
+  const [activities, setActivities] = useState<Activity[]>([]);
   const [idx, setIdx] = useState(0);
   const [loading, setLoading] = useState(true);
   const [mcq, setMcq] = useState<number | null>(null);
@@ -22,18 +22,17 @@ export default function StudentListPlayer() {
   const [wasCorrect, setWasCorrect] = useState(false);
 
   useEffect(() => {
-    if (!user || !listId) return;
+    if (!user || !lessonId) return;
     setLoading(true);
-    Promise.all([api.listById(Number(listId)), api.questionsForList(Number(listId))])
-      .then(([l, qs]) => {
-        setTitle(l.title);
-        setQuestions(qs);
+    Promise.all([api.lessonById(Number(lessonId)), api.activitiesForLesson(Number(lessonId))])
+      .then(([lessonData, activityData]) => {
+        setLesson(lessonData);
+        setActivities(activityData);
       })
       .finally(() => setLoading(false));
-  }, [listId]);
+  }, [lessonId, user?.id]);
 
   useEffect(() => {
-    // reset inputs when question changes
     setMcq(null);
     setText('');
     setAssistant([]);
@@ -41,20 +40,20 @@ export default function StudentListPlayer() {
     setWasCorrect(false);
   }, [idx]);
 
-  const q = questions[idx];
-  const canNext = idx < questions.length - 1;
+  const activity = activities[idx];
+  const canNext = idx < activities.length - 1;
   const canPrev = idx > 0;
 
-  const promptChunks = useMemo(() => (q?.prompt || '').split(/\n/), [q?.prompt]);
+  const promptChunks = useMemo(() => (activity?.prompt || '').split(/\n/), [activity?.prompt]);
 
   const submit = async () => {
-    if (!q || !user) return;
+    if (!activity || !user) return;
     setSubmitting(true);
     try {
       const payload: any = { userId: user.id };
-      if (q.type === 'MCQ') payload.answerOption = mcq;
+      if (activity.type === 'MCQ') payload.answerOption = mcq;
       else payload.answerText = text;
-      const res = await api.submitAnswer(q.id, payload);
+      const res = await api.submitAnswer(activity.id, payload);
       setResult(res.isCorrect ? 'Correct! 🎉' : 'Not quite. Keep going!');
       if (res.isCorrect) {
         setWasCorrect(true);
@@ -72,9 +71,8 @@ export default function StudentListPlayer() {
   };
 
   const nudge = () => {
-    if (!q || wasCorrect) return;
-    // lightweight guidance: progressively reveal hints without answers.
-    const next = q.hints[assistant.length] || 'Break the question down into smaller parts.';
+    if (!activity || wasCorrect) return;
+    const next = activity.hints[assistant.length] || 'Break the question down into smaller parts.';
     setAssistant((a) => [...a, next]);
   };
 
@@ -86,17 +84,19 @@ export default function StudentListPlayer() {
           <button onClick={() => navigate(-1)} className="text-sm text-gray-600 hover:underline">
             ← Back
           </button>
-          <h2 className="text-2xl font-bold mb-4">{title || 'Question List'}</h2>
+          <h2 className="text-2xl font-bold mb-4">{lesson?.title || 'Lesson'}</h2>
 
           {loading ? (
             <div className="text-gray-500">Loading…</div>
-          ) : questions.length === 0 ? (
-            <div className="text-gray-500">No questions yet.</div>
+          ) : activities.length === 0 ? (
+            <div className="text-gray-500">No activities yet.</div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
               <div className="lg:col-span-2 space-y-4">
                 <div className="p-5 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
-                  <div className="text-xs text-gray-500 mb-2">Question {idx + 1} of {questions.length}</div>
+                  <div className="text-xs text-gray-500 mb-2">
+                    Activity {idx + 1} of {activities.length}
+                  </div>
                   <div className="prose dark:prose-invert max-w-none">
                     {promptChunks.map((line, i) => (
                       <p key={i}>{line}</p>
@@ -105,9 +105,9 @@ export default function StudentListPlayer() {
                 </div>
 
                 <div className="p-5 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 space-y-3">
-                  {q?.type === 'MCQ' ? (
+                  {activity?.type === 'MCQ' ? (
                     <div className="grid grid-cols-1 gap-2">
-                      {q.options?.choices?.map((opt, i) => (
+                      {activity.options?.choices?.map((choice, i) => (
                         <label
                           key={i}
                           className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition ${
@@ -123,7 +123,7 @@ export default function StudentListPlayer() {
                             checked={mcq === i}
                             onChange={() => setMcq(i)}
                           />
-                          <span className="font-medium">{String.fromCharCode(65 + i)}.</span> {opt}
+                          <span className="font-medium">{String.fromCharCode(65 + i)}.</span> {choice}
                         </label>
                       ))}
                     </div>
@@ -141,7 +141,10 @@ export default function StudentListPlayer() {
                   <div className="flex gap-2">
                     <button
                       onClick={submit}
-                      disabled={submitting || (q?.type === 'MCQ' ? mcq === null : text.trim() === '')}
+                      disabled={
+                        submitting ||
+                        (activity?.type === 'MCQ' ? mcq === null : text.trim() === '')
+                      }
                       className="px-4 py-2 rounded-xl font-semibold text-white bg-gradient-to-r from-amber-600 to-orange-600 disabled:opacity-50 shadow"
                     >
                       {submitting ? 'Submitting…' : 'Submit'}
@@ -163,7 +166,7 @@ export default function StudentListPlayer() {
                       </button>
                       <button
                         disabled={!canNext}
-                        onClick={() => setIdx((i) => Math.min(questions.length - 1, i + 1))}
+                        onClick={() => setIdx((i) => Math.min(activities.length - 1, i + 1))}
                         className="px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 disabled:opacity-50"
                       >
                         Next
@@ -190,9 +193,9 @@ export default function StudentListPlayer() {
                     </p>
                   ) : (
                     <ul className="space-y-2">
-                      {assistant.map((h, i) => (
+                      {assistant.map((hint, i) => (
                         <li key={i} className="text-sm bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-3">
-                          {h}
+                          {hint}
                         </li>
                       ))}
                     </ul>
@@ -206,3 +209,4 @@ export default function StudentListPlayer() {
     </ProtectedRoute>
   );
 }
+

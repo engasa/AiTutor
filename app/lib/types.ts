@@ -7,31 +7,49 @@ export type User = {
   role: Role;
 };
 
+export type CourseStatus = 'DRAFT' | 'ACTIVE' | 'ARCHIVED';
+
 export type Course = {
   id: number;
   title: string;
-  description: string;
-  color?: string | null;
-};
-
-export type Topic = {
-  id: number;
-  name: string;
   description?: string | null;
-  courseId: number;
+  status: CourseStatus;
+  startDate?: string | null;
+  endDate?: string | null;
+  templateId?: number | null;
 };
 
-export type QuestionList = {
+export type Module = {
   id: number;
   title: string;
-  topicId: number;
+  description?: string | null;
+  position: number;
+  templateId?: number | null;
 };
 
-export type Question = {
+export type ModuleDetail = Module & {
+  courseOfferingId: number;
+};
+
+export type Lesson = {
   id: number;
+  title: string;
+  contentMd?: string | null;
+  position: number;
+  templateId?: number | null;
+};
+
+export type Activity = {
+  id: number;
+  title?: string | null;
+  instructionsMd: string;
+  position: number;
   prompt: string;
   type: 'MCQ' | 'SHORT_TEXT';
   options: { choices?: string[] } | null;
+  answer?: any;
   hints: string[];
+  activityTypeId: number;
+  promptTemplateId?: number | null;
+  templateId?: number | null;
 };
-

@@ -4,18 +4,17 @@ import { useNavigate, useParams } from 'react-router';
 import Nav from '../components/Nav';
 import ProtectedRoute from '../components/ProtectedRoute';
 import api from '../lib/api';
-import type { Question } from '../lib/types';
+import type { Activity, Lesson } from '../lib/types';
 import { requireUser } from '../hooks/useLocalUser';
 
-export default function InstructorListBuilder() {
+export default function InstructorLessonBuilder() {
   const navigate = useNavigate();
-  const { listId } = useParams();
+  const { lessonId } = useParams();
   const user = requireUser('INSTRUCTOR');
-  const [title, setTitle] = useState('');
-  const [questions, setQuestions] = useState<Question[]>([]);
+  const [lesson, setLesson] = useState<Lesson | null>(null);
+  const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // form state
   const [type, setType] = useState<'MCQ' | 'SHORT_TEXT'>('MCQ');
   const [prompt, setPrompt] = useState('');
   const [choices, setChoices] = useState<string[]>(['', '', '', '']);
@@ -25,28 +24,28 @@ export default function InstructorListBuilder() {
   const [busy, setBusy] = useState(false);
 
   const refresh = () => {
-    if (!listId) return;
+    if (!lessonId) return;
     setLoading(true);
-    Promise.all([api.listById(Number(listId)), api.questionsForList(Number(listId))])
-      .then(([l, qs]) => {
-        setTitle(l.title);
-        setQuestions(qs);
+    Promise.all([api.lessonById(Number(lessonId)), api.activitiesForLesson(Number(lessonId))])
+      .then(([lessonData, activityData]) => {
+        setLesson(lessonData);
+        setActivities(activityData);
       })
       .finally(() => setLoading(false));
   };
 
   useEffect(() => {
-    if (!user || !listId) return;
+    if (!user || !lessonId) return;
     refresh();
-  }, [listId]);
+  }, [lessonId, user?.id]);
 
   const onAdd = async (e: FormEvent) => {
     e.preventDefault();
-    if (!listId || !prompt.trim()) return;
+    if (!lessonId || !prompt.trim()) return;
     setBusy(true);
     try {
       if (type === 'MCQ') {
-        await api.createQuestion(Number(listId), {
+        await api.createActivity(Number(lessonId), {
           prompt: prompt.trim(),
           type,
           options: { choices },
@@ -54,20 +53,21 @@ export default function InstructorListBuilder() {
           hints: hint.trim() ? [hint.trim()] : [],
         });
       } else {
-        await api.createQuestion(Number(listId), {
+        await api.createActivity(Number(lessonId), {
           prompt: prompt.trim(),
           type,
           answer: { text: textAnswer.trim() },
           hints: hint.trim() ? [hint.trim()] : [],
         });
       }
-      // reset
       setPrompt('');
       setChoices(['', '', '', '']);
       setCorrect(0);
       setTextAnswer('');
       setHint('');
       refresh();
+    } catch (error) {
+      console.error('Failed to add activity', error);
     } finally {
       setBusy(false);
     }
@@ -81,22 +81,22 @@ export default function InstructorListBuilder() {
           <button onClick={() => navigate(-1)} className="text-sm text-gray-600 hover:underline">
             ← Back
           </button>
-          <h2 className="text-2xl font-bold mb-4">{title || 'List'}</h2>
+          <h2 className="text-2xl font-bold mb-4">{lesson?.title || 'Lesson'}</h2>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
             <div className="lg:col-span-2 space-y-4">
               <div className="p-5 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
-                <div className="font-semibold mb-2">Questions</div>
+                <div className="font-semibold mb-2">Activities</div>
                 {loading ? (
                   <div className="text-gray-500">Loading…</div>
-                ) : questions.length === 0 ? (
-                  <div className="text-gray-500">No questions yet.</div>
+                ) : activities.length === 0 ? (
+                  <div className="text-gray-500">No activities yet.</div>
                 ) : (
                   <ul className="space-y-2">
-                    {questions.map((q, i) => (
-                      <li key={q.id} className="p-3 rounded-xl border border-gray-200 dark:border-gray-800">
-                        <div className="text-xs text-gray-500">#{i + 1} • {q.type}</div>
-                        <div className="font-medium">{q.prompt}</div>
+                    {activities.map((activity, i) => (
+                      <li key={activity.id} className="p-3 rounded-xl border border-gray-200 dark:border-gray-800">
+                        <div className="text-xs text-gray-500">#{i + 1} • {activity.type}</div>
+                        <div className="font-medium">{activity.prompt}</div>
                       </li>
                     ))}
                   </ul>
@@ -106,14 +106,14 @@ export default function InstructorListBuilder() {
 
             <aside>
               <form onSubmit={onAdd} className="p-5 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 space-y-3">
-                <div className="font-semibold">Add Question</div>
+                <div className="font-semibold">Add Activity</div>
                 <div className="flex gap-2 text-sm">
                   <label className={`px-3 py-1 rounded-full cursor-pointer ${type === 'MCQ' ? 'bg-sky-100 dark:bg-sky-900' : 'bg-gray-100 dark:bg-gray-800'}`}>
-                    <input type="radio" name="type" className="sr-only" checked={type==='MCQ'} onChange={() => setType('MCQ')} />
+                    <input type="radio" name="type" className="sr-only" checked={type === 'MCQ'} onChange={() => setType('MCQ')} />
                     MCQ
                   </label>
                   <label className={`px-3 py-1 rounded-full cursor-pointer ${type === 'SHORT_TEXT' ? 'bg-sky-100 dark:bg-sky-900' : 'bg-gray-100 dark:bg-gray-800'}`}>
-                    <input type="radio" name="type" className="sr-only" checked={type==='SHORT_TEXT'} onChange={() => setType('SHORT_TEXT')} />
+                    <input type="radio" name="type" className="sr-only" checked={type === 'SHORT_TEXT'} onChange={() => setType('SHORT_TEXT')} />
                     Short Text
                   </label>
                 </div>
@@ -122,11 +122,11 @@ export default function InstructorListBuilder() {
                 </div>
                 {type === 'MCQ' ? (
                   <div className="space-y-2">
-                    {choices.map((c, i) => (
+                    {choices.map((choice, i) => (
                       <div key={i} className="flex gap-2 items-center">
                         <input
-                          value={c}
-                          onChange={(e) => setChoices((arr) => arr.map((x, idx) => (idx === i ? e.target.value : x)))}
+                          value={choice}
+                          onChange={(e) => setChoices((arr) => arr.map((value, idx) => (idx === i ? e.target.value : value)))}
                           placeholder={`Choice ${i + 1}`}
                           className="flex-1 px-3 py-2 rounded-xl border border-gray-300 dark:border-gray-700 bg-transparent"
                         />
@@ -142,7 +142,7 @@ export default function InstructorListBuilder() {
                 )}
                 <input value={hint} onChange={(e) => setHint(e.target.value)} placeholder="Optional hint…" className="w-full px-3 py-2 rounded-xl border border-gray-300 dark:border-gray-700 bg-transparent" />
                 <button disabled={busy || !prompt.trim()} className="w-full px-4 py-2 rounded-xl text-white font-semibold bg-gradient-to-r from-indigo-600 to-fuchsia-600 disabled:opacity-50">
-                  {busy ? 'Adding…' : 'Add Question'}
+                  {busy ? 'Adding…' : 'Add Activity'}
                 </button>
               </form>
             </aside>
@@ -152,3 +152,4 @@ export default function InstructorListBuilder() {
     </ProtectedRoute>
   );
 }
+

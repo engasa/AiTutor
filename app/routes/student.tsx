@@ -16,7 +16,7 @@ export default function StudentHome() {
     if (!user) return;
     setLoading(true);
     api
-      .coursesForUser(user.id)
+      .listCourses()
       .then((data) => setCourses(data))
       .catch((error) => {
         console.error('Failed to load courses:', error);
@@ -32,20 +32,18 @@ export default function StudentHome() {
           <h2 className="text-2xl font-bold mb-4">My Courses</h2>
           {loading ? (
             <div className="text-gray-500">Loading…</div>
+          ) : courses.length === 0 ? (
+            <div className="text-gray-500">No courses assigned yet.</div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {courses.map((c) => (
+              {courses.map((course) => (
                 <button
-                  key={c.id}
-                  onClick={() => navigate(`/student/courses/${c.id}`)}
+                  key={course.id}
+                  onClick={() => navigate(`/student/courses/${course.id}`)}
                   className="text-left p-5 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-950/60 hover:shadow-md transition group"
                 >
-                  <div
-                    className="w-12 h-12 rounded-xl mb-3"
-                    style={{ background: c.color || '#8B5CF6' }}
-                  />
-                  <div className="font-semibold group-hover:underline">{c.title}</div>
-                  <div className="text-sm text-gray-500">{c.description}</div>
+                  <div className="font-semibold group-hover:underline">{course.title}</div>
+                  {course.description && <div className="text-sm text-gray-500">{course.description}</div>}
                 </button>
               ))}
             </div>
