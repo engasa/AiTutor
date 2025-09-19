@@ -107,7 +107,7 @@ export const api = {
     lessonId: number,
     payload: {
       title?: string;
-      prompt: string;
+      question: string;
       type?: 'MCQ' | 'SHORT_TEXT';
       options?: { choices?: string[] } | null;
       answer?: any;

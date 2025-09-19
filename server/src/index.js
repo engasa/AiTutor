@@ -218,7 +218,7 @@ function mapActivity(activity) {
     activityTypeId: activity.activityTypeId,
     promptTemplateId: activity.promptTemplateId,
     templateId: activity.templateId,
-    prompt: config.prompt ?? activity.instructionsMd,
+    question: config.question ?? config.prompt ?? activity.instructionsMd,
     type: config.questionType ?? 'MCQ',
     options: config.options ?? null,
     answer: config.answer ?? null,
@@ -246,7 +246,7 @@ function evaluateQuestion(activity, payload) {
   }
 
   const hints = Array.isArray(config.hints) ? config.hints : [];
-  const assistantCue = hints.length > 0 ? hints[0] : 'Reflect on the key ideas in the prompt.';
+  const assistantCue = hints.length > 0 ? hints[0] : 'Reflect on the key ideas in the question.';
 
   return {
     isCorrect,
@@ -662,23 +662,36 @@ app.post('/api/lessons/:lessonId/activities', requireRole('INSTRUCTOR'), async (
     return res.status(400).json({ error: 'Invalid lesson id' });
   }
 
-  const { title, prompt, type, options, answer, hints, instructionsMd, activityTypeId, promptTemplateId } =
+  const {
+    title,
+    question,
+    prompt,
+    type,
+    options,
+    answer,
+    hints,
+    instructionsMd,
+    activityTypeId,
+    promptTemplateId,
+  } =
     req.body || {};
 
-  if (!prompt) {
-    return res.status(400).json({ error: 'prompt required' });
+  const questionText = question ?? prompt;
+
+  if (!questionText) {
+    return res.status(400).json({ error: 'question required' });
   }
 
   try {
     const activity = await prisma.activity.create({
       data: {
         title: title ?? null,
-        instructionsMd: instructionsMd ?? 'Answer the prompt.',
+        instructionsMd: instructionsMd ?? 'Answer the question.',
         lessonId,
         activityTypeId: activityTypeId ?? (await defaultActivityTypeId()),
         promptTemplateId: promptTemplateId ?? null,
         config: {
-          prompt,
+          question: questionText,
           questionType: type ?? 'MCQ',
           options: options ?? null,
           answer: answer ?? null,

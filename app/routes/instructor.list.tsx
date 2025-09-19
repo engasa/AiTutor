@@ -16,7 +16,7 @@ export default function InstructorLessonBuilder() {
   const [loading, setLoading] = useState(true);
 
   const [type, setType] = useState<'MCQ' | 'SHORT_TEXT'>('MCQ');
-  const [prompt, setPrompt] = useState('');
+  const [question, setQuestion] = useState('');
   const [choices, setChoices] = useState<string[]>(['', '', '', '']);
   const [correct, setCorrect] = useState<number>(0);
   const [textAnswer, setTextAnswer] = useState('');
@@ -41,12 +41,12 @@ export default function InstructorLessonBuilder() {
 
   const onAdd = async (e: FormEvent) => {
     e.preventDefault();
-    if (!lessonId || !prompt.trim()) return;
+    if (!lessonId || !question.trim()) return;
     setBusy(true);
     try {
       if (type === 'MCQ') {
         await api.createActivity(Number(lessonId), {
-          prompt: prompt.trim(),
+          question: question.trim(),
           type,
           options: { choices },
           answer: { correctIndex: correct },
@@ -54,13 +54,13 @@ export default function InstructorLessonBuilder() {
         });
       } else {
         await api.createActivity(Number(lessonId), {
-          prompt: prompt.trim(),
+          question: question.trim(),
           type,
           answer: { text: textAnswer.trim() },
           hints: hint.trim() ? [hint.trim()] : [],
         });
       }
-      setPrompt('');
+      setQuestion('');
       setChoices(['', '', '', '']);
       setCorrect(0);
       setTextAnswer('');
@@ -96,7 +96,7 @@ export default function InstructorLessonBuilder() {
                     {activities.map((activity, i) => (
                       <li key={activity.id} className="p-3 rounded-xl border border-gray-200 dark:border-gray-800">
                         <div className="text-xs text-gray-500">#{i + 1} • {activity.type}</div>
-                        <div className="font-medium">{activity.prompt}</div>
+                        <div className="font-medium">{activity.question}</div>
                       </li>
                     ))}
                   </ul>
@@ -118,7 +118,7 @@ export default function InstructorLessonBuilder() {
                   </label>
                 </div>
                 <div>
-                  <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Prompt…" className="w-full px-3 py-2 rounded-xl border border-gray-300 dark:border-gray-700 bg-transparent" />
+                  <textarea value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Question…" className="w-full px-3 py-2 rounded-xl border border-gray-300 dark:border-gray-700 bg-transparent" />
                 </div>
                 {type === 'MCQ' ? (
                   <div className="space-y-2">
@@ -141,7 +141,7 @@ export default function InstructorLessonBuilder() {
                   <input value={textAnswer} onChange={(e) => setTextAnswer(e.target.value)} placeholder="Expected answer…" className="w-full px-3 py-2 rounded-xl border border-gray-300 dark:border-gray-700 bg-transparent" />
                 )}
                 <input value={hint} onChange={(e) => setHint(e.target.value)} placeholder="Optional hint…" className="w-full px-3 py-2 rounded-xl border border-gray-300 dark:border-gray-700 bg-transparent" />
-                <button disabled={busy || !prompt.trim()} className="w-full px-4 py-2 rounded-xl text-white font-semibold bg-gradient-to-r from-indigo-600 to-fuchsia-600 disabled:opacity-50">
+                <button disabled={busy || !question.trim()} className="w-full px-4 py-2 rounded-xl text-white font-semibold bg-gradient-to-r from-indigo-600 to-fuchsia-600 disabled:opacity-50">
                   {busy ? 'Adding…' : 'Add Activity'}
                 </button>
               </form>
@@ -152,4 +152,3 @@ export default function InstructorLessonBuilder() {
     </ProtectedRoute>
   );
 }
-

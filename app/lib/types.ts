@@ -44,7 +44,7 @@ export type Activity = {
   title?: string | null;
   instructionsMd: string;
   position: number;
-  prompt: string;
+  question: string;
   type: 'MCQ' | 'SHORT_TEXT';
   options: { choices?: string[] } | null;
   answer?: any;

@@ -44,7 +44,7 @@ export default function StudentLessonPlayer() {
   const canNext = idx < activities.length - 1;
   const canPrev = idx > 0;
 
-  const promptChunks = useMemo(() => (activity?.prompt || '').split(/\n/), [activity?.prompt]);
+  const questionChunks = useMemo(() => (activity?.question || '').split(/\n/), [activity?.question]);
 
   const submit = async () => {
     if (!activity || !user) return;
@@ -98,7 +98,7 @@ export default function StudentLessonPlayer() {
                     Activity {idx + 1} of {activities.length}
                   </div>
                   <div className="prose dark:prose-invert max-w-none">
-                    {promptChunks.map((line, i) => (
+                    {questionChunks.map((line, i) => (
                       <p key={i}>{line}</p>
                     ))}
                   </div>
@@ -209,4 +209,3 @@ export default function StudentLessonPlayer() {
     </ProtectedRoute>
   );
 }
-

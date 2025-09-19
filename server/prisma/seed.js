@@ -113,9 +113,10 @@ async function createActivityFoundation() {
   };
 }
 
-function knowledgeCheckConfig({ prompt, type, options, answer, hints }) {
+function knowledgeCheckConfig({ question, prompt, type, options, answer, hints }) {
+  const questionText = question ?? prompt;
   return {
-    prompt,
+    question: questionText,
     questionType: type,
     options: options ?? null,
     answer: answer ?? null,
@@ -123,9 +124,10 @@ function knowledgeCheckConfig({ prompt, type, options, answer, hints }) {
   };
 }
 
-function debuggingConfig({ prompt, context, answer, hints }) {
+function debuggingConfig({ question, prompt, context, answer, hints }) {
+  const questionText = question ?? prompt;
   return {
-    prompt,
+    question: questionText,
     debugContext: context,
     questionType: 'SHORT_TEXT',
     answer: answer ?? null,
@@ -159,7 +161,7 @@ async function createCourseTemplates({ knowledgeCheck, debugging, knowledgePromp
                         activityTypeId: knowledgeCheck.id,
                         promptTemplateId: knowledgePrompt.id,
                         config: knowledgeCheckConfig({
-                          prompt: 'Which sorting algorithm has average O(n log n) time and uses partitioning?',
+                          question: 'Which sorting algorithm has average O(n log n) time and uses partitioning?',
                           type: 'MCQ',
                           options: ['Insertion Sort', 'Merge Sort', 'Quick Sort', 'Bubble Sort'],
                           answer: { correctIndex: 2 },
@@ -176,7 +178,7 @@ async function createCourseTemplates({ knowledgeCheck, debugging, knowledgePromp
                         activityTypeId: knowledgeCheck.id,
                         promptTemplateId: knowledgePrompt.id,
                         config: knowledgeCheckConfig({
-                          prompt: 'Stable sorting: which of these is stable by default?',
+                          question: 'Stable sorting: which of these is stable by default?',
                           type: 'MCQ',
                           options: ['Quick Sort', 'Heap Sort', 'Merge Sort', 'Selection Sort'],
                           answer: { correctIndex: 2 },
@@ -208,7 +210,7 @@ async function createCourseTemplates({ knowledgeCheck, debugging, knowledgePromp
                         activityTypeId: knowledgeCheck.id,
                         promptTemplateId: knowledgePrompt.id,
                         config: knowledgeCheckConfig({
-                          prompt: 'DFS uses which data structure for traversal?',
+                          question: 'DFS uses which data structure for traversal?',
                           type: 'MCQ',
                           options: ['Queue', 'Stack', 'Priority Queue', 'Hash Set'],
                           answer: { correctIndex: 1 },
@@ -231,7 +233,7 @@ async function createCourseTemplates({ knowledgeCheck, debugging, knowledgePromp
                         activityTypeId: debugging.id,
                         promptTemplateId: debuggingPrompt.id,
                         config: debuggingConfig({
-                          prompt: 'The DFS function revisits nodes endlessly. What is missing?',
+                          question: 'The DFS function revisits nodes endlessly. What is missing?',
                           context:
                             'function dfs(node) {\n  for (const neighbor of graph[node]) {\n    dfs(neighbor);\n  }\n}\nconsole.log(dfs(0));',
                           answer: { text: 'Mark nodes as visited before recursing.' },
@@ -266,7 +268,7 @@ async function createCourseTemplates({ knowledgeCheck, debugging, knowledgePromp
                         activityTypeId: knowledgeCheck.id,
                         promptTemplateId: knowledgePrompt.id,
                         config: knowledgeCheckConfig({
-                          prompt: 'In the Fibonacci sequence, what subproblem repeats and benefits from memoization?',
+                          question: 'In the Fibonacci sequence, what subproblem repeats and benefits from memoization?',
                           type: 'SHORT_TEXT',
                           answer: { text: 'Computing smaller Fibonacci numbers like F(n-1) and F(n-2).' },
                           hints: ['Look at recursive calls inside fib(n).'],
@@ -319,7 +321,7 @@ async function createCourseTemplates({ knowledgeCheck, debugging, knowledgePromp
                         activityTypeId: knowledgeCheck.id,
                         promptTemplateId: knowledgePrompt.id,
                         config: knowledgeCheckConfig({
-                          prompt: 'What is the dot product of (1,2) and (3,4)? Provide a number.',
+                          question: 'What is the dot product of (1,2) and (3,4)? Provide a number.',
                           type: 'SHORT_TEXT',
                           answer: { text: '11' },
                           hints: ['Multiply corresponding entries and add them.'],
@@ -350,7 +352,7 @@ async function createCourseTemplates({ knowledgeCheck, debugging, knowledgePromp
                         activityTypeId: knowledgeCheck.id,
                         promptTemplateId: knowledgePrompt.id,
                         config: knowledgeCheckConfig({
-                          prompt: 'Can a 2x3 matrix multiply a 3x4 matrix? Answer yes or no.',
+                          question: 'Can a 2x3 matrix multiply a 3x4 matrix? Answer yes or no.',
                           type: 'SHORT_TEXT',
                           answer: { text: 'yes' },
                           hints: ['Match the inner dimensions.'],
@@ -403,7 +405,7 @@ async function createCourseTemplates({ knowledgeCheck, debugging, knowledgePromp
                         activityTypeId: knowledgeCheck.id,
                         promptTemplateId: knowledgePrompt.id,
                         config: knowledgeCheckConfig({
-                          prompt: 'A displacement-time graph has a constant positive slope. What can you say about velocity?',
+                          question: 'A displacement-time graph has a constant positive slope. What can you say about velocity?',
                           type: 'SHORT_TEXT',
                           answer: { text: 'Velocity is constant and positive.' },
                           hints: ['Slope of displacement-time equals velocity.'],
@@ -756,7 +758,7 @@ async function main() {
       activityTypeId: activityFoundation.debugging.id,
       promptTemplateId: activityFoundation.debuggingPrompt.id,
       config: debuggingConfig({
-        prompt: 'The DFS still revisits nodes after marking them visited inside recursion. What is wrong?',
+        question: 'The DFS still revisits nodes after marking them visited inside recursion. What is wrong?',
         context:
           'function dfs(node) {\n  visited.add(node);\n  for (const neighbor of graph[node]) {\n    if (!visited.has(neighbor)) {\n      dfs(node); // BUG\n    }\n  }\n}\n',
         answer: { text: 'Should recurse on neighbor, not node.' },
