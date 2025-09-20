@@ -299,13 +299,10 @@ export default function InstructorLessonBuilder() {
                             <div className="text-xs text-gray-500">#{i + 1} • {activity.type}</div>
                             <div className="font-medium whitespace-pre-wrap">{activity.question}</div>
                           </div>
-                          <div className="rounded-xl border border-dashed border-purple-200/70 dark:border-purple-900/60 bg-purple-50/50 dark:bg-purple-950/20 p-3">
-                            <div className="flex items-center justify-between text-xs font-semibold text-purple-700 dark:text-purple-300">
-                              <span>Prompt</span>
-                              <span className="text-[0.7rem] font-normal text-purple-500 dark:text-purple-200">
-                                {activity.promptTemplate?.name ?? 'None selected'}
-                              </span>
-                            </div>
+                           <div className="rounded-xl border border-dashed border-purple-200/70 dark:border-purple-900/60 bg-purple-50/50 dark:bg-purple-950/20 p-3">
+                             <div className="text-xs font-semibold text-purple-700 dark:text-purple-300">
+                               <span>Prompt</span>
+                             </div>
                             <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
                               <select
                                 value={activity.promptTemplateId ?? ''}
