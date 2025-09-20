@@ -209,7 +209,7 @@ function mapLesson(lesson) {
 }
 
 function mapActivity(activity) {
-  const config = (activity.config ?? {});
+  const config = activity.config ?? {};
   return {
     id: activity.id,
     title: activity.title,
@@ -217,6 +217,9 @@ function mapActivity(activity) {
     position: activity.position,
     activityTypeId: activity.activityTypeId,
     promptTemplateId: activity.promptTemplateId,
+    promptTemplate: activity.promptTemplate
+      ? { id: activity.promptTemplate.id, name: activity.promptTemplate.name }
+      : null,
     templateId: activity.templateId,
     question: config.question ?? config.prompt ?? activity.instructionsMd,
     type: config.questionType ?? 'MCQ',
@@ -649,6 +652,9 @@ app.get('/api/lessons/:lessonId/activities', async (req, res) => {
     const activities = await prisma.activity.findMany({
       where: { lessonId },
       orderBy: { position: 'asc' },
+      include: {
+        promptTemplate: { select: { id: true, name: true } },
+      },
     });
     res.json(activities.map(mapActivity));
   } catch (e) {
@@ -698,6 +704,9 @@ app.post('/api/lessons/:lessonId/activities', requireRole('INSTRUCTOR'), async (
           hints: Array.isArray(hints) ? hints : [],
         },
       },
+      include: {
+        promptTemplate: { select: { id: true, name: true } },
+      },
     });
 
     res.status(201).json(mapActivity(activity));
@@ -714,6 +723,151 @@ async function defaultActivityTypeId() {
   cachedDefaultActivityTypeId = type.id;
   return type.id;
 }
+
+app.get('/api/activity-types', requireRole('INSTRUCTOR'), async (req, res) => {
+  try {
+    const activityTypes = await prisma.activityType.findMany({
+      orderBy: { name: 'asc' },
+    });
+    res.json(activityTypes);
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+app.get('/api/prompts', requireRole('INSTRUCTOR'), async (req, res) => {
+  try {
+    const prompts = await prisma.promptTemplate.findMany({
+      orderBy: { updatedAt: 'desc' },
+      include: {
+        activityType: { select: { id: true, name: true } },
+      },
+    });
+    res.json(prompts);
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+app.post('/api/prompts', requireRole('INSTRUCTOR'), async (req, res) => {
+  const {
+    name,
+    systemPrompt,
+    userPrompt,
+    activityTypeId,
+    temperature,
+    topP,
+  } = req.body || {};
+
+  if (!name || !systemPrompt || !userPrompt) {
+    return res.status(400).json({ error: 'name, systemPrompt, and userPrompt are required' });
+  }
+
+  let resolvedActivityTypeId = null;
+  try {
+    if (typeof activityTypeId === 'number') {
+      const exists = await prisma.activityType.findUnique({ where: { id: activityTypeId } });
+      if (!exists) {
+        return res.status(400).json({ error: 'Invalid activityTypeId' });
+      }
+      resolvedActivityTypeId = activityTypeId;
+    } else {
+      resolvedActivityTypeId = await defaultActivityTypeId();
+    }
+  } catch (e) {
+    return res.status(500).json({ error: String(e) });
+  }
+
+  try {
+    const prompt = await prisma.promptTemplate.create({
+      data: {
+        name,
+        systemPrompt,
+        userPrompt,
+        activityTypeId: resolvedActivityTypeId,
+        temperature: typeof temperature === 'number' ? temperature : null,
+        topP: typeof topP === 'number' ? topP : null,
+      },
+      include: {
+        activityType: { select: { id: true, name: true } },
+      },
+    });
+    res.status(201).json(prompt);
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+app.patch('/api/activities/:activityId', requireRole('INSTRUCTOR'), async (req, res) => {
+  const instructor = req.user;
+  const activityId = Number(req.params.activityId);
+  if (!Number.isFinite(activityId)) {
+    return res.status(400).json({ error: 'Invalid activity id' });
+  }
+
+  const { promptTemplateId } = req.body || {};
+  if (typeof promptTemplateId === 'undefined') {
+    return res.status(400).json({ error: 'promptTemplateId is required' });
+  }
+
+  try {
+    const activity = await prisma.activity.findUnique({
+      where: { id: activityId },
+      include: {
+        lesson: {
+          include: {
+            module: {
+              include: {
+                courseOffering: {
+                  include: { instructors: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!activity) {
+      return res.status(404).json({ error: 'Activity not found' });
+    }
+
+    const isInstructor = activity.lesson.module.courseOffering.instructors.some(
+      (assignment) => assignment.userId === instructor.id,
+    );
+
+    if (!isInstructor) {
+      return res.status(403).json({ error: 'Not authorized for this activity' });
+    }
+
+    let resolvedPromptId = null;
+    if (promptTemplateId === null) {
+      resolvedPromptId = null;
+    } else if (typeof promptTemplateId === 'number') {
+      const prompt = await prisma.promptTemplate.findUnique({
+        where: { id: promptTemplateId },
+      });
+      if (!prompt) {
+        return res.status(400).json({ error: 'Invalid promptTemplateId' });
+      }
+      resolvedPromptId = promptTemplateId;
+    } else {
+      return res.status(400).json({ error: 'promptTemplateId must be a number or null' });
+    }
+
+    const updated = await prisma.activity.update({
+      where: { id: activityId },
+      data: { promptTemplateId: resolvedPromptId },
+      include: {
+        promptTemplate: { select: { id: true, name: true } },
+      },
+    });
+
+    res.json(mapActivity(updated));
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
 
 app.post('/api/questions/:id/answer', async (req, res) => {
   const activityId = Number(req.params.id);

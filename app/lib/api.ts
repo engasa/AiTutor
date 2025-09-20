@@ -114,11 +114,21 @@ export const api = {
       hints?: string[];
       instructionsMd?: string;
       activityTypeId?: number;
-      promptTemplateId?: number;
+      promptTemplateId?: number | null;
     }
   ) =>
     http(`/api/lessons/${lessonId}/activities`, {
       method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  updateActivity: (
+    activityId: number,
+    payload: {
+      promptTemplateId: number | null;
+    }
+  ) =>
+    http(`/api/activities/${activityId}`, {
+      method: 'PATCH',
       body: JSON.stringify(payload),
     }),
   submitAnswer: (activityId: number, payload: any) =>
@@ -128,6 +138,20 @@ export const api = {
     }),
   listTemplates: () => http('/api/templates'),
   templateById: (templateId: number) => http(`/api/templates/${templateId}`),
+  listPrompts: () => http('/api/prompts'),
+  createPrompt: (payload: {
+    name: string;
+    systemPrompt: string;
+    userPrompt: string;
+    activityTypeId?: number;
+    temperature?: number | null;
+    topP?: number | null;
+  }) =>
+    http('/api/prompts', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  listActivityTypes: () => http('/api/activity-types'),
 };
 
 export default api;

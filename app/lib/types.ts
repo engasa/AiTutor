@@ -51,5 +51,23 @@ export type Activity = {
   hints: string[];
   activityTypeId: number;
   promptTemplateId?: number | null;
+  promptTemplate?: { id: number; name: string } | null;
   templateId?: number | null;
+};
+
+export type ActivityType = {
+  id: number;
+  name: string;
+  description?: string | null;
+};
+
+export type PromptTemplate = {
+  id: number;
+  name: string;
+  systemPrompt: string;
+  userPrompt: string;
+  temperature?: number | null;
+  topP?: number | null;
+  activityTypeId: number;
+  activityType?: ActivityType | null;
 };

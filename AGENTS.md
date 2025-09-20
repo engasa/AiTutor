@@ -1,36 +1,34 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `app/`: React Router front end (routes, components, hooks, lib, `root.tsx`, `app.css`). Route modules use dot-delimited names (e.g., `app/routes/instructor.list.tsx`).
-- `server/`: Node/Express API with Prisma (`src/`, `prisma/`, `.env`).
-- `public/`: Static assets. `build/`: output after `npm run build` (`client/` and `server/`).
-- Top-level config: `react-router.config.ts`, `vite.config.ts`, `tsconfig.json`, Docker files.
+- `app/`: React Router v7 front end (routes, components, hooks, lib, `root.tsx`, styling via `app.css`). Route files use dot-delimited lowercase names (e.g., `app/routes/instructor.list.tsx`).
+- `server/`: Express + Prisma API (`src/` handlers, `middleware/`, `prisma/` schema, seeds). Runs independently from the web client.
+- `public/`: Static assets shipped with the client bundle. `build/` is generated output after `npm run build` with `client/` and `server/` subdirectories.
+- Top-level config: `react-router.config.ts`, `vite.config.ts`, `tsconfig.json`, Docker manifests, and docs such as this guide.
 
 ## Build, Test, and Development Commands
-- Install deps: `npm install` (root) and optionally `cd server && npm install`.
-- Start DB: `docker compose up -d db` (Postgres on `localhost:54321`).
-- Migrate/seed: `cd server && npx prisma migrate deploy && npm run seed`.
-- API dev: `cd server && npm run dev` (http://localhost:4000).
-- Web dev: `npm run dev` (http://localhost:5173). Override API with `VITE_API_URL`.
-- Type check: `npm run typecheck`.
-- Build: `npm run build`. Serve built app: `npm start` (uses `./build/server/index.js`).
+- `npm install` (root) and `cd server && npm install`: install client and API dependencies.
+- `docker compose up -d db`: start the Postgres container on `localhost:54321`.
+- `cd server && npx prisma migrate deploy && npm run seed`: apply migrations and seed demo data.
+- `npm run dev`: start the React Router dev server at `http://localhost:5173`.
+- `cd server && npm run dev`: run the Express API on `http://localhost:4000`.
+- `npm run build`: produce SSR-ready output in `./build`.
+- `npm run typecheck`: generate route types and run the TypeScript compiler (Node 20+ required).
 
 ## Coding Style & Naming Conventions
-- TypeScript + ESM; 2-space indentation; trailing commas where sensible.
-- Components: PascalCase (e.g., `Nav.tsx`). Variables/functions: camelCase. Routes: lowercase dot-delimited files in `app/routes/`.
-- Styling via Tailwind CSS classes. Keep UI logic in components; data calls in `app/lib/`.
+- Language: TypeScript (ESM) on both client and server. Use 2-space indentation and trailing commas where natural.
+- Components: PascalCase (`Nav.tsx`), hooks/utilities: camelCase, routes: lowercase dot-delimited filenames.
+- Styling handled with Tailwind CSS classes; prefer utility composition over bespoke CSS.
 
 ## Testing Guidelines
-- No test runner is configured yet. If adding tests:
-  - Front end: prefer Vitest + React Testing Library under `app/__tests__/`.
-  - API: use Vitest/Jest + Supertest under `server/test/`.
-  - Aim for coverage on routes, data loaders, and API handlers. Ensure `npm run typecheck` passes.
+- No automated tests exist yet. When adding coverage, prefer Vitest + React Testing Library under `app/__tests__/` and Vitest/Jest + Supertest under `server/test/`.
+- Mirror the route or handler path in the test filename (e.g., `app/__tests__/instructor.list.test.tsx`). Ensure `npm run typecheck` passes before opening a PR.
 
 ## Commit & Pull Request Guidelines
-- Commits: short, imperative subject (e.g., "Add instructor list view"), optional scope. Group related changes.
-- PRs: clear description, rationale, and screenshots or curl examples for API changes. Link issues. Note any schema or env var changes.
-- CI not configured; before merging, verify dev servers run, build succeeds, and seed works against local Postgres.
+- Commits: concise, imperative subjects (e.g., "Add instructor prompt picker"). Group related changes and avoid mixing refactors with features.
+- Pull requests: describe motivation, summarize changes, and flag schema or env tweaks. Attach screenshots or curl examples for UI/API impact and link relevant issues.
 
 ## Security & Configuration Tips
-- Server reads `DATABASE_URL` (example: `postgresql://postgres:postgres@localhost:54321/aitutor`). Keep secrets in `server/.env` (not committed).
-- Front end can target the API with `VITE_API_URL`.
+- `.env` files live in `server/.env` and must define `DATABASE_URL` and `JWT_SECRET`; never commit secrets.
+- The frontend can target alternate APIs via `VITE_API_URL`.
+- JWT tokens expire after 24h; re-run `npm run seed` to refresh demo credentials when needed.
