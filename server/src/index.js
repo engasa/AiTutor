@@ -185,7 +185,7 @@ function mapActivity(activity) {
       : null,
     question: config.question ?? config.prompt ?? activity.instructionsMd,
     type: config.questionType ?? 'MCQ',
-    options: config.options ?? null,
+    options: config.options ? { choices: config.options } : null,
     answer: config.answer ?? null,
     hints: Array.isArray(config.hints) ? config.hints : [],
   };
