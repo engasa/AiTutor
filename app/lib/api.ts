@@ -44,8 +44,7 @@ export const api = {
   createCourse: (payload: {
     title: string;
     description?: string;
-    templateId?: number;
-    cloneContent?: boolean;
+    sourceCourseId?: number;
     startDate?: string;
     endDate?: string;
     status?: 'DRAFT' | 'ACTIVE' | 'ARCHIVED';
@@ -71,10 +70,9 @@ export const api = {
   importIntoCourse: (
     courseId: number,
     payload: {
-      templateId?: number;
-      moduleTemplateIds?: number[];
-      lessonTemplateIds?: number[];
-      sourceLessonIds?: number[];
+      sourceCourseId?: number;
+      moduleIds?: number[];
+      lessonIds?: number[];
       targetModuleId?: number;
     }
   ) =>
@@ -136,8 +134,6 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
-  listTemplates: () => http('/api/templates'),
-  templateById: (templateId: number) => http(`/api/templates/${templateId}`),
   listPrompts: () => http('/api/prompts'),
   createPrompt: (payload: {
     name: string;

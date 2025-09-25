@@ -7,12 +7,6 @@ import api from '../lib/api';
 import type { Course, CourseStatus } from '../lib/types';
 import { requireUser } from '../hooks/useLocalUser';
 
-type CourseTemplate = {
-  id: number;
-  title: string;
-  description?: string | null;
-};
-
 const statusLabels: Record<CourseStatus, string> = {
   ACTIVE: 'Active',
   DRAFT: 'Draft',
@@ -32,13 +26,11 @@ export default function InstructorHome() {
   const user = requireUser('INSTRUCTOR');
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
-  const [templates, setTemplates] = useState<CourseTemplate[]>([]);
   const [creating, setCreating] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [templateId, setTemplateId] = useState<number | ''>('');
-  const [cloneContent, setCloneContent] = useState(true);
+  const [sourceCourseId, setSourceCourseId] = useState<number | null>(null);
   const [updatingStatusId, setUpdatingStatusId] = useState<number | null>(null);
 
   const courseSections = useMemo(
@@ -57,7 +49,7 @@ export default function InstructorHome() {
     if (!user) return;
     setLoading(true);
     try {
-      const data = await api.listCourses();
+      const data: Course[] = await api.listCourses();
       setCourses(data);
     } catch (error) {
       console.error('Failed to load courses:', error);
@@ -86,14 +78,6 @@ export default function InstructorHome() {
     loadCourses();
   }, [user?.id]);
 
-  useEffect(() => {
-    if (!user) return;
-    api
-      .listTemplates()
-      .then((data) => setTemplates(data))
-      .catch((error) => console.error('Failed to load templates', error));
-  }, [user?.id]);
-
   const onCreate = async (event: FormEvent) => {
     event.preventDefault();
     if (!title.trim()) return;
@@ -102,15 +86,13 @@ export default function InstructorHome() {
       await api.createCourse({
         title: title.trim(),
         description: description.trim() ? description.trim() : undefined,
-        templateId: templateId === '' ? undefined : Number(templateId),
-        cloneContent,
-        status: cloneContent ? 'ACTIVE' : 'DRAFT',
+        sourceCourseId: sourceCourseId == null ? undefined : sourceCourseId,
+        status: sourceCourseId == null ? 'DRAFT' : 'ACTIVE',
       });
       setShowCreate(false);
       setTitle('');
       setDescription('');
-      setTemplateId('');
-      setCloneContent(true);
+      setSourceCourseId(null);
       loadCourses();
     } catch (error) {
       console.error('Failed to create course', error);
@@ -160,30 +142,26 @@ export default function InstructorHome() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold mb-1">Start from template</label>
+                <label className="block text-sm font-semibold mb-1">Clone from existing course</label>
                 <select
-                  value={templateId}
-                  onChange={(e) => setTemplateId(e.target.value ? Number(e.target.value) : '')}
+                  value={sourceCourseId ?? ''}
+                  onChange={(e) => {
+                    const nextValue = e.target.value ? Number(e.target.value) : null;
+                    setSourceCourseId(nextValue);
+                  }}
                   className="w-full px-4 py-2 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 >
-                  <option value="">Blank course</option>
-                  {templates.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.title}
+                  <option value="">Start from empty course</option>
+                  {courses.map((course) => (
+                    <option key={course.id} value={course.id}>
+                      {course.title} • {statusLabels[course.status]}
                     </option>
                   ))}
                 </select>
+                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                  Selecting a source copies its modules, lessons, and activities into the new course.
+                </p>
               </div>
-              {templateId !== '' && (
-                <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-                  <input
-                    type="checkbox"
-                    checked={cloneContent}
-                    onChange={(e) => setCloneContent(e.target.checked)}
-                  />
-                  Import modules and lessons from template
-                </label>
-              )}
               <button
                 type="submit"
                 disabled={creating || !title.trim()}

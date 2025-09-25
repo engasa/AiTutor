@@ -1,64 +1,83 @@
 import type { FormEvent } from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import Nav from '../components/Nav';
 import ProtectedRoute from '../components/ProtectedRoute';
 import api from '../lib/api';
-import type { Lesson, Module } from '../lib/types';
+import type { Course, Module } from '../lib/types';
 import { requireUser } from '../hooks/useLocalUser';
-
-type TemplateSummary = {
-  id: number;
-  title: string;
-  modules: Array<{
-    id: number;
-    title: string;
-    lessons: Array<{ id: number; title: string }>;
-  }>;
-};
 
 export default function InstructorCourseModules() {
   const navigate = useNavigate();
   const { courseId } = useParams();
   const user = requireUser('INSTRUCTOR');
+  const numericCourseId = courseId ? Number(courseId) : null;
   const [modules, setModules] = useState<Module[]>([]);
   const [loading, setLoading] = useState(true);
   const [title, setTitle] = useState('');
   const [creating, setCreating] = useState(false);
   const [showImport, setShowImport] = useState(false);
-  const [templates, setTemplates] = useState<TemplateSummary[]>([]);
-  const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
+  const [availableCourses, setAvailableCourses] = useState<Course[]>([]);
+  const [selectedSourceCourseId, setSelectedSourceCourseId] = useState<number | null>(null);
+  const [sourceModules, setSourceModules] = useState<Module[]>([]);
+  const [loadingSourceCourses, setLoadingSourceCourses] = useState(false);
+  const [loadingSourceModules, setLoadingSourceModules] = useState(false);
   const [selectedModuleIds, setSelectedModuleIds] = useState<Set<number>>(new Set());
   const [importing, setImporting] = useState(false);
 
   const loadModules = () => {
-    if (!courseId) return;
+    if (!numericCourseId) return;
     setLoading(true);
     api
-      .modulesForCourse(Number(courseId))
+      .modulesForCourse(numericCourseId)
       .then((data) => setModules(data))
       .finally(() => setLoading(false));
   };
 
   useEffect(() => {
-    if (!user || !courseId) return;
+    if (!user || !numericCourseId) return;
     loadModules();
-  }, [user?.id, courseId]);
+  }, [user?.id, numericCourseId]);
 
-  const ensureTemplatesLoaded = () => {
-    if (templates.length > 0) return;
+  const ensureSourceCoursesLoaded = () => {
+    if (availableCourses.length > 0) return;
+    setLoadingSourceCourses(true);
     api
-      .listTemplates()
-      .then((data) => setTemplates(data))
-      .catch((error) => console.error('Failed to load templates', error));
+      .listCourses()
+      .then((data: Course[]) => {
+        const nextCourses = numericCourseId
+          ? data.filter((course: Course) => course.id !== numericCourseId)
+          : data;
+        setAvailableCourses(nextCourses);
+      })
+      .catch((error) => console.error('Failed to load courses', error))
+      .finally(() => setLoadingSourceCourses(false));
   };
+
+  useEffect(() => {
+    if (selectedSourceCourseId == null) {
+      setSourceModules([]);
+      setSelectedModuleIds(new Set());
+      return;
+    }
+
+    setLoadingSourceModules(true);
+    api
+      .modulesForCourse(selectedSourceCourseId)
+      .then((data: Module[]) => {
+        setSourceModules(data);
+        setSelectedModuleIds(new Set());
+      })
+      .catch((error) => console.error('Failed to load modules for course', error))
+      .finally(() => setLoadingSourceModules(false));
+  }, [selectedSourceCourseId]);
 
   const onCreateModule = async (event: FormEvent) => {
     event.preventDefault();
-    if (!courseId || !title.trim()) return;
+    if (!numericCourseId || !title.trim()) return;
     setCreating(true);
     try {
-      await api.createModule(Number(courseId), { title: title.trim() });
+      await api.createModule(numericCourseId, { title: title.trim() });
       setTitle('');
       loadModules();
     } catch (error) {
@@ -67,12 +86,6 @@ export default function InstructorCourseModules() {
       setCreating(false);
     }
   };
-
-  const moduleOptions = useMemo(() => {
-    if (!selectedTemplateId) return [];
-    const template = templates.find((t) => t.id === selectedTemplateId);
-    return template?.modules ?? [];
-  }, [selectedTemplateId, templates]);
 
   const toggleModuleSelection = (moduleId: number) => {
     setSelectedModuleIds((prev) => {
@@ -84,15 +97,16 @@ export default function InstructorCourseModules() {
   };
 
   const onImport = async () => {
-    if (!courseId || !selectedTemplateId || selectedModuleIds.size === 0) return;
+    if (!numericCourseId || selectedSourceCourseId == null || selectedModuleIds.size === 0) return;
     setImporting(true);
     try {
-      await api.importIntoCourse(Number(courseId), {
-        templateId: selectedTemplateId,
-        moduleTemplateIds: Array.from(selectedModuleIds),
+      await api.importIntoCourse(numericCourseId, {
+        sourceCourseId: selectedSourceCourseId,
+        moduleIds: Array.from(selectedModuleIds),
       });
       setShowImport(false);
-      setSelectedTemplateId(null);
+      setSelectedSourceCourseId(null);
+      setSourceModules([]);
       setSelectedModuleIds(new Set());
       loadModules();
     } catch (error) {
@@ -115,7 +129,13 @@ export default function InstructorCourseModules() {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => {
-                  ensureTemplatesLoaded();
+                  if (!showImport) {
+                    ensureSourceCoursesLoaded();
+                  } else {
+                    setSelectedSourceCourseId(null);
+                    setSourceModules([]);
+                    setSelectedModuleIds(new Set());
+                  }
                   setShowImport((prev) => !prev);
                 }}
                 className="px-3 py-2 rounded-xl bg-purple-600 text-white text-sm font-semibold"
@@ -128,34 +148,49 @@ export default function InstructorCourseModules() {
           {showImport && (
             <div className="p-4 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/90 dark:bg-gray-950/70 shadow-sm space-y-4">
               <div>
-                <label className="block text-sm font-semibold mb-1">Select template</label>
+                <label className="block text-sm font-semibold mb-1">Choose course to copy</label>
                 <select
-                  value={selectedTemplateId ?? ''}
+                  value={selectedSourceCourseId ?? ''}
                   onChange={(e) => {
-                    const value = e.target.value ? Number(e.target.value) : null;
-                    setSelectedTemplateId(value);
-                    setSelectedModuleIds(new Set());
+                    const nextValue = e.target.value ? Number(e.target.value) : null;
+                    setSelectedSourceCourseId(nextValue);
                   }}
                   className="w-full px-3 py-2 rounded-xl border border-gray-300 dark:border-gray-700 bg-transparent"
                 >
-                  <option value="">Choose template…</option>
-                  {templates.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.title}
+                  <option value="">Select course…</option>
+                  {availableCourses.map((course) => (
+                    <option key={course.id} value={course.id}>
+                      {course.title} • {course.status}
                     </option>
                   ))}
                 </select>
+                {loadingSourceCourses && (
+                  <p className="mt-2 text-xs text-gray-500">Loading courses…</p>
+                )}
+                {!loadingSourceCourses && availableCourses.length === 0 && (
+                  <p className="mt-2 text-xs text-gray-500">
+                    You don’t have another course to copy from yet.
+                  </p>
+                )}
               </div>
 
-              {selectedTemplateId && moduleOptions.length > 0 ? (
+              {selectedSourceCourseId == null ? (
+                <p className="text-sm text-gray-500">Select a course to preview its modules.</p>
+              ) : loadingSourceModules ? (
+                <p className="text-sm text-gray-500">Loading modules…</p>
+              ) : sourceModules.length === 0 ? (
+                <p className="text-sm text-gray-500">Selected course has no modules yet.</p>
+              ) : (
                 <div className="space-y-2">
-                  <p className="text-sm text-gray-600">Select modules to import (lessons and activities included).</p>
+                  <p className="text-sm text-gray-600">
+                    Select modules to import (lessons and activities included).
+                  </p>
                   <div className="grid sm:grid-cols-2 gap-3">
-                    {moduleOptions.map((m) => (
+                    {sourceModules.map((module) => (
                       <label
-                        key={m.id}
+                        key={module.id}
                         className={`p-3 rounded-xl border cursor-pointer transition ${
-                          selectedModuleIds.has(m.id)
+                          selectedModuleIds.has(module.id)
                             ? 'border-transparent ring-2 ring-offset-2 ring-purple-500 dark:ring-offset-gray-950'
                             : 'border-gray-200 dark:border-gray-800'
                         }`}
@@ -163,25 +198,29 @@ export default function InstructorCourseModules() {
                         <input
                           type="checkbox"
                           className="sr-only"
-                          checked={selectedModuleIds.has(m.id)}
-                          onChange={() => toggleModuleSelection(m.id)}
+                          checked={selectedModuleIds.has(module.id)}
+                          onChange={() => toggleModuleSelection(module.id)}
                         />
-                        <div className="font-semibold">{m.title}</div>
-                        <div className="text-xs text-gray-500">{m.lessons.length} lessons</div>
+                        <div className="font-semibold">{module.title}</div>
+                        {module.description && (
+                          <div className="text-xs text-gray-500">{module.description}</div>
+                        )}
                       </label>
                     ))}
                   </div>
                   <button
                     onClick={onImport}
-                    disabled={importing || selectedModuleIds.size === 0}
+                    disabled={
+                      importing ||
+                      selectedSourceCourseId == null ||
+                      selectedModuleIds.size === 0
+                    }
                     className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold disabled:opacity-50"
                   >
                     {importing ? 'Importing…' : 'Import modules'}
                   </button>
                 </div>
-              ) : selectedTemplateId ? (
-                <div className="text-sm text-gray-500">Selected template has no modules yet.</div>
-              ) : null}
+              )}
             </div>
           )}
 

@@ -1,44 +1,41 @@
 import type { FormEvent } from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import Nav from '../components/Nav';
 import ProtectedRoute from '../components/ProtectedRoute';
 import api from '../lib/api';
-import type { Lesson, ModuleDetail } from '../lib/types';
+import type { Course, Lesson, Module, ModuleDetail } from '../lib/types';
 import { requireUser } from '../hooks/useLocalUser';
-
-type TemplateSummary = {
-  id: number;
-  title: string;
-  modules: Array<{
-    id: number;
-    title: string;
-    lessons: Array<{ id: number; title: string }>;
-  }>;
-};
 
 export default function InstructorModuleLessons() {
   const navigate = useNavigate();
   const { moduleId } = useParams();
   const user = requireUser('INSTRUCTOR');
+  const numericModuleId = moduleId ? Number(moduleId) : null;
   const [module, setModule] = useState<ModuleDetail | null>(null);
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [loading, setLoading] = useState(true);
   const [title, setTitle] = useState('');
   const [creating, setCreating] = useState(false);
   const [showImport, setShowImport] = useState(false);
-  const [templates, setTemplates] = useState<TemplateSummary[]>([]);
-  const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
+  const [availableCourses, setAvailableCourses] = useState<Course[]>([]);
+  const [selectedSourceCourseId, setSelectedSourceCourseId] = useState<number | null>(null);
+  const [sourceModules, setSourceModules] = useState<Module[]>([]);
+  const [selectedSourceModuleId, setSelectedSourceModuleId] = useState<number | null>(null);
+  const [sourceLessons, setSourceLessons] = useState<Lesson[]>([]);
+  const [loadingSourceCourses, setLoadingSourceCourses] = useState(false);
+  const [loadingSourceModules, setLoadingSourceModules] = useState(false);
+  const [loadingSourceLessons, setLoadingSourceLessons] = useState(false);
   const [selectedLessonIds, setSelectedLessonIds] = useState<Set<number>>(new Set());
   const [importing, setImporting] = useState(false);
 
   const loadData = async () => {
-    if (!moduleId) return;
+    if (!numericModuleId) return;
     setLoading(true);
     try {
       const [moduleDetail, lessonData] = await Promise.all([
-        api.moduleById(Number(moduleId)),
-        api.lessonsForModule(Number(moduleId)),
+        api.moduleById(numericModuleId),
+        api.lessonsForModule(numericModuleId),
       ]);
       setModule(moduleDetail);
       setLessons(lessonData);
@@ -50,24 +47,78 @@ export default function InstructorModuleLessons() {
   };
 
   useEffect(() => {
-    if (!user || !moduleId) return;
+    if (!user || !numericModuleId) return;
     loadData();
-  }, [user?.id, moduleId]);
+  }, [user?.id, numericModuleId]);
 
-  const ensureTemplatesLoaded = () => {
-    if (templates.length > 0) return;
+  const ensureSourceCoursesLoaded = () => {
+    if (availableCourses.length > 0) return;
+    setLoadingSourceCourses(true);
     api
-      .listTemplates()
-      .then((data) => setTemplates(data))
-      .catch((error) => console.error('Failed to load templates', error));
+      .listCourses()
+      .then((data: Course[]) => {
+        const nextCourses = module?.courseOfferingId
+          ? data.filter((course: Course) => course.id !== module.courseOfferingId)
+          : data;
+        setAvailableCourses(nextCourses);
+      })
+      .catch((error) => console.error('Failed to load courses', error))
+      .finally(() => setLoadingSourceCourses(false));
   };
+
+  useEffect(() => {
+    if (!module?.courseOfferingId) return;
+    setAvailableCourses((courses) =>
+      courses.filter((course: Course) => course.id !== module.courseOfferingId)
+    );
+  }, [module?.courseOfferingId]);
+
+  useEffect(() => {
+    if (selectedSourceCourseId == null) {
+      setSourceModules([]);
+      setSelectedSourceModuleId(null);
+      setSourceLessons([]);
+      setSelectedLessonIds(new Set());
+      return;
+    }
+
+    setLoadingSourceModules(true);
+    api
+      .modulesForCourse(selectedSourceCourseId)
+      .then((data: Module[]) => {
+        setSourceModules(data);
+        setSelectedSourceModuleId(null);
+        setSourceLessons([]);
+        setSelectedLessonIds(new Set());
+      })
+      .catch((error) => console.error('Failed to load modules for course', error))
+      .finally(() => setLoadingSourceModules(false));
+  }, [selectedSourceCourseId]);
+
+  useEffect(() => {
+    if (selectedSourceModuleId == null) {
+      setSourceLessons([]);
+      setSelectedLessonIds(new Set());
+      return;
+    }
+
+    setLoadingSourceLessons(true);
+    api
+      .lessonsForModule(selectedSourceModuleId)
+      .then((data: Lesson[]) => {
+        setSourceLessons(data);
+        setSelectedLessonIds(new Set());
+      })
+      .catch((error) => console.error('Failed to load lessons for module', error))
+      .finally(() => setLoadingSourceLessons(false));
+  }, [selectedSourceModuleId]);
 
   const onCreateLesson = async (event: FormEvent) => {
     event.preventDefault();
-    if (!moduleId || !title.trim()) return;
+    if (!numericModuleId || !title.trim()) return;
     setCreating(true);
     try {
-      await api.createLesson(Number(moduleId), { title: title.trim() });
+      await api.createLesson(numericModuleId, { title: title.trim() });
       setTitle('');
       loadData();
     } catch (error) {
@@ -76,13 +127,6 @@ export default function InstructorModuleLessons() {
       setCreating(false);
     }
   };
-
-  const lessonOptions = useMemo(() => {
-    if (!selectedTemplateId) return [];
-    const template = templates.find((t) => t.id === selectedTemplateId);
-    if (!template) return [];
-    return template.modules;
-  }, [selectedTemplateId, templates]);
 
   const toggleLesson = (lessonId: number) => {
     setSelectedLessonIds((prev) => {
@@ -94,16 +138,18 @@ export default function InstructorModuleLessons() {
   };
 
   const onImportLessons = async () => {
-    if (!module || !moduleId || !selectedTemplateId || selectedLessonIds.size === 0) return;
+    if (!module || !numericModuleId || selectedSourceModuleId == null || selectedLessonIds.size === 0)
+      return;
     setImporting(true);
     try {
       await api.importIntoCourse(module.courseOfferingId, {
-        templateId: selectedTemplateId,
-        lessonTemplateIds: Array.from(selectedLessonIds),
-        targetModuleId: Number(moduleId),
+        lessonIds: Array.from(selectedLessonIds),
+        targetModuleId: numericModuleId,
       });
       setShowImport(false);
-      setSelectedTemplateId(null);
+      setSelectedSourceCourseId(null);
+      setSelectedSourceModuleId(null);
+      setSourceLessons([]);
       setSelectedLessonIds(new Set());
       loadData();
     } catch (error) {
@@ -128,7 +174,15 @@ export default function InstructorModuleLessons() {
             </div>
             <button
               onClick={() => {
-                ensureTemplatesLoaded();
+                if (!showImport) {
+                  ensureSourceCoursesLoaded();
+                } else {
+                  setSelectedSourceCourseId(null);
+                  setSelectedSourceModuleId(null);
+                  setSourceModules([]);
+                  setSourceLessons([]);
+                  setSelectedLessonIds(new Set());
+                }
                 setShowImport((prev) => !prev);
               }}
               className="px-3 py-2 rounded-xl bg-purple-600 text-white text-sm font-semibold"
@@ -140,58 +194,94 @@ export default function InstructorModuleLessons() {
           {showImport && (
             <div className="p-4 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/90 dark:bg-gray-950/70 shadow-sm space-y-4">
               <div>
-                <label className="block text-sm font-semibold mb-1">Select template</label>
+                <label className="block text-sm font-semibold mb-1">Choose course</label>
                 <select
-                  value={selectedTemplateId ?? ''}
+                  value={selectedSourceCourseId ?? ''}
                   onChange={(e) => {
-                    const value = e.target.value ? Number(e.target.value) : null;
-                    setSelectedTemplateId(value);
-                    setSelectedLessonIds(new Set());
+                    const nextValue = e.target.value ? Number(e.target.value) : null;
+                    setSelectedSourceCourseId(nextValue);
                   }}
                   className="w-full px-3 py-2 rounded-xl border border-gray-300 dark:border-gray-700 bg-transparent"
                 >
-                  <option value="">Choose template…</option>
-                  {templates.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.title}
+                  <option value="">Select course…</option>
+                  {availableCourses.map((course) => (
+                    <option key={course.id} value={course.id}>
+                      {course.title} • {course.status}
                     </option>
                   ))}
                 </select>
+                {loadingSourceCourses && (
+                  <p className="mt-2 text-xs text-gray-500">Loading courses…</p>
+                )}
+                {!loadingSourceCourses && availableCourses.length === 0 && (
+                  <p className="mt-2 text-xs text-gray-500">
+                    You don’t have another course to copy from yet.
+                  </p>
+                )}
               </div>
 
-              {selectedTemplateId && lessonOptions.length > 0 ? (
+              {selectedSourceCourseId != null && (
+                <div>
+                  <label className="block text-sm font-semibold mb-1">Choose module</label>
+                  <select
+                    value={selectedSourceModuleId ?? ''}
+                    onChange={(e) => {
+                      const nextValue = e.target.value ? Number(e.target.value) : null;
+                      setSelectedSourceModuleId(nextValue);
+                    }}
+                    className="w-full px-3 py-2 rounded-xl border border-gray-300 dark:border-gray-700 bg-transparent"
+                  >
+                    <option value="">Select module…</option>
+                    {sourceModules.map((sourceModule) => (
+                      <option key={sourceModule.id} value={sourceModule.id}>
+                        {sourceModule.title}
+                      </option>
+                    ))}
+                  </select>
+                  {loadingSourceModules && (
+                    <p className="mt-2 text-xs text-gray-500">Loading modules…</p>
+                  )}
+                  {!loadingSourceModules && sourceModules.length === 0 && (
+                    <p className="mt-2 text-xs text-gray-500">Selected course has no modules yet.</p>
+                  )}
+                </div>
+              )}
+
+              {selectedSourceCourseId == null ? (
+                <p className="text-sm text-gray-500">Select a course to begin.</p>
+              ) : selectedSourceModuleId == null ? (
+                <p className="text-sm text-gray-500">Select a module to preview lessons.</p>
+              ) : loadingSourceLessons ? (
+                <p className="text-sm text-gray-500">Loading lessons…</p>
+              ) : sourceLessons.length === 0 ? (
+                <p className="text-sm text-gray-500">Selected module has no lessons yet.</p>
+              ) : (
                 <div className="space-y-3">
-                  {lessonOptions.map((moduleGroup) => (
-                    <div key={moduleGroup.id} className="border border-gray-200 dark:border-gray-800 rounded-xl">
-                      <div className="px-3 py-2 text-sm font-semibold bg-gray-50 dark:bg-gray-900 rounded-t-xl">
-                        {moduleGroup.title}
-                      </div>
-                      <div className="p-3 space-y-2">
-                        {moduleGroup.lessons.length === 0 ? (
-                          <div className="text-xs text-gray-500">No lessons to import.</div>
-                        ) : (
-                          moduleGroup.lessons.map((lesson) => (
-                            <label
-                              key={lesson.id}
-                              className={`flex items-center gap-3 p-2 rounded-lg border cursor-pointer transition ${
-                                selectedLessonIds.has(lesson.id)
-                                  ? 'border-transparent ring-2 ring-offset-2 ring-purple-500 dark:ring-offset-gray-950'
-                                  : 'border-gray-200 dark:border-gray-800'
-                              }`}
-                            >
-                              <input
-                                type="checkbox"
-                                className="sr-only"
-                                checked={selectedLessonIds.has(lesson.id)}
-                                onChange={() => toggleLesson(lesson.id)}
-                              />
-                              <span className="text-sm">{lesson.title}</span>
-                            </label>
-                          ))
-                        )}
-                      </div>
+                  <div className="border border-gray-200 dark:border-gray-800 rounded-xl">
+                    <div className="px-3 py-2 text-sm font-semibold bg-gray-50 dark:bg-gray-900 rounded-t-xl">
+                      Lessons
                     </div>
-                  ))}
+                    <div className="p-3 space-y-2">
+                      {sourceLessons.map((lesson) => (
+                        <label
+                          key={lesson.id}
+                          className={`flex items-center gap-3 p-2 rounded-lg border cursor-pointer transition ${
+                            selectedLessonIds.has(lesson.id)
+                              ? 'border-transparent ring-2 ring-offset-2 ring-purple-500 dark:ring-offset-gray-950'
+                              : 'border-gray-200 dark:border-gray-800'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            className="sr-only"
+                            checked={selectedLessonIds.has(lesson.id)}
+                            onChange={() => toggleLesson(lesson.id)}
+                          />
+                          <span className="text-sm">{lesson.title}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
                   <button
                     onClick={onImportLessons}
                     disabled={importing || selectedLessonIds.size === 0}
@@ -200,9 +290,7 @@ export default function InstructorModuleLessons() {
                     {importing ? 'Importing…' : 'Import selected lessons'}
                   </button>
                 </div>
-              ) : selectedTemplateId ? (
-                <div className="text-sm text-gray-500">Selected template has no lessons yet.</div>
-              ) : null}
+              )}
             </div>
           )}
 

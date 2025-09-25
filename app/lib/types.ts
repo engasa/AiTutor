@@ -16,7 +16,6 @@ export type Course = {
   status: CourseStatus;
   startDate?: string | null;
   endDate?: string | null;
-  templateId?: number | null;
 };
 
 export type Module = {
@@ -24,7 +23,6 @@ export type Module = {
   title: string;
   description?: string | null;
   position: number;
-  templateId?: number | null;
 };
 
 export type ModuleDetail = Module & {
@@ -36,7 +34,6 @@ export type Lesson = {
   title: string;
   contentMd?: string | null;
   position: number;
-  templateId?: number | null;
 };
 
 export type Activity = {
@@ -52,7 +49,6 @@ export type Activity = {
   activityTypeId: number;
   promptTemplateId?: number | null;
   promptTemplate?: { id: number; name: string } | null;
-  templateId?: number | null;
 };
 
 export type ActivityType = {

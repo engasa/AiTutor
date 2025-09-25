@@ -29,151 +29,117 @@ function toPublicUser(user) {
   return rest;
 }
 
-async function cloneTemplateIntoOffering(templateId, offeringId, options = {}) {
-  const template = await prisma.courseTemplate.findUnique({
-    where: { id: templateId },
+async function cloneCourseContent(sourceCourseId, targetCourseId, options = {}) {
+  const { moduleIds = null } = options;
+
+  const sourceModules = await prisma.module.findMany({
+    where: {
+      courseOfferingId: sourceCourseId,
+      ...(Array.isArray(moduleIds) && moduleIds.length > 0
+        ? { id: { in: moduleIds } }
+        : {}),
+    },
+    orderBy: { position: 'asc' },
     include: {
-      modules: {
+      lessons: {
         orderBy: { position: 'asc' },
         include: {
-          lessons: {
-            orderBy: { position: 'asc' },
-            include: {
-              activities: { orderBy: { position: 'asc' } },
-            },
-          },
+          activities: { orderBy: { position: 'asc' } },
         },
       },
     },
   });
 
-  if (!template) {
-    throw new Error('Template not found');
-  }
+  if (sourceModules.length === 0) return;
 
-  const { moduleIds = null, lessonIds = null } = options;
+  const maxPosition = await prisma.module.aggregate({
+    where: { courseOfferingId: targetCourseId },
+    _max: { position: true },
+  });
+  let nextModulePosition = maxPosition._max.position ?? 0;
 
-  for (const moduleTemplate of template.modules) {
-    if (Array.isArray(moduleIds) && moduleIds.length > 0 && !moduleIds.includes(moduleTemplate.id)) {
-      continue;
-    }
-
-    const module = await prisma.module.create({
-      data: {
-        title: moduleTemplate.title,
-        description: moduleTemplate.description,
-        position: moduleTemplate.position,
-        courseOfferingId: offeringId,
-        templateId: moduleTemplate.id,
-      },
-    });
-
-    for (const lessonTemplate of moduleTemplate.lessons) {
-      if (
-        Array.isArray(lessonIds) &&
-        lessonIds.length > 0 &&
-        !lessonIds.includes(lessonTemplate.id)
-      ) {
-        continue;
-      }
-
-      const lesson = await prisma.lesson.create({
+  await prisma.$transaction(async (tx) => {
+    for (const module of sourceModules) {
+      nextModulePosition += 1;
+      const createdModule = await tx.module.create({
         data: {
-          title: lessonTemplate.title,
-          contentMd: lessonTemplate.contentMd,
-          position: lessonTemplate.position,
-          moduleId: module.id,
-          templateId: lessonTemplate.id,
+          title: module.title,
+          description: module.description,
+          position: nextModulePosition,
+          courseOfferingId: targetCourseId,
         },
       });
 
-      for (const activityTemplate of lessonTemplate.activities) {
-        await prisma.activity.create({
+      for (const lesson of module.lessons) {
+        const createdLesson = await tx.lesson.create({
           data: {
-            title: activityTemplate.title,
-            instructionsMd: activityTemplate.instructionsMd,
-            position: activityTemplate.position,
-            lessonId: lesson.id,
-            templateId: activityTemplate.id,
-            activityTypeId: activityTemplate.activityTypeId,
-            promptTemplateId: activityTemplate.promptTemplateId,
-            config: activityTemplate.config,
+            title: lesson.title,
+            contentMd: lesson.contentMd,
+            position: lesson.position,
+            moduleId: createdModule.id,
           },
         });
+
+        for (const activity of lesson.activities) {
+          await tx.activity.create({
+            data: {
+              title: activity.title,
+              instructionsMd: activity.instructionsMd,
+              position: activity.position,
+              lessonId: createdLesson.id,
+              activityTypeId: activity.activityTypeId,
+              promptTemplateId: activity.promptTemplateId,
+              config: activity.config,
+            },
+          });
+        }
       }
     }
-  }
+  });
 }
 
 async function cloneLessonsFromOffering(sourceLessonIds, targetModuleId) {
   const lessons = await prisma.lesson.findMany({
     where: { id: { in: sourceLessonIds } },
-    include: { activities: true },
-  });
-
-  for (const lesson of lessons) {
-    const createdLesson = await prisma.lesson.create({
-      data: {
-        title: lesson.title,
-        contentMd: lesson.contentMd,
-        position: lesson.position,
-        moduleId: targetModuleId,
-        templateId: lesson.templateId,
-      },
-    });
-
-    for (const activity of lesson.activities) {
-      await prisma.activity.create({
-        data: {
-          title: activity.title,
-          instructionsMd: activity.instructionsMd,
-          position: activity.position,
-          lessonId: createdLesson.id,
-          templateId: activity.templateId,
-          activityTypeId: activity.activityTypeId,
-          promptTemplateId: activity.promptTemplateId,
-          config: activity.config,
-        },
-      });
-    }
-  }
-}
-
-async function cloneTemplateLessonsIntoModule(lessonTemplateIds, targetModuleId) {
-  const lessonTemplates = await prisma.lessonTemplate.findMany({
-    where: { id: { in: lessonTemplateIds } },
     orderBy: { position: 'asc' },
-    include: {
-      activities: { orderBy: { position: 'asc' } },
-    },
+    include: { activities: { orderBy: { position: 'asc' } } },
   });
 
-  for (const template of lessonTemplates) {
-    const lesson = await prisma.lesson.create({
-      data: {
-        title: template.title,
-        contentMd: template.contentMd,
-        position: template.position,
-        moduleId: targetModuleId,
-        templateId: template.id,
-      },
-    });
+  if (lessons.length === 0) return;
 
-    for (const activityTemplate of template.activities) {
-      await prisma.activity.create({
+  const maxPosition = await prisma.lesson.aggregate({
+    where: { moduleId: targetModuleId },
+    _max: { position: true },
+  });
+  let nextLessonPosition = maxPosition._max.position ?? 0;
+
+  await prisma.$transaction(async (tx) => {
+    for (const lesson of lessons) {
+      nextLessonPosition += 1;
+      const createdLesson = await tx.lesson.create({
         data: {
-          title: activityTemplate.title,
-          instructionsMd: activityTemplate.instructionsMd,
-          position: activityTemplate.position,
-          lessonId: lesson.id,
-          templateId: activityTemplate.id,
-          activityTypeId: activityTemplate.activityTypeId,
-          promptTemplateId: activityTemplate.promptTemplateId,
-          config: activityTemplate.config,
+          title: lesson.title,
+          contentMd: lesson.contentMd,
+          position: nextLessonPosition,
+          moduleId: targetModuleId,
         },
       });
+
+      for (const activity of lesson.activities) {
+        await tx.activity.create({
+          data: {
+            title: activity.title,
+            instructionsMd: activity.instructionsMd,
+            position: activity.position,
+            lessonId: createdLesson.id,
+            activityTypeId: activity.activityTypeId,
+            promptTemplateId: activity.promptTemplateId,
+            config: activity.config,
+          },
+        });
+      }
     }
-  }
+  });
 }
 
 function mapCourseOffering(offering) {
@@ -184,7 +150,6 @@ function mapCourseOffering(offering) {
     status: offering.status,
     startDate: offering.startDate,
     endDate: offering.endDate,
-    templateId: offering.templateId,
   };
 }
 
@@ -194,7 +159,6 @@ function mapModule(module) {
     title: module.title,
     description: module.description,
     position: module.position,
-    templateId: module.templateId,
   };
 }
 
@@ -204,7 +168,6 @@ function mapLesson(lesson) {
     title: lesson.title,
     contentMd: lesson.contentMd,
     position: lesson.position,
-    templateId: lesson.templateId,
   };
 }
 
@@ -220,7 +183,6 @@ function mapActivity(activity) {
     promptTemplate: activity.promptTemplate
       ? { id: activity.promptTemplate.id, name: activity.promptTemplate.name }
       : null,
-    templateId: activity.templateId,
     question: config.question ?? config.prompt ?? activity.instructionsMd,
     type: config.questionType ?? 'MCQ',
     options: config.options ?? null,
@@ -296,55 +258,6 @@ app.get('/api/me', async (req, res) => {
   res.json({ user: toPublicUser(authUser) });
 });
 
-app.get('/api/templates', requireRole('INSTRUCTOR'), async (req, res) => {
-  try {
-    const templates = await prisma.courseTemplate.findMany({
-      orderBy: { title: 'asc' },
-      include: {
-        modules: {
-          select: {
-            id: true,
-            title: true,
-            lessons: { select: { id: true, title: true } },
-          },
-        },
-      },
-    });
-    res.json(templates);
-  } catch (e) {
-    res.status(500).json({ error: String(e) });
-  }
-});
-
-app.get('/api/templates/:templateId', requireRole('INSTRUCTOR'), async (req, res) => {
-  const templateId = Number(req.params.templateId);
-  if (!Number.isFinite(templateId)) {
-    return res.status(400).json({ error: 'Invalid template id' });
-  }
-
-  try {
-    const template = await prisma.courseTemplate.findUnique({
-      where: { id: templateId },
-      include: {
-        modules: {
-          orderBy: { position: 'asc' },
-          include: {
-            lessons: {
-              orderBy: { position: 'asc' },
-              include: { activities: { orderBy: { position: 'asc' } } },
-            },
-          },
-        },
-      },
-    });
-
-    if (!template) return res.status(404).json({ error: 'Template not found' });
-    res.json(template);
-  } catch (e) {
-    res.status(500).json({ error: String(e) });
-  }
-});
-
 app.get('/api/courses', async (req, res) => {
   const authUser = req.user;
   if (!authUser) return res.status(401).json({ error: 'Authentication required' });
@@ -370,19 +283,43 @@ app.get('/api/courses', async (req, res) => {
 
 app.post('/api/courses', requireRole('INSTRUCTOR'), async (req, res) => {
   const instructor = req.user;
-  const { title, description, templateId, cloneContent = true, status = 'DRAFT', startDate, endDate } =
-    req.body || {};
+  const {
+    title,
+    description,
+    sourceCourseId,
+    status = 'DRAFT',
+    startDate,
+    endDate,
+  } = req.body || {};
 
   if (!title) {
     return res.status(400).json({ error: 'title is required' });
   }
 
+  const numericSourceCourseId =
+    typeof sourceCourseId === 'number' || typeof sourceCourseId === 'string'
+      ? Number(sourceCourseId)
+      : null;
+
+  if (numericSourceCourseId !== null && !Number.isFinite(numericSourceCourseId)) {
+    return res.status(400).json({ error: 'Invalid sourceCourseId' });
+  }
+
   try {
+    if (numericSourceCourseId !== null) {
+      const instructorAssignment = await prisma.courseInstructor.findFirst({
+        where: { courseOfferingId: numericSourceCourseId, userId: instructor.id },
+      });
+
+      if (!instructorAssignment) {
+        return res.status(403).json({ error: 'Not authorized for source course' });
+      }
+    }
+
     const offering = await prisma.courseOffering.create({
       data: {
         title,
         description,
-        templateId: templateId ?? null,
         status,
         startDate: startDate ? new Date(startDate) : null,
         endDate: endDate ? new Date(endDate) : null,
@@ -397,8 +334,8 @@ app.post('/api/courses', requireRole('INSTRUCTOR'), async (req, res) => {
       },
     });
 
-    if (templateId && cloneContent) {
-      await cloneTemplateIntoOffering(templateId, offering.id);
+    if (numericSourceCourseId !== null) {
+      await cloneCourseContent(numericSourceCourseId, offering.id);
     }
 
     const created = await prisma.courseOffering.findUnique({
@@ -468,8 +405,42 @@ app.post('/api/courses/:courseId/import', requireRole('INSTRUCTOR'), async (req,
     return res.status(400).json({ error: 'Invalid course id' });
   }
 
-  const { templateId, moduleTemplateIds, lessonTemplateIds, sourceLessonIds, targetModuleId } =
-    req.body || {};
+  const {
+    sourceCourseId,
+    moduleIds,
+    lessonIds,
+    targetModuleId,
+  } = req.body || {};
+
+  const normalizedModuleIds = Array.isArray(moduleIds)
+    ? moduleIds
+        .map((value) => Number(value))
+        .filter((value) => Number.isFinite(value))
+    : [];
+
+  const normalizedLessonIds = Array.isArray(lessonIds)
+    ? lessonIds
+        .map((value) => Number(value))
+        .filter((value) => Number.isFinite(value))
+    : [];
+
+  const numericTargetModuleId =
+    typeof targetModuleId === 'number' || typeof targetModuleId === 'string'
+      ? Number(targetModuleId)
+      : null;
+
+  const numericSourceCourseId =
+    typeof sourceCourseId === 'number' || typeof sourceCourseId === 'string'
+      ? Number(sourceCourseId)
+      : null;
+
+  if (numericSourceCourseId !== null && !Number.isFinite(numericSourceCourseId)) {
+    return res.status(400).json({ error: 'Invalid sourceCourseId' });
+  }
+
+  if (normalizedModuleIds.length === 0 && normalizedLessonIds.length === 0) {
+    return res.status(400).json({ error: 'Nothing to import' });
+  }
 
   try {
     const instructorAssignment = await prisma.courseInstructor.findFirst({
@@ -479,26 +450,71 @@ app.post('/api/courses/:courseId/import', requireRole('INSTRUCTOR'), async (req,
       return res.status(403).json({ error: 'Not authorized for this course' });
     }
 
-    const templateLessonIds = Array.isArray(lessonTemplateIds)
-      ? lessonTemplateIds.filter((id) => typeof id === 'number')
-      : [];
+    if (normalizedModuleIds.length > 0) {
+      if (numericSourceCourseId === null) {
+        return res.status(400).json({ error: 'sourceCourseId required when importing modules' });
+      }
 
-    if (templateId && templateLessonIds.length > 0 && targetModuleId) {
-      await cloneTemplateLessonsIntoModule(templateLessonIds.map(Number), Number(targetModuleId));
-    } else if (templateId) {
-      await cloneTemplateIntoOffering(templateId, courseId, {
-        moduleIds: Array.isArray(moduleTemplateIds)
-          ? moduleTemplateIds.filter((id) => typeof id === 'number').map(Number)
-          : undefined,
-        lessonIds: templateLessonIds.length > 0 ? templateLessonIds.map(Number) : undefined,
+      const sourceAccess = await prisma.courseInstructor.findFirst({
+        where: { courseOfferingId: numericSourceCourseId, userId: instructor.id },
+      });
+      if (!sourceAccess) {
+        return res.status(403).json({ error: 'Not authorized for source course' });
+      }
+
+      const moduleCount = await prisma.module.count({
+        where: {
+          id: { in: normalizedModuleIds },
+          courseOfferingId: numericSourceCourseId,
+        },
+      });
+
+      if (moduleCount !== normalizedModuleIds.length) {
+        return res.status(400).json({ error: 'One or more modules do not belong to source course' });
+      }
+
+      await cloneCourseContent(numericSourceCourseId, courseId, {
+        moduleIds: normalizedModuleIds,
       });
     }
 
-    if (Array.isArray(sourceLessonIds) && sourceLessonIds.length > 0) {
-      if (!targetModuleId) {
+    if (normalizedLessonIds.length > 0) {
+      if (numericTargetModuleId === null || !Number.isFinite(numericTargetModuleId)) {
         return res.status(400).json({ error: 'targetModuleId required when importing lessons' });
       }
-      await cloneLessonsFromOffering(sourceLessonIds, Number(targetModuleId));
+
+      const targetModule = await prisma.module.findUnique({
+        where: { id: numericTargetModuleId },
+        select: { courseOfferingId: true },
+      });
+
+      if (!targetModule || targetModule.courseOfferingId !== courseId) {
+        return res.status(400).json({ error: 'targetModuleId does not belong to destination course' });
+      }
+
+      const lessons = await prisma.lesson.findMany({
+        where: { id: { in: normalizedLessonIds } },
+        include: {
+          module: { select: { courseOfferingId: true } },
+        },
+      });
+
+      if (lessons.length !== normalizedLessonIds.length) {
+        return res.status(400).json({ error: 'One or more lessons were not found' });
+      }
+
+      const sourceCourseIds = new Set(lessons.map((lesson) => lesson.module.courseOfferingId));
+
+      for (const course of sourceCourseIds) {
+        const assignment = await prisma.courseInstructor.findFirst({
+          where: { courseOfferingId: course, userId: instructor.id },
+        });
+        if (!assignment) {
+          return res.status(403).json({ error: 'Not authorized for lesson source course' });
+        }
+      }
+
+      await cloneLessonsFromOffering(normalizedLessonIds, numericTargetModuleId);
     }
 
     const updated = await prisma.courseOffering.findUnique({
