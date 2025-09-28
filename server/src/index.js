@@ -87,7 +87,6 @@ async function cloneCourseContent(sourceCourseId, targetCourseId, options = {}) 
               instructionsMd: activity.instructionsMd,
               position: activity.position,
               lessonId: createdLesson.id,
-              activityTypeId: activity.activityTypeId,
               promptTemplateId: activity.promptTemplateId,
               config: activity.config,
             },
@@ -132,7 +131,6 @@ async function cloneLessonsFromOffering(sourceLessonIds, targetModuleId) {
             instructionsMd: activity.instructionsMd,
             position: activity.position,
             lessonId: createdLesson.id,
-            activityTypeId: activity.activityTypeId,
             promptTemplateId: activity.promptTemplateId,
             config: activity.config,
           },
@@ -178,7 +176,6 @@ function mapActivity(activity) {
     title: activity.title,
     instructionsMd: activity.instructionsMd,
     position: activity.position,
-    activityTypeId: activity.activityTypeId,
     promptTemplateId: activity.promptTemplateId,
     promptTemplate: activity.promptTemplate
       ? { id: activity.promptTemplate.id, name: activity.promptTemplate.name }
@@ -693,7 +690,6 @@ app.post('/api/lessons/:lessonId/activities', requireRole('INSTRUCTOR'), async (
     answer,
     hints,
     instructionsMd,
-    activityTypeId,
     promptTemplateId,
   } =
     req.body || {};
@@ -710,7 +706,6 @@ app.post('/api/lessons/:lessonId/activities', requireRole('INSTRUCTOR'), async (
         title: title ?? null,
         instructionsMd: instructionsMd ?? 'Answer the question.',
         lessonId,
-        activityTypeId: activityTypeId ?? (await defaultActivityTypeId()),
         promptTemplateId: promptTemplateId ?? null,
         config: {
           question: questionText,
@@ -731,33 +726,12 @@ app.post('/api/lessons/:lessonId/activities', requireRole('INSTRUCTOR'), async (
   }
 });
 
-let cachedDefaultActivityTypeId = null;
-async function defaultActivityTypeId() {
-  if (cachedDefaultActivityTypeId) return cachedDefaultActivityTypeId;
-  const type = await prisma.activityType.findFirst({ where: { name: 'knowledge-check' } });
-  if (!type) throw new Error('Default activity type not configured');
-  cachedDefaultActivityTypeId = type.id;
-  return type.id;
-}
 
-app.get('/api/activity-types', requireRole('INSTRUCTOR'), async (req, res) => {
-  try {
-    const activityTypes = await prisma.activityType.findMany({
-      orderBy: { name: 'asc' },
-    });
-    res.json(activityTypes);
-  } catch (e) {
-    res.status(500).json({ error: String(e) });
-  }
-});
 
 app.get('/api/prompts', requireRole('INSTRUCTOR'), async (req, res) => {
   try {
     const prompts = await prisma.promptTemplate.findMany({
       orderBy: { updatedAt: 'desc' },
-      include: {
-        activityType: { select: { id: true, name: true } },
-      },
     });
     res.json(prompts);
   } catch (e) {
@@ -770,7 +744,6 @@ app.post('/api/prompts', requireRole('INSTRUCTOR'), async (req, res) => {
     name,
     systemPrompt,
     userPrompt,
-    activityTypeId,
     temperature,
     topP,
   } = req.body || {};
@@ -779,20 +752,6 @@ app.post('/api/prompts', requireRole('INSTRUCTOR'), async (req, res) => {
     return res.status(400).json({ error: 'name, systemPrompt, and userPrompt are required' });
   }
 
-  let resolvedActivityTypeId = null;
-  try {
-    if (typeof activityTypeId === 'number') {
-      const exists = await prisma.activityType.findUnique({ where: { id: activityTypeId } });
-      if (!exists) {
-        return res.status(400).json({ error: 'Invalid activityTypeId' });
-      }
-      resolvedActivityTypeId = activityTypeId;
-    } else {
-      resolvedActivityTypeId = await defaultActivityTypeId();
-    }
-  } catch (e) {
-    return res.status(500).json({ error: String(e) });
-  }
 
   try {
     const prompt = await prisma.promptTemplate.create({
@@ -800,12 +759,8 @@ app.post('/api/prompts', requireRole('INSTRUCTOR'), async (req, res) => {
         name,
         systemPrompt,
         userPrompt,
-        activityTypeId: resolvedActivityTypeId,
         temperature: typeof temperature === 'number' ? temperature : null,
         topP: typeof topP === 'number' ? topP : null,
-      },
-      include: {
-        activityType: { select: { id: true, name: true } },
       },
     });
     res.status(201).json(prompt);

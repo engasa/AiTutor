@@ -4,7 +4,7 @@ import { useNavigate, useParams } from 'react-router';
 import Nav from '../components/Nav';
 import ProtectedRoute from '../components/ProtectedRoute';
 import api from '../lib/api';
-import type { Activity, ActivityType, Lesson, PromptTemplate } from '../lib/types';
+import type { Activity, Lesson, PromptTemplate } from '../lib/types';
 import { requireUser } from '../hooks/useLocalUser';
 
 export default function InstructorLessonBuilder() {
@@ -23,7 +23,6 @@ export default function InstructorLessonBuilder() {
   const [hint, setHint] = useState('');
   const [busy, setBusy] = useState(false);
   const [prompts, setPrompts] = useState<PromptTemplate[]>([]);
-  const [activityTypes, setActivityTypes] = useState<ActivityType[]>([]);
   const [loadingPrompts, setLoadingPrompts] = useState(true);
   const [selectedPromptId, setSelectedPromptId] = useState<number | ''>('');
   const [showPromptForm, setShowPromptForm] = useState(false);
@@ -31,7 +30,6 @@ export default function InstructorLessonBuilder() {
     name: '',
     systemPrompt: '',
     userPrompt: '',
-    activityTypeId: '' as number | '',
     temperature: '',
     topP: '',
   });
@@ -59,23 +57,6 @@ export default function InstructorLessonBuilder() {
       .finally(() => setLoadingPrompts(false));
   };
 
-  const loadActivityTypes = () => {
-    api
-      .listActivityTypes()
-      .then((data) => {
-        setActivityTypes(data);
-        setPromptForm((prev) => ({
-          ...prev,
-          activityTypeId:
-            prev.activityTypeId !== ''
-              ? prev.activityTypeId
-              : data.length > 0
-                ? data[0].id
-                : '',
-        }));
-      })
-      .catch((error) => console.error('Failed to load activity types', error));
-  };
 
   useEffect(() => {
     if (!user || !lessonId) return;
@@ -85,7 +66,6 @@ export default function InstructorLessonBuilder() {
   useEffect(() => {
     if (!user) return;
     loadPrompts();
-    loadActivityTypes();
   }, [user?.id]);
 
   const resetPromptForm = () => {
@@ -93,7 +73,6 @@ export default function InstructorLessonBuilder() {
       name: '',
       systemPrompt: '',
       userPrompt: '',
-      activityTypeId: activityTypes.length > 0 ? activityTypes[0].id : '',
       temperature: '',
       topP: '',
     });
@@ -104,13 +83,6 @@ export default function InstructorLessonBuilder() {
     setShowPromptForm((open) => {
       const next = !open;
       if (next) {
-        setPromptForm((current) => ({
-          ...current,
-          activityTypeId:
-            typeof current.activityTypeId === 'number'
-              ? current.activityTypeId
-              : activityTypes[0]?.id ?? '',
-        }));
       } else {
         resetPromptForm();
       }
@@ -128,20 +100,11 @@ export default function InstructorLessonBuilder() {
       return;
     }
 
-    const activityTypeId = typeof promptForm.activityTypeId === 'number'
-      ? promptForm.activityTypeId
-      : activityTypes[0]?.id;
-
-    if (!activityTypeId) {
-      setPromptError('Select an activity type for this prompt.');
-      return;
-    }
 
     const payload: Parameters<typeof api.createPrompt>[0] = {
       name,
       systemPrompt,
       userPrompt,
-      activityTypeId,
     };
 
     if (promptForm.temperature.trim()) {
@@ -433,29 +396,6 @@ export default function InstructorLessonBuilder() {
                           className="w-full px-3 py-2 rounded-lg border border-purple-200 dark:border-purple-900 bg-white dark:bg-gray-950 text-sm"
                         />
                       </div>
-                      {activityTypes.length > 0 && (
-                        <div>
-                          <label className="block text-xs font-semibold text-purple-700 dark:text-purple-200 mb-1">
-                            Activity type
-                          </label>
-                          <select
-                            value={promptForm.activityTypeId === '' ? '' : promptForm.activityTypeId}
-                            onChange={(event) =>
-                              setPromptForm((prev) => ({
-                                ...prev,
-                                activityTypeId: event.target.value ? Number(event.target.value) : '',
-                              }))
-                            }
-                            className="w-full px-3 py-2 rounded-lg border border-purple-200 dark:border-purple-900 bg-white dark:bg-gray-950 text-sm"
-                          >
-                            {activityTypes.map((type) => (
-                              <option key={type.id} value={type.id}>
-                                {type.name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
                           <label className="block text-xs font-semibold text-purple-700 dark:text-purple-200 mb-1">

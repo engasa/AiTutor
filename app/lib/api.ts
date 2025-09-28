@@ -111,7 +111,6 @@ export const api = {
       answer?: any;
       hints?: string[];
       instructionsMd?: string;
-      activityTypeId?: number;
       promptTemplateId?: number | null;
     }
   ) =>
@@ -139,7 +138,6 @@ export const api = {
     name: string;
     systemPrompt: string;
     userPrompt: string;
-    activityTypeId?: number;
     temperature?: number | null;
     topP?: number | null;
   }) =>
@@ -147,7 +145,6 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
-  listActivityTypes: () => http('/api/activity-types'),
 };
 
 export default api;

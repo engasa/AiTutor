@@ -37,16 +37,6 @@ model User {
   submissions  Submission[]
 }
 
-model ActivityType {
-  id               Int                @id @default(autoincrement())
-  name             String             @unique
-  description      String?
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
-
-  promptTemplates  PromptTemplate[]
-  activities        Activity[]
-}
 
 model PromptTemplate {
   id             Int           @id @default(autoincrement())
@@ -58,8 +48,6 @@ model PromptTemplate {
   isActive       Boolean       @default(true)
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
-  activityType   ActivityType  @relation(fields: [activityTypeId], references: [id], onDelete: Cascade)
-  activityTypeId Int
 
   activities        Activity[]
 }
@@ -136,8 +124,6 @@ model Activity {
   updatedAt      DateTime       @updatedAt
   lesson         Lesson         @relation(fields: [lessonId], references: [id], onDelete: Cascade)
   lessonId       Int
-  activityType   ActivityType    @relation(fields: [activityTypeId], references: [id])
-  activityTypeId Int
   promptTemplate PromptTemplate? @relation(fields: [promptTemplateId], references: [id])
   promptTemplateId Int?
 

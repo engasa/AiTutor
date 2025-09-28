@@ -12,7 +12,6 @@ async function clearDatabase() {
   await prisma.courseEnrollment.deleteMany();
   await prisma.courseOffering.deleteMany();
   await prisma.promptTemplate.deleteMany();
-  await prisma.activityType.deleteMany();
   await prisma.user.deleteMany();
 }
 
@@ -62,25 +61,10 @@ async function createUsers() {
   return { student, studentTwo, instructor, assistant };
 }
 
-async function createActivityFoundation() {
-  const knowledgeCheck = await prisma.activityType.create({
-    data: {
-      name: 'knowledge-check',
-      description: 'Multiple choice or short-answer knowledge checks.',
-    },
-  });
-
-  const debugging = await prisma.activityType.create({
-    data: {
-      name: 'code-debugging',
-      description: 'Students inspect code and describe the fix.',
-    },
-  });
-
+async function createPromptTemplates() {
   const knowledgePrompt = await prisma.promptTemplate.create({
     data: {
       name: 'Knowledge Check Default',
-      activityTypeId: knowledgeCheck.id,
       systemPrompt:
         'You are a helpful teaching assistant. Offer concise hints when the student struggles.',
       userPrompt:
@@ -93,7 +77,6 @@ async function createActivityFoundation() {
   const debuggingPrompt = await prisma.promptTemplate.create({
     data: {
       name: 'Debugging Assistant',
-      activityTypeId: debugging.id,
       systemPrompt:
         'You are an AI programming TA. Help students reason about bugs without writing the full fix.',
       userPrompt:
@@ -104,8 +87,6 @@ async function createActivityFoundation() {
   });
 
   return {
-    knowledgeCheck,
-    debugging,
     knowledgePrompt,
     debuggingPrompt,
   };
@@ -154,7 +135,6 @@ async function createCourseWithContent(course, modules, defaults) {
                   title: activity.title ?? null,
                   instructionsMd: activity.instructionsMd ?? 'Answer the question.',
                   position: activity.position ?? activityIndex + 1,
-                  activityTypeId: activity.activityTypeId ?? defaults.knowledgeCheck.id,
                   promptTemplateId: Object.prototype.hasOwnProperty.call(
                     activity,
                     'promptTemplateId',
@@ -207,7 +187,6 @@ async function copyLessonsBetweenOfferings(lessonIds, targetModuleId) {
           instructionsMd: activity.instructionsMd,
           position: activity.position,
           lessonId: createdLesson.id,
-          activityTypeId: activity.activityTypeId,
           promptTemplateId: activity.promptTemplateId,
           config: activity.config,
         },
@@ -313,7 +292,7 @@ async function main() {
   await clearDatabase();
 
   const { student, studentTwo, instructor, assistant } = await createUsers();
-  const foundation = await createActivityFoundation();
+  const foundation = await createPromptTemplates();
 
   const algorithmsCourse = await createCourseWithContent(
     {
@@ -334,7 +313,6 @@ async function main() {
             activities: [
               {
                 title: 'Average complexity checkpoint',
-                activityTypeId: foundation.knowledgeCheck.id,
                 promptTemplateId: foundation.knowledgePrompt.id,
                 config: knowledgeCheckConfig({
                   question: 'Which sorting algorithm has average O(n log n) time and uses partitioning?',
@@ -349,7 +327,6 @@ async function main() {
               },
               {
                 title: 'Stability check',
-                activityTypeId: foundation.knowledgeCheck.id,
                 promptTemplateId: foundation.knowledgePrompt.id,
                 config: knowledgeCheckConfig({
                   question: 'Stable sorting: which of these is stable by default?',
@@ -373,7 +350,6 @@ async function main() {
             activities: [
               {
                 title: 'Traversal structure',
-                activityTypeId: foundation.knowledgeCheck.id,
                 promptTemplateId: foundation.knowledgePrompt.id,
                 config: knowledgeCheckConfig({
                   question: 'DFS uses which data structure for traversal?',
@@ -391,7 +367,6 @@ async function main() {
             activities: [
               {
                 title: 'Fix the recursion bug',
-                activityTypeId: foundation.debugging.id,
                 promptTemplateId: foundation.debuggingPrompt.id,
                 config: debuggingConfig({
                   question: 'The DFS function revisits nodes endlessly. What is missing?',
@@ -418,7 +393,6 @@ async function main() {
             activities: [
               {
                 title: 'Identify the overlapping subproblem',
-                activityTypeId: foundation.knowledgeCheck.id,
                 promptTemplateId: foundation.knowledgePrompt.id,
                 config: knowledgeCheckConfig({
                   question: 'In the Fibonacci sequence, what subproblem repeats and benefits from memoization?',
@@ -454,7 +428,6 @@ async function main() {
             activities: [
               {
                 title: 'Dot product warm-up',
-                activityTypeId: foundation.knowledgeCheck.id,
                 promptTemplateId: foundation.knowledgePrompt.id,
                 config: knowledgeCheckConfig({
                   question: 'What is the dot product of (1,2) and (3,4)? Provide a number.',
@@ -477,7 +450,6 @@ async function main() {
             activities: [
               {
                 title: 'Shape compatibility',
-                activityTypeId: foundation.knowledgeCheck.id,
                 promptTemplateId: foundation.knowledgePrompt.id,
                 config: knowledgeCheckConfig({
                   question: 'Can a 2x3 matrix multiply a 3x4 matrix? Answer yes or no.',
@@ -511,7 +483,6 @@ async function main() {
             activities: [
               {
                 title: 'Graph interpretation',
-                activityTypeId: foundation.knowledgeCheck.id,
                 promptTemplateId: foundation.knowledgePrompt.id,
                 config: knowledgeCheckConfig({
                   question:
@@ -571,7 +542,6 @@ async function main() {
       instructionsMd: 'Explain the fix for the provided DFS implementation.',
       position: 1,
       lessonId: capstoneLesson.id,
-      activityTypeId: foundation.debugging.id,
       promptTemplateId: foundation.debuggingPrompt.id,
       config: debuggingConfig({
         question: 'The DFS still revisits nodes after marking them visited inside recursion. What is wrong?',
