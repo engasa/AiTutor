@@ -112,56 +112,203 @@ function debuggingConfig({ question, context, answer, hints }) {
   };
 }
 
-async function createCourseWithContent(course, modules, defaults) {
-  return prisma.courseOffering.create({
+async function createCourseWithContent(course, modules, defaults, topics = []) {
+  const offering = await prisma.courseOffering.create({
     data: {
       title: course.title,
       description: course.description ?? null,
       status: course.status ?? 'ACTIVE',
       startDate: course.startDate ?? null,
       endDate: course.endDate ?? null,
-      modules: {
-        create: modules.map((module, moduleIndex) => ({
-          title: module.title,
-          description: module.description ?? null,
-          position: module.position ?? moduleIndex + 1,
-          lessons: {
-            create: module.lessons.map((lesson, lessonIndex) => ({
-              title: lesson.title,
-              contentMd: lesson.contentMd ?? '',
-              position: lesson.position ?? lessonIndex + 1,
-              activities: {
-                create: lesson.activities.map((activity, activityIndex) => ({
-                  title: activity.title ?? null,
-                  instructionsMd: activity.instructionsMd ?? 'Answer the question.',
-                  position: activity.position ?? activityIndex + 1,
-                  promptTemplateId: Object.prototype.hasOwnProperty.call(
-                    activity,
-                    'promptTemplateId',
-                  )
-                    ? activity.promptTemplateId ?? null
-                    : defaults.knowledgePrompt.id,
-                  config: activity.config,
-                })),
+    },
+  });
+
+  const topicNameToId = new Map();
+
+  const baseTopics = Array.isArray(topics) ? topics : [];
+  for (const topicName of baseTopics) {
+    const created = await prisma.topic.create({
+      data: {
+        name: topicName,
+        courseOfferingId: offering.id,
+      },
+    });
+    topicNameToId.set(topicName, created.id);
+  }
+
+  for (const [moduleIndex, module] of modules.entries()) {
+    const createdModule = await prisma.module.create({
+      data: {
+        title: module.title,
+        description: module.description ?? null,
+        position: module.position ?? moduleIndex + 1,
+        courseOfferingId: offering.id,
+      },
+    });
+
+    for (const [lessonIndex, lesson] of (module.lessons ?? []).entries()) {
+      const createdLesson = await prisma.lesson.create({
+        data: {
+          title: lesson.title,
+          contentMd: lesson.contentMd ?? '',
+          position: lesson.position ?? lessonIndex + 1,
+          moduleId: createdModule.id,
+        },
+      });
+
+      for (const [activityIndex, activity] of (lesson.activities ?? []).entries()) {
+        const mainTopicName = activity.mainTopic;
+        if (!mainTopicName || typeof mainTopicName !== 'string') {
+          throw new Error(`Seed activity "${activity.title}" is missing a mainTopic`);
+        }
+
+        let mainTopicId = topicNameToId.get(mainTopicName);
+        if (!mainTopicId) {
+          const createdTopic = await prisma.topic.create({
+            data: {
+              name: mainTopicName,
+              courseOfferingId: offering.id,
+            },
+          });
+          topicNameToId.set(mainTopicName, createdTopic.id);
+          mainTopicId = createdTopic.id;
+        }
+
+        const secondaryNames = Array.isArray(activity.secondaryTopics)
+          ? activity.secondaryTopics
+          : [];
+
+        const secondaryTopicIds = [];
+        for (const name of secondaryNames) {
+          if (typeof name !== 'string' || name === mainTopicName) continue;
+          let topicId = topicNameToId.get(name);
+          if (!topicId) {
+            const createdTopic = await prisma.topic.create({
+              data: {
+                name,
+                courseOfferingId: offering.id,
               },
-            })),
+            });
+            topicNameToId.set(name, createdTopic.id);
+            topicId = createdTopic.id;
+          }
+          secondaryTopicIds.push(topicId);
+        }
+
+        await prisma.activity.create({
+          data: {
+            title: activity.title ?? null,
+            instructionsMd: activity.instructionsMd ?? 'Answer the question.',
+            position: activity.position ?? activityIndex + 1,
+            lessonId: createdLesson.id,
+            promptTemplateId: Object.prototype.hasOwnProperty.call(activity, 'promptTemplateId')
+              ? activity.promptTemplateId ?? null
+              : defaults.knowledgePrompt.id,
+            config: activity.config,
+            mainTopicId,
+            secondaryTopics:
+              secondaryTopicIds.length > 0
+                ? {
+                    create: secondaryTopicIds.map((topicId) => ({
+                      topic: { connect: { id: topicId } },
+                    })),
+                  }
+                : undefined,
           },
-        })),
+        });
+      }
+    }
+  }
+
+  return offering;
+}
+
+async function ensureTopicForCourse(courseOfferingId, name) {
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error('Topic name must be provided');
+
+  const existing = await prisma.topic.findUnique({
+    where: {
+      courseOfferingId_name: {
+        courseOfferingId,
+        name: trimmed,
       },
     },
   });
+
+  if (existing) return existing.id;
+
+  const created = await prisma.topic.create({
+    data: {
+      name: trimmed,
+      courseOfferingId,
+    },
+  });
+
+  return created.id;
 }
 
 async function copyLessonsBetweenOfferings(lessonIds, targetModuleId) {
+  const targetModule = await prisma.module.findUnique({
+    where: { id: targetModuleId },
+    select: { courseOfferingId: true },
+  });
+  if (!targetModule) return;
+
   const lessons = await prisma.lesson.findMany({
     where: { id: { in: lessonIds } },
     include: {
+      module: { select: { courseOfferingId: true } },
       activities: {
         orderBy: { position: 'asc' },
+        include: { secondaryTopics: true },
       },
     },
     orderBy: { position: 'asc' },
   });
+
+  if (lessons.length === 0) return;
+
+  const sourceTopicById = new Map();
+  const sourceCourseIds = new Set(
+    lessons.map((lesson) => lesson.module.courseOfferingId).filter((value) => Number.isInteger(value)),
+  );
+
+  for (const courseId of sourceCourseIds) {
+    const topics = await prisma.topic.findMany({ where: { courseOfferingId: courseId } });
+    for (const topic of topics) {
+      sourceTopicById.set(topic.id, topic);
+    }
+  }
+
+  const existingTargetTopics = await prisma.topic.findMany({
+    where: { courseOfferingId: targetModule.courseOfferingId },
+  });
+  const targetTopicsByName = new Map(existingTargetTopics.map((topic) => [topic.name, topic]));
+  const topicIdMap = new Map();
+
+  const resolveTopicId = async (sourceTopicId) => {
+    if (!sourceTopicId) return null;
+    if (topicIdMap.has(sourceTopicId)) {
+      return topicIdMap.get(sourceTopicId);
+    }
+    const sourceTopic = sourceTopicById.get(sourceTopicId);
+    if (!sourceTopic) return null;
+
+    let targetTopic = targetTopicsByName.get(sourceTopic.name);
+    if (!targetTopic) {
+      targetTopic = await prisma.topic.create({
+        data: {
+          name: sourceTopic.name,
+          courseOfferingId: targetModule.courseOfferingId,
+        },
+      });
+      targetTopicsByName.set(sourceTopic.name, targetTopic);
+    }
+
+    topicIdMap.set(sourceTopicId, targetTopic.id);
+    return targetTopic.id;
+  };
 
   const maxPosition = await prisma.lesson.aggregate({
     where: { moduleId: targetModuleId },
@@ -181,14 +328,34 @@ async function copyLessonsBetweenOfferings(lessonIds, targetModuleId) {
     });
 
     for (const activity of lesson.activities) {
+      const mainTopicId = await resolveTopicId(activity.mainTopicId);
+      if (!mainTopicId) {
+        throw new Error('Failed to map main topic while copying seed lessons.');
+      }
+
+      const secondaryTopics = [];
+      for (const relation of activity.secondaryTopics) {
+        const mapped = await resolveTopicId(relation.topicId);
+        if (mapped) {
+          secondaryTopics.push(mapped);
+        }
+      }
+
       await prisma.activity.create({
         data: {
           title: activity.title,
           instructionsMd: activity.instructionsMd,
           position: activity.position,
-          lessonId: createdLesson.id,
-          promptTemplateId: activity.promptTemplateId,
+          lesson: { connect: { id: createdLesson.id } },
+          promptTemplate: activity.promptTemplateId ? { connect: { id: activity.promptTemplateId } } : undefined,
           config: activity.config,
+          mainTopic: { connect: { id: mainTopicId } },
+          secondaryTopics:
+            secondaryTopics.length > 0
+              ? {
+                  create: secondaryTopics.map((topicId) => ({ topic: { connect: { id: topicId } } })),
+                }
+              : undefined,
         },
       });
     }
@@ -314,6 +481,8 @@ async function main() {
               {
                 title: 'Average complexity checkpoint',
                 promptTemplateId: foundation.knowledgePrompt.id,
+                mainTopic: 'Sorting Fundamentals',
+                secondaryTopics: ['Algorithm Complexity'],
                 config: knowledgeCheckConfig({
                   question: 'Which sorting algorithm has average O(n log n) time and uses partitioning?',
                   type: 'MCQ',
@@ -328,6 +497,7 @@ async function main() {
               {
                 title: 'Stability check',
                 promptTemplateId: foundation.knowledgePrompt.id,
+                mainTopic: 'Sorting Stability',
                 config: knowledgeCheckConfig({
                   question: 'Stable sorting: which of these is stable by default?',
                   type: 'MCQ',
@@ -351,6 +521,7 @@ async function main() {
               {
                 title: 'Traversal structure',
                 promptTemplateId: foundation.knowledgePrompt.id,
+                mainTopic: 'Graph Traversal',
                 config: knowledgeCheckConfig({
                   question: 'DFS uses which data structure for traversal?',
                   type: 'MCQ',
@@ -368,6 +539,8 @@ async function main() {
               {
                 title: 'Fix the recursion bug',
                 promptTemplateId: foundation.debuggingPrompt.id,
+                mainTopic: 'Graph Debugging',
+                secondaryTopics: ['Graph Traversal'],
                 config: debuggingConfig({
                   question: 'The DFS function revisits nodes endlessly. What is missing?',
                   context:
@@ -394,6 +567,8 @@ async function main() {
               {
                 title: 'Identify the overlapping subproblem',
                 promptTemplateId: foundation.knowledgePrompt.id,
+                mainTopic: 'Dynamic Programming',
+                secondaryTopics: ['Memoization Strategies'],
                 config: knowledgeCheckConfig({
                   question: 'In the Fibonacci sequence, what subproblem repeats and benefits from memoization?',
                   type: 'SHORT_TEXT',
@@ -407,6 +582,15 @@ async function main() {
       },
     ],
     foundation,
+    [
+      'Sorting Fundamentals',
+      'Sorting Stability',
+      'Algorithm Complexity',
+      'Graph Traversal',
+      'Graph Debugging',
+      'Dynamic Programming',
+      'Memoization Strategies',
+    ],
   );
 
   const linearCourse = await createCourseWithContent(
@@ -429,6 +613,8 @@ async function main() {
               {
                 title: 'Dot product warm-up',
                 promptTemplateId: foundation.knowledgePrompt.id,
+                mainTopic: 'Dot Product',
+                secondaryTopics: ['Vector Fundamentals'],
                 config: knowledgeCheckConfig({
                   question: 'What is the dot product of (1,2) and (3,4)? Provide a number.',
                   type: 'SHORT_TEXT',
@@ -451,6 +637,8 @@ async function main() {
               {
                 title: 'Shape compatibility',
                 promptTemplateId: foundation.knowledgePrompt.id,
+                mainTopic: 'Matrix Multiplication',
+                secondaryTopics: ['Matrix Basics'],
                 config: knowledgeCheckConfig({
                   question: 'Can a 2x3 matrix multiply a 3x4 matrix? Answer yes or no.',
                   type: 'SHORT_TEXT',
@@ -464,6 +652,7 @@ async function main() {
       },
     ],
     foundation,
+    ['Vector Fundamentals', 'Dot Product', 'Matrix Basics', 'Matrix Multiplication'],
   );
 
   const physicsCourse = await createCourseWithContent(
@@ -484,6 +673,8 @@ async function main() {
               {
                 title: 'Graph interpretation',
                 promptTemplateId: foundation.knowledgePrompt.id,
+                mainTopic: 'Velocity',
+                secondaryTopics: ['Graph Interpretation'],
                 config: knowledgeCheckConfig({
                   question:
                     'A displacement-time graph has a constant positive slope. What can you say about velocity?',
@@ -498,6 +689,7 @@ async function main() {
       },
     ],
     foundation,
+    ['Kinematics', 'Velocity', 'Graph Interpretation'],
   );
 
   await prisma.courseInstructor.createMany({
@@ -541,8 +733,9 @@ async function main() {
       title: 'DFS bug hunt',
       instructionsMd: 'Explain the fix for the provided DFS implementation.',
       position: 1,
-      lessonId: capstoneLesson.id,
-      promptTemplateId: foundation.debuggingPrompt.id,
+      lesson: { connect: { id: capstoneLesson.id } },
+      promptTemplate: { connect: { id: foundation.debuggingPrompt.id } },
+      mainTopic: { connect: { id: await ensureTopicForCourse(algorithmsCourse.id, 'Graph Debugging') } },
       config: debuggingConfig({
         question: 'The DFS still revisits nodes after marking them visited inside recursion. What is wrong?',
         context:
@@ -550,6 +743,17 @@ async function main() {
         answer: { text: 'Should recurse on neighbor, not node.' },
         hints: ['Check the recursive call argument.', 'Compare with pseudo-code for DFS.'],
       }),
+      secondaryTopics: {
+        create: [
+          {
+            topic: {
+              connect: {
+                id: await ensureTopicForCourse(algorithmsCourse.id, 'Graph Traversal'),
+              },
+            },
+          },
+        ],
+      },
     },
   });
 

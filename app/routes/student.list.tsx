@@ -102,6 +102,19 @@ export default function StudentLessonPlayer() {
                       <p key={i}>{line}</p>
                     ))}
                   </div>
+                  {activity?.mainTopic && (
+                    <div className="mt-3 text-xs text-indigo-600 dark:text-indigo-300">
+                      <span className="font-semibold">Main topic:</span> {activity.mainTopic.name}
+                      {activity.secondaryTopics.length > 0 && (
+                        <>
+                          <span className="mx-2 text-indigo-400">•</span>
+                          <span>
+                            Secondary: {activity.secondaryTopics.map((topic) => topic.name).join(', ')}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="p-5 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 space-y-3">

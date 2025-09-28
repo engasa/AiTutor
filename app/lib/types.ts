@@ -34,6 +34,7 @@ export type Lesson = {
   title: string;
   contentMd?: string | null;
   position: number;
+  courseOfferingId?: number;
 };
 
 export type Activity = {
@@ -48,6 +49,8 @@ export type Activity = {
   hints: string[];
   promptTemplateId?: number | null;
   promptTemplate?: { id: number; name: string } | null;
+  mainTopic: Topic | null;
+  secondaryTopics: Topic[];
 };
 
 
@@ -58,4 +61,9 @@ export type PromptTemplate = {
   userPrompt: string;
   temperature?: number | null;
   topP?: number | null;
+};
+
+export type Topic = {
+  id: number;
+  name: string;
 };

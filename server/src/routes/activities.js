@@ -18,6 +18,10 @@ router.get('/lessons/:lessonId/activities', async (req, res) => {
       orderBy: { position: 'asc' },
       include: {
         promptTemplate: { select: { id: true, name: true } },
+        mainTopic: true,
+        secondaryTopics: {
+          include: { topic: true },
+        },
       },
     });
     res.json(activities.map(mapActivity));
@@ -42,8 +46,9 @@ router.post('/lessons/:lessonId/activities', requireRole('INSTRUCTOR'), async (r
     hints,
     instructionsMd,
     promptTemplateId,
-  } =
-    req.body || {};
+    mainTopicId,
+    secondaryTopicIds,
+  } = req.body || {};
 
   const questionText = question ?? prompt;
 
@@ -51,13 +56,56 @@ router.post('/lessons/:lessonId/activities', requireRole('INSTRUCTOR'), async (r
     return res.status(400).json({ error: 'question required' });
   }
 
+  if (typeof mainTopicId !== 'number' || !Number.isFinite(mainTopicId)) {
+    return res.status(400).json({ error: 'mainTopicId is required' });
+  }
+
   try {
+    const lesson = await prisma.lesson.findUnique({
+      where: { id: lessonId },
+      include: {
+        module: { select: { courseOfferingId: true } },
+      },
+    });
+
+    if (!lesson) {
+      return res.status(404).json({ error: 'Lesson not found' });
+    }
+
+    const courseOfferingId = lesson.module.courseOfferingId;
+
+    const mainTopic = await prisma.topic.findUnique({ where: { id: mainTopicId } });
+    if (!mainTopic || mainTopic.courseOfferingId !== courseOfferingId) {
+      return res.status(400).json({ error: 'mainTopicId must belong to the lesson course' });
+    }
+
+    const normalizedSecondaryIds = Array.isArray(secondaryTopicIds)
+      ? Array.from(
+          new Set(
+            secondaryTopicIds
+              .map((value) => Number(value))
+              .filter((value) => Number.isFinite(value) && value !== mainTopicId),
+          ),
+        )
+      : [];
+
+    if (normalizedSecondaryIds.length > 0) {
+      const topics = await prisma.topic.findMany({
+        where: { id: { in: normalizedSecondaryIds } },
+      });
+      const invalid = topics.some((topic) => topic.courseOfferingId !== courseOfferingId);
+      if (invalid || topics.length !== normalizedSecondaryIds.length) {
+        return res.status(400).json({ error: 'secondaryTopicIds must belong to the lesson course' });
+      }
+    }
+
     const activity = await prisma.activity.create({
       data: {
         title: title ?? null,
         instructionsMd: instructionsMd ?? 'Answer the question.',
         lessonId,
         promptTemplateId: promptTemplateId ?? null,
+        mainTopicId,
         config: {
           question: questionText,
           questionType: type ?? 'MCQ',
@@ -65,9 +113,21 @@ router.post('/lessons/:lessonId/activities', requireRole('INSTRUCTOR'), async (r
           answer: answer ?? null,
           hints: Array.isArray(hints) ? hints : [],
         },
+        secondaryTopics:
+          normalizedSecondaryIds.length > 0
+            ? {
+                create: normalizedSecondaryIds.map((topicId) => ({
+                  topic: { connect: { id: topicId } },
+                })),
+              }
+            : undefined,
       },
       include: {
         promptTemplate: { select: { id: true, name: true } },
+        mainTopic: true,
+        secondaryTopics: {
+          include: { topic: true },
+        },
       },
     });
 
@@ -84,9 +144,14 @@ router.patch('/activities/:activityId', requireRole('INSTRUCTOR'), async (req, r
     return res.status(400).json({ error: 'Invalid activity id' });
   }
 
-  const { promptTemplateId } = req.body || {};
-  if (typeof promptTemplateId === 'undefined') {
-    return res.status(400).json({ error: 'promptTemplateId is required' });
+  const { promptTemplateId, mainTopicId, secondaryTopicIds } = req.body || {};
+
+  if (
+    typeof promptTemplateId === 'undefined' &&
+    typeof mainTopicId === 'undefined' &&
+    typeof secondaryTopicIds === 'undefined'
+  ) {
+    return res.status(400).json({ error: 'Nothing to update' });
   }
 
   try {
@@ -104,6 +169,7 @@ router.patch('/activities/:activityId', requireRole('INSTRUCTOR'), async (req, r
             },
           },
         },
+        mainTopic: true,
       },
     });
 
@@ -119,26 +185,74 @@ router.patch('/activities/:activityId', requireRole('INSTRUCTOR'), async (req, r
       return res.status(403).json({ error: 'Not authorized for this activity' });
     }
 
-    let resolvedPromptId = null;
-    if (promptTemplateId === null) {
-      resolvedPromptId = null;
-    } else if (typeof promptTemplateId === 'number') {
-      const prompt = await prisma.promptTemplate.findUnique({
-        where: { id: promptTemplateId },
-      });
-      if (!prompt) {
-        return res.status(400).json({ error: 'Invalid promptTemplateId' });
+    const courseOfferingId = activity.lesson.module.courseOfferingId;
+
+    const updateData = {};
+
+    if (typeof promptTemplateId !== 'undefined') {
+      if (promptTemplateId === null) {
+        updateData.promptTemplateId = null;
+      } else if (typeof promptTemplateId === 'number') {
+        const prompt = await prisma.promptTemplate.findUnique({ where: { id: promptTemplateId } });
+        if (!prompt) {
+          return res.status(400).json({ error: 'Invalid promptTemplateId' });
+        }
+        updateData.promptTemplateId = promptTemplateId;
+      } else {
+        return res.status(400).json({ error: 'promptTemplateId must be a number or null' });
       }
-      resolvedPromptId = promptTemplateId;
-    } else {
-      return res.status(400).json({ error: 'promptTemplateId must be a number or null' });
+    }
+
+    let resolvedMainTopicId = activity.mainTopicId;
+    if (typeof mainTopicId !== 'undefined') {
+      if (typeof mainTopicId !== 'number' || !Number.isFinite(mainTopicId)) {
+        return res.status(400).json({ error: 'mainTopicId must be a number' });
+      }
+      const mainTopic = await prisma.topic.findUnique({ where: { id: mainTopicId } });
+      if (!mainTopic || mainTopic.courseOfferingId !== courseOfferingId) {
+        return res.status(400).json({ error: 'mainTopicId must belong to the activity course' });
+      }
+      updateData.mainTopicId = mainTopicId;
+      resolvedMainTopicId = mainTopicId;
+    }
+
+    if (typeof secondaryTopicIds !== 'undefined') {
+      if (!Array.isArray(secondaryTopicIds)) {
+        return res.status(400).json({ error: 'secondaryTopicIds must be an array of ids' });
+      }
+      const normalizedSecondaryIds = Array.from(
+        new Set(
+          secondaryTopicIds
+            .map((value) => Number(value))
+            .filter((value) => Number.isFinite(value) && value !== resolvedMainTopicId),
+        ),
+      );
+
+      if (normalizedSecondaryIds.length > 0) {
+        const topics = await prisma.topic.findMany({ where: { id: { in: normalizedSecondaryIds } } });
+        const invalid = topics.some((topic) => topic.courseOfferingId !== courseOfferingId);
+        if (invalid || topics.length !== normalizedSecondaryIds.length) {
+          return res.status(400).json({ error: 'secondaryTopicIds must belong to the activity course' });
+        }
+      }
+
+      updateData.secondaryTopics = {
+        deleteMany: {},
+        create: normalizedSecondaryIds.map((topicId) => ({
+          topic: { connect: { id: topicId } },
+        })),
+      };
     }
 
     const updated = await prisma.activity.update({
       where: { id: activityId },
-      data: { promptTemplateId: resolvedPromptId },
+      data: updateData,
       include: {
         promptTemplate: { select: { id: true, name: true } },
+        mainTopic: true,
+        secondaryTopics: {
+          include: { topic: true },
+        },
       },
     });
 

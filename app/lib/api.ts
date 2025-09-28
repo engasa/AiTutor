@@ -112,6 +112,8 @@ export const api = {
       hints?: string[];
       instructionsMd?: string;
       promptTemplateId?: number | null;
+      mainTopicId: number;
+      secondaryTopicIds?: number[];
     }
   ) =>
     http(`/api/lessons/${lessonId}/activities`, {
@@ -121,11 +123,19 @@ export const api = {
   updateActivity: (
     activityId: number,
     payload: {
-      promptTemplateId: number | null;
+      promptTemplateId?: number | null;
+      mainTopicId?: number;
+      secondaryTopicIds?: number[];
     }
   ) =>
     http(`/api/activities/${activityId}`, {
       method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+  topicsForCourse: (courseId: number) => http(`/api/courses/${courseId}/topics`),
+  createTopic: (courseId: number, payload: { name: string }) =>
+    http(`/api/courses/${courseId}/topics`, {
+      method: 'POST',
       body: JSON.stringify(payload),
     }),
   submitAnswer: (activityId: number, payload: any) =>

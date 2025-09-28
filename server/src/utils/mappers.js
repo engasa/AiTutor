@@ -30,6 +30,7 @@ export function mapLesson(lesson) {
     title: lesson.title,
     contentMd: lesson.contentMd,
     position: lesson.position,
+    courseOfferingId: lesson.module?.courseOfferingId ?? lesson.courseOfferingId ?? undefined,
   };
 }
 
@@ -49,5 +50,15 @@ export function mapActivity(activity) {
     options: config.options ? { choices: config.options } : null,
     answer: config.answer ?? null,
     hints: Array.isArray(config.hints) ? config.hints : [],
+    mainTopic: activity.mainTopic
+      ? { id: activity.mainTopic.id, name: activity.mainTopic.name }
+      : null,
+    secondaryTopics: Array.isArray(activity.secondaryTopics)
+      ? activity.secondaryTopics
+          .map((relation) =>
+            relation?.topic ? { id: relation.topic.id, name: relation.topic.name } : null,
+          )
+          .filter(Boolean)
+      : [],
   };
 }

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-AiTutor is a full-stack educational platform built with React Router v7, TypeScript, Express.js, and PostgreSQL. The app provides a secure tutoring system where instructors create question lists and students answer questions, with JWT-based authentication, role-based access control, and comprehensive course management.
+AiTutor is a full-stack educational platform built with React Router v7, TypeScript, Express.js, and PostgreSQL. The app provides a sophisticated tutoring system with hierarchical course structure (CourseOffering → Module → Lesson → Activity), advanced topic classification, JWT-based authentication, role-based access control, and comprehensive course management with content cloning capabilities.
 
 ## Architecture
 
@@ -16,16 +16,23 @@ AiTutor is a full-stack educational platform built with React Router v7, TypeScr
 - `app/hooks/` - Custom React hooks (e.g., `useLocalUser.ts` for JWT token management and authentication state)
 
 **Backend (Express + Prisma):**
-- `server/src/` - Express.js API server with JWT authentication middleware
+- `server/src/` - Modular Express.js API server with clean architecture
+- `server/src/config/` - Centralized configuration (database connection)
 - `server/src/middleware/` - Authentication middleware with JWT verification and role-based access control
+- `server/src/routes/` - Domain-specific route modules (authentication, courses, modules, lessons, activities, prompts)
+- `server/src/services/` - Business logic layer (course cloning, activity evaluation)
+- `server/src/utils/` - Shared utilities (data mappers, transformations)
 - `server/prisma/` - Database schema, migrations, and seed data with bcrypt-hashed passwords
-- Database models: User, Course, Topic, QuestionList, Question, StudentAnswer, Enrollment, TeachingAssignment
+- Database models: User, CourseOffering, Module, Lesson, Activity, Topic, PromptTemplate, Submission, Enrollments, TeachingAssignments
 
 **Key Patterns:**
 - JWT-based authentication with bcrypt password hashing and 24-hour token expiration
 - Role-based access control (STUDENT/INSTRUCTOR) enforced on both frontend and backend
 - Protected routes with automatic token validation and logout on expiration
-- Nested data hierarchy: Course → Topic → QuestionList → Question
+- **Hierarchical Course Structure**: CourseOffering → Module → Lesson → Activity
+- **Advanced Topic Classification**: Activities have required mainTopic and optional secondaryTopics with many-to-many relationships
+- **Course-Scoped Topics**: Topics are unique within CourseOfferings, preventing cross-course pollution
+- **Sophisticated Content Cloning**: Cross-course lesson/activity import with automatic topic mapping
 - API client with Authorization headers and centralized error handling in `app/lib/api.ts`
 - SSR-compatible authentication that works with React Router v7 server-side rendering
 
@@ -53,22 +60,89 @@ npm run build                                  # Build for production
 npm start                                     # Serve built application
 ```
 
+## Topic Classification System
+
+**Architecture Overview:**
+The platform implements a sophisticated topic classification system that enables precise content categorization and cross-referencing within educational courses. This system was completely redesigned from the original flat topic structure to support advanced pedagogical workflows.
+
+**Core Principles:**
+- **Course-Scoped Topics**: Topics belong to specific CourseOfferings, preventing naming conflicts and ensuring pedagogical coherence
+- **Hierarchical Classification**: Activities must have one mainTopic and can have multiple secondaryTopics
+- **Many-to-Many Relationships**: Flexible topic assignment through junction tables
+- **Cross-Referencing**: Activities can be discovered through multiple topic pathways
+- **Semantic Organization**: Topics enable content discovery, prerequisite tracking, and learning path optimization
+
+**Database Implementation:**
+```sql
+-- Topics scoped to courses with unique naming
+model Topic {
+  id               Int              @id @default(autoincrement())
+  name             String
+  courseOffering   CourseOffering   @relation(fields: [courseOfferingId], references: [id], onDelete: Cascade)
+  courseOfferingId Int
+  
+  -- Bidirectional relationships with activities
+  mainActivities      Activity[]               @relation("ActivityMainTopic")
+  secondaryActivities ActivitySecondaryTopic[]
+  
+  @@unique([courseOfferingId, name])  -- Prevents duplicate topics per course
+}
+
+-- Activities require main topic, support multiple secondary topics
+model Activity {
+  mainTopic       Topic                  @relation("ActivityMainTopic", fields: [mainTopicId], references: [id])
+  mainTopicId     Int                    -- Required field
+  secondaryTopics ActivitySecondaryTopic[]
+  -- ... other fields
+}
+
+-- Junction table for many-to-many secondary topic relationships
+model ActivitySecondaryTopic {
+  activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  activityId Int
+  topic      Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  topicId    Int
+  
+  @@id([activityId, topicId])
+}
+```
+
+**Frontend Implementation:**
+- **Real-time Topic Management**: Create topics on-demand during activity creation
+- **Visual Topic Assignment**: Intuitive main/secondary topic selection interface
+- **Optimistic UI Updates**: Immediate feedback with proper error rollback
+- **Topic Validation**: Prevents conflicts between main and secondary topic assignments
+- **Bulk Topic Operations**: Efficient updates across multiple activities
+
+**API Design:**
+- `GET /api/courses/:id/topics` - Retrieve course-scoped topics
+- `POST /api/courses/:id/topics` - Create new topics (instructor-only)
+- `PATCH /api/activities/:id` - Update activity topic assignments
+- **Authorization**: Course-scoped access control with instructor/student permissions
+- **Error Handling**: Conflict resolution for duplicate topic names
+
 ## Database Schema
 
-The Prisma schema defines a complete educational platform:
+The Prisma schema defines a complete educational platform with advanced topic classification:
 - **Users** with roles (STUDENT/INSTRUCTOR)
-- **Courses** containing multiple topics
-- **Topics** containing question lists
-- **Questions** with types (MCQ/SHORT_TEXT), hints, and answer validation
+- **CourseOfferings** containing modules and course-scoped topics
+- **Modules** containing lessons within courses (hierarchical organization)
+- **Lessons** containing activities within modules
+- **Activities** with types (MCQ/SHORT_TEXT), hints, answer validation, and **required topic classification**
+- **Topics** for semantic content categorization, scoped to CourseOfferings with unique naming constraints
+- **ActivitySecondaryTopic** junction table for many-to-many secondary topic relationships
+- **PromptTemplates** for AI-powered educational assistance
+- **Submissions** for tracking student responses and AI feedback
 - **Enrollments** and **TeachingAssignments** for role-based access
-- **StudentAnswers** for tracking student responses
 
 ## Frontend Architecture
 
 **Route Structure:**
 - Role-based layouts: `instructor.tsx` and `student.tsx` provide different navigation
-- Nested routes follow data hierarchy: `instructor.course.tsx` → `instructor.topic.tsx` → `instructor.list.tsx`
+- Nested routes follow data hierarchy: `instructor.course.tsx` → `instructor.module.tsx` → `instructor.lesson.tsx` → `instructor.activity.tsx`
+- **Topic Management Integration**: `instructor.list.tsx` (842 lines) provides comprehensive topic assignment UI
 - Data loading happens in route loaders with React Router's data APIs
+- **Real-time Topic UI**: Optimistic updates with proper error rollback for topic operations
 
 **State Management:**
 - JWT token management via `useLocalUser` hook with automatic expiration handling
@@ -91,15 +165,37 @@ RESTful API with JWT-based authentication and role-based protection:
 
 **Protected Endpoints (Require JWT token):**
 - `/api/courses` - Course management and user-specific course lists
-- `/api/courses/:id/topics` - Topic management within courses
-- `/api/topics/:id/lists` - Question list management
-- `/api/lists/:id` and `/api/lists/:id/questions` - Question management
+- `/api/courses/:id/modules` - Module management within courses
+- `/api/courses/:id/topics` - **Topic management within courses (course-scoped)**
+- `/api/modules/:id/lessons` - Lesson management within modules
+- `/api/lessons/:id/activities` - Activity management within lessons
+- `/api/activities/:id` - **Activity updates and topic assignments (main + secondary topics)**
+- `/api/prompts` - Prompt template management
 - `/api/questions/:id/answer` - Answer submission
 
+**Topic-Specific Endpoints:**
+- `GET /api/courses/:id/topics` - Retrieve all topics for a course (authorized users)
+- `POST /api/courses/:id/topics` - Create new topic within course scope (instructor-only)
+- `PATCH /api/activities/:id` - Update activity topic assignments:
+  - `mainTopicId: number` - Required main topic assignment
+  - `secondaryTopicIds: number[]` - Optional secondary topic assignments
+  - Validates topics belong to same course as activity
+  - Prevents main topic from appearing in secondary topics
+
 **Instructor-Only Endpoints:**
-- `/api/users` - User management (instructor role required)
-- `/api/lists` (POST) - Create question lists (instructor role required)
-- `/api/lists/:id/questions` (POST) - Create questions (instructor role required)
+- `/api/courses` (POST, PATCH) - Create/update courses (instructor role required)
+- `/api/courses/:id/import` - **Import content between courses with automatic topic mapping**
+- `/api/courses/:id/topics` (POST) - **Create course-scoped topics with unique naming constraints**
+- `/api/modules/:id/lessons` (POST) - Create lessons (instructor role required)
+- `/api/lessons/:id/activities` (POST) - **Create activities with required main topic assignment**
+- `/api/activities/:id` (PATCH) - **Update activities including topic assignments (main + secondary)**
+- `/api/prompts` (POST) - Create prompt templates (instructor role required)
+
+**Topic Management Security:**
+- Topics are course-scoped with automatic authorization validation
+- Duplicate topic names within courses return HTTP 409 Conflict
+- Cross-course topic references are prevented at database level
+- Topic assignments validate course membership before updates
 
 **Authentication Flow:**
 1. Send POST to `/api/login` with email/password
@@ -131,6 +227,9 @@ No test framework is currently configured. When adding tests:
 - Frontend: Use Vitest + React Testing Library under `app/__tests__/`
 - Backend: Use Vitest/Jest + Supertest under `server/test/`
 - Focus testing on route loaders, API endpoints, and critical user flows
+- **Modular Architecture Benefits**: Each service and utility can be tested independently
+- Test business logic in `services/` separately from HTTP handling in `routes/`
+- Mock database connections using `config/database.js` for unit tests
 
 **Authentication Testing Priorities:**
 - JWT token generation and validation
@@ -140,6 +239,18 @@ No test framework is currently configured. When adding tests:
 - Token expiration and automatic logout
 - SSR compatibility for authentication hooks
 
+**Business Logic Testing Priorities:**
+- Course cloning functionality in `services/courseCloning.js` with topic mapping
+- Activity evaluation logic in `services/activityEvaluation.js`
+- Data mapping and sanitization in `utils/mappers.js`
+- **Topic Classification System**:
+  - Topic creation with course-scoped uniqueness constraints
+  - Activity-topic assignment validation (main + secondary)
+  - Cross-course topic isolation and access control
+  - Junction table operations for secondary topic relationships
+- **Complex Activity Creation**: Required main topic + optional secondary topics
+- **Content Import Logic**: Automatic topic mapping during cross-course imports
+
 ## Authentication System
 
 **Demo Credentials:**
@@ -148,9 +259,16 @@ No test framework is currently configured. When adding tests:
 
 **Key Components:**
 - `server/src/middleware/auth.js` - JWT verification and role-based access control
+- `server/src/routes/authentication.js` - Login and user management endpoints
+- `server/src/routes/topics.js` - **Course-scoped topic management with authorization**
+- `server/src/config/database.js` - Centralized Prisma client configuration
+- `server/src/services/courseCloning.js` - **Complex course cloning with automatic topic mapping**
+- `server/src/services/activityEvaluation.js` - Activity evaluation logic
+- `server/src/utils/mappers.js` - Data transformation and sanitization utilities
 - `app/hooks/useLocalUser.ts` - JWT token management and authentication state
 - `app/components/ProtectedRoute.tsx` - Route-level authentication guards
-- `app/lib/api.ts` - Automatic Authorization header injection
+- `app/lib/api.ts` - **Enhanced API client with topic management endpoints**
+- `app/routes/instructor.list.tsx` - **Comprehensive topic assignment UI (842 lines)**
 
 **Security Features:**
 - Bcrypt password hashing with salt rounds
@@ -197,3 +315,97 @@ npm run seed  # Re-runs seed with fresh bcrypt-hashed passwords
 - Use HTTPS in production for secure token transmission
 - Consider shorter token expiration for higher security environments
 - Set up proper CORS configuration for production domains
+
+## Backend Architecture Details
+
+**Modular Structure (Refactored from 890-line monolith):**
+```
+server/src/
+├── index.js                    # Main entry point (45 lines)
+├── config/
+│   └── database.js            # Prisma client setup
+├── middleware/
+│   └── auth.js                # Authentication middleware
+├── routes/
+│   ├── authentication.js     # Login and user endpoints
+│   ├── courses.js            # Course CRUD and cloning
+│   ├── modules.js            # Module management
+│   ├── lessons.js            # Lesson management
+│   ├── activities.js         # Activity CRUD with topic assignment
+│   └── prompts.js            # Prompt template management
+├── services/
+│   ├── courseCloning.js      # Complex course cloning business logic
+│   └── activityEvaluation.js # Question evaluation and feedback
+└── utils/
+    └── mappers.js            # Data transformation utilities
+```
+
+**Architectural Benefits:**
+- **Separation of Concerns**: Routes handle HTTP, services handle business logic
+- **Testability**: Each module can be tested independently
+- **Maintainability**: Changes isolated to specific domains
+- **Scalability**: Easy to add new features without affecting existing code
+- **Team Development**: Multiple developers can work on different modules
+
+**Topic Classification Architecture:**
+- **Required Main Topic**: Every activity must have exactly one `mainTopic` for primary classification
+- **Optional Secondary Topics**: Activities support multiple `secondaryTopics` for cross-referencing and discoverability
+- **Course-Scoped Organization**: Topics belong to specific CourseOfferings with unique naming constraints
+- **Many-to-Many Secondary Relationships**: `ActivitySecondaryTopic` junction table manages flexible secondary topic assignments
+- **Relational Integrity**: Cascade deletions ensure data consistency when courses or topics are removed
+- **Cross-Course Isolation**: Topic assignments validated at application level to prevent cross-course references
+
+**Topic Management Workflow:**
+1. **Topic Creation**: Instructors create course-scoped topics with automatic uniqueness validation
+2. **Activity Classification**: Required main topic selection during activity creation
+3. **Secondary Assignment**: Optional secondary topic selection with visual feedback
+4. **Real-time Updates**: Optimistic UI updates with proper error rollback
+5. **Content Import**: Automatic topic mapping when importing activities between courses
+6. **Validation**: Prevents main topic from appearing in secondary topic list
+
+**Migration from Legacy System:**
+The platform underwent a complete architectural transformation from the original flat structure:
+
+**Before (Legacy):**
+```
+Course → Topic → QuestionList → Question
+- Flat topic structure with global scope
+- ActivityType enumeration for question categorization  
+- Simple one-to-many relationships
+- Limited cross-referencing capabilities
+```
+
+**After (Current):**
+```
+CourseOffering → Module → Lesson → Activity
+- Hierarchical course organization
+- Course-scoped topics with semantic relationships
+- Required main topic + optional secondary topics
+- Advanced content cloning with topic mapping
+- Removed ActivityType dependency completely
+```
+
+**Key Migration Changes:**
+- **Schema Evolution**: 3 database migrations to remove ActivityType and implement topic relationships
+- **Data Model**: Complete refactor from flat to hierarchical with proper foreign key relationships
+- **UI Transformation**: 842-line `instructor.list.tsx` with sophisticated topic management interface
+- **API Redesign**: New RESTful endpoints for course-scoped topic operations
+- **Seed Script**: Updated to use Prisma relation syntax instead of direct foreign key assignments
+- **Frontend Types**: Added `Topic` type with comprehensive TypeScript integration
+- **Real-time UI**: Optimistic updates with proper error rollback for all topic operations
+
+**Data Flow:**
+1. Routes validate input and handle HTTP concerns
+2. Services contain complex business logic (cloning, evaluation)
+3. Utils provide data transformation and sanitization
+4. Config provides centralized database access
+5. Middleware handles cross-cutting concerns (auth, CORS)
+
+**Development Workflow with Topics:**
+- **Activity Creation**: Always requires main topic selection before saving
+- **Topic Management**: Instructors create topics on-demand during content creation
+- **Content Import**: Automatic topic mapping when copying activities between courses
+- **Database Seeding**: Use Prisma relation syntax (`{ connect: { id: ... } }`) not direct field assignments
+- **Error Handling**: Topic conflicts return 409 status with helpful error messages
+- **UI State Management**: Complex state for topic loading, selection, and validation in instructor interface
+- **Performance**: Efficient queries with proper includes for topic relationships

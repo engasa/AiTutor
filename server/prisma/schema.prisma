@@ -65,6 +65,21 @@ model CourseOffering {
   modules      Module[]
   instructors  CourseInstructor[]
   enrollments  CourseEnrollment[]
+  topics       Topic[]
+}
+
+model Topic {
+  id               Int              @id @default(autoincrement())
+  name             String
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  courseOffering   CourseOffering   @relation(fields: [courseOfferingId], references: [id], onDelete: Cascade)
+  courseOfferingId Int
+
+  mainActivities      Activity[]               @relation("ActivityMainTopic")
+  secondaryActivities ActivitySecondaryTopic[]
+
+  @@unique([courseOfferingId, name])
 }
 
 model CourseInstructor {
@@ -127,6 +142,10 @@ model Activity {
   promptTemplate PromptTemplate? @relation(fields: [promptTemplateId], references: [id])
   promptTemplateId Int?
 
+  mainTopic       Topic                  @relation("ActivityMainTopic", fields: [mainTopicId], references: [id])
+  mainTopicId     Int
+  secondaryTopics ActivitySecondaryTopic[]
+
   submissions Submission[]
 }
 
@@ -142,4 +161,13 @@ model Submission {
   userId       Int
   activity     Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
   activityId   Int
+}
+
+model ActivitySecondaryTopic {
+  activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  activityId Int
+  topic      Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  topicId    Int
+
+  @@id([activityId, topicId])
 }
