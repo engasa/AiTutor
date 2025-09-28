@@ -20,19 +20,19 @@
 - **Express Pipeline**: `src/index.js` configures CORS, JSON parsing, health check, login, and secured routes. `authenticateToken` validates JWTs via Prisma lookup; `requireRole`/`requireRoles` enforce RBAC.
 - **Business Logic Helpers**:
   - `cloneCourseContent` and `cloneLessonsFromOffering` duplicate modules/lessons from one live course to another while preserving ordering.
-  - `mapCourseOffering`, `mapModule`, `mapLesson`, and `mapActivity` shape database rows for client consumption. Activities expose `config.question`, `questionType`, answer metadata, hints, and attached prompt templates.
+  - `mapCourseOffering`, `mapModule`, `mapLesson`, and `mapActivity` shape database rows for client consumption. Activities expose `config.question`, `questionType`, answer metadata, hints, and attached prompt templates; there is no longer an `ActivityType` relation.
   - `evaluateQuestion` handles basic MCQ/short-text grading and returns AI assistant cues.
 - **Endpoint Highlights**:
   - Auth: `POST /api/login`, `GET /api/me`.
   - Courses: `GET /api/courses` (role-aware), `POST /api/courses` (optionally clone from an existing course), `PATCH /api/courses/:id`.
   - Modules & Lessons: `GET/POST /api/courses/:id/modules`, `GET /api/modules/:id`, `GET/POST /api/modules/:id/lessons`, `GET /api/lessons/:id`.
--  - Activities & Prompts: `GET/POST /api/lessons/:id/activities`, `PATCH /api/activities/:id`, `GET/POST /api/prompts`, `GET /api/activity-types`.
+-  - Activities & Prompts: `GET/POST /api/lessons/:id/activities`, `PATCH /api/activities/:id`, `GET/POST /api/prompts`.
 -  - Submissions: `POST /api/questions/:id/answer` persists attempts and leverages `evaluateQuestion` for correctness and hinting.
-- **Prisma Schema**: Defines users (with `Role` enum), course offerings, modules, lessons, activities, prompt templates, activity types, enrollments, instructor assignments, and submissions. Activity `config` JSON stores question text, options, answers, and hints, enabling flexible activity types.
+- **Prisma Schema**: Defines users (with `Role` enum), course offerings, modules, lessons, activities, prompt templates, enrollments, instructor assignments, and submissions. Activity `config` JSON stores question text, options, answers, and hints, enabling flexible activity shapes without a separate type table.
 
 ## Seed Data (`server/prisma/seed.js`)
 - Completely resets the schema, then provisions four users (two students, two instructors).
-- Seeds two activity types (`knowledge-check`, `code-debugging`) plus default prompt templates.
+- Seeds default prompt templates (knowledge-check and debugging assistants) while activity categorization now lives entirely in each activity's `config`.
 - Creates rich course offerings (Algorithms, Linear Algebra, Physics) with nested modules/lessons/activities directly in the live tables.
 - Demonstrates cloning by copying modules/lessons between real courses, assigns instructors/enrollments, and populates sample submissions for analytics demos.
 - Running `cd server && npm run seed` requires migrations applied via `npx prisma migrate deploy` and an active Postgres instance from `docker compose up -d db`.
@@ -61,7 +61,7 @@
 - Tests are not yet present; add Vitest + React Testing Library in `app/__tests__/` and Vitest/Jest + Supertest in `server/test/` as coverage grows. Ensure `npm run typecheck` passes before raising PRs.
 
 ## Extension Tips
-- **New activity flows**: define additional `ActivityType`/`PromptTemplate` via Prisma migrations and adjust `defaultActivityTypeId` if defaults change.
+- **New activity flows**: extend the activity `config` schema or add more prompt templates via Prisma migrations, and update the seed defaults when the fallback prompt changes.
 - **Cloning logic**: reuse `cloneCourseContent` (for modules) and `cloneLessonsFromOffering` (for individual lessons) when building import features; each preserves nested activities and prompt assignments.
-- **AI prompts**: instructor UI expects prompt collections from `/api/prompts`; ensure backend responses include `activityType` details for selection context.
+- **AI prompts**: instructor UI expects prompt collections from `/api/prompts`; ensure backend responses include prompt metadata (id/name) so instructors can attach them to activities.
 - **Role enforcement**: server checks instructors via `courseInstructor` relations when mutating course assets; keep that pattern for new privileged endpoints.
