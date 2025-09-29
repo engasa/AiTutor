@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import AddActivityPanel from '../components/AddActivityPanel';
+import ActivityDetailsCard from '../components/ActivityDetailsCard';
 import AddCourseTopicsButton from '../components/AddCourseTopicsButton';
 import Nav from '../components/Nav';
 import ProtectedRoute from '../components/ProtectedRoute';
@@ -271,6 +272,8 @@ export default function InstructorLessonBuilder() {
                             <div className="text-xs text-gray-500">#{i + 1} • {activity.type}</div>
                             <div className="font-medium whitespace-pre-wrap">{activity.question}</div>
                           </div>
+
+                          <ActivityDetailsCard activity={activity} />
 
                           <div className="rounded-xl border border-dashed border-indigo-200/70 dark:border-indigo-900/60 bg-indigo-50/50 dark:bg-indigo-950/20 p-3 space-y-3">
                             <div className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">
