@@ -43,6 +43,10 @@ export default function InstructorCourseModules() {
   const [selectedModuleIds, setSelectedModuleIds] = useState<Set<number>>(new Set());
   const [importing, setImporting] = useState(false);
 
+  useEffect(() => {
+    setModules(initialModules);
+  }, [initialModules]);
+
   const refreshModules = async () => {
     if (!numericCourseId) return;
     try {

@@ -59,6 +59,10 @@ export default function InstructorLessonBuilder() {
   const courseTopics = useCourseTopics(courseOfferingId);
   const { topics, loading: loadingTopics, error: topicsError } = courseTopics;
 
+  useEffect(() => {
+    setActivities(initialActivities);
+  }, [initialActivities]);
+
   const refreshActivities = async () => {
     if (!numericLessonId) return;
     try {

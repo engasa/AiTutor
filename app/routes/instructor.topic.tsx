@@ -50,6 +50,10 @@ export default function InstructorModuleLessons() {
   const [selectedLessonIds, setSelectedLessonIds] = useState<Set<number>>(new Set());
   const [importing, setImporting] = useState(false);
 
+  useEffect(() => {
+    setLessons(initialLessons);
+  }, [initialLessons]);
+
   const refreshLessons = async () => {
     if (!numericModuleId) return;
     try {
