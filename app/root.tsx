@@ -10,6 +10,33 @@ import {
 import type { Route } from "./+types/root";
 import "./app.css";
 
+const themeScript = `(() => {
+  const doc = document.documentElement;
+  const setTheme = (isDark) => doc.classList.toggle("dark", isDark);
+  let media;
+
+  try {
+    const stored = localStorage.getItem("theme");
+    if (stored === "dark" || stored === "light") {
+      setTheme(stored === "dark");
+      return;
+    }
+  } catch (error) {
+    // ignore storage access issues
+  }
+
+  if (typeof window.matchMedia === "function") {
+    media = window.matchMedia("(prefers-color-scheme: dark)");
+    setTheme(media.matches);
+    const listener = (event) => setTheme(event.matches);
+    if (typeof media.addEventListener === "function") {
+      media.addEventListener("change", listener);
+    } else if (typeof media.addListener === "function") {
+      media.addListener(listener);
+    }
+  }
+})();`;
+
 export const links: Route.LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
   {
@@ -31,6 +58,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <Meta />
         <Links />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: themeScript,
+          }}
+        />
       </head>
       <body>
         {children}
