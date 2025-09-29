@@ -1,6 +1,7 @@
 import type { FormEvent } from 'react';
-import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { useState, useEffect } from 'react';
+import { Link, useLoaderData, useNavigate, useParams } from 'react-router';
+import type { ClientLoaderFunctionArgs } from 'react-router';
 import Nav from '../components/Nav';
 import ProtectedRoute from '../components/ProtectedRoute';
 import {
@@ -15,15 +16,26 @@ import api from '../lib/api';
 import type { Course, Lesson, Module, ModuleDetail } from '../lib/types';
 import { requireUser } from '../hooks/useLocalUser';
 
+export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
+  const moduleId = Number(params.moduleId);
+  const [module, lessons] = await Promise.all([
+    api.moduleById(moduleId),
+    api.lessonsForModule(moduleId),
+  ]);
+
+  // Fetch course details for breadcrumb
+  const course = await api.courseById(module.courseOfferingId);
+
+  return { course, module, lessons };
+}
+
 export default function InstructorModuleLessons() {
   const navigate = useNavigate();
   const { moduleId } = useParams();
   const user = requireUser('INSTRUCTOR');
   const numericModuleId = moduleId ? Number(moduleId) : null;
-  const [course, setCourse] = useState<Course | null>(null);
-  const [module, setModule] = useState<ModuleDetail | null>(null);
-  const [lessons, setLessons] = useState<Lesson[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { course, module, lessons: initialLessons } = useLoaderData<typeof clientLoader>();
+  const [lessons, setLessons] = useState<Lesson[]>(initialLessons);
   const [title, setTitle] = useState('');
   const [creating, setCreating] = useState(false);
   const [showImport, setShowImport] = useState(false);
@@ -38,33 +50,15 @@ export default function InstructorModuleLessons() {
   const [selectedLessonIds, setSelectedLessonIds] = useState<Set<number>>(new Set());
   const [importing, setImporting] = useState(false);
 
-  const loadData = async () => {
+  const refreshLessons = async () => {
     if (!numericModuleId) return;
-    setLoading(true);
     try {
-      const [moduleDetail, lessonData] = await Promise.all([
-        api.moduleById(numericModuleId),
-        api.lessonsForModule(numericModuleId),
-      ]);
-      setModule(moduleDetail);
+      const lessonData = await api.lessonsForModule(numericModuleId);
       setLessons(lessonData);
-
-      // Fetch course details for breadcrumb
-      if (moduleDetail.courseOfferingId) {
-        const courseData = await api.courseById(moduleDetail.courseOfferingId);
-        setCourse(courseData);
-      }
     } catch (error) {
-      console.error('Failed to load module lessons', error);
-    } finally {
-      setLoading(false);
+      console.error('Failed to refresh lessons', error);
     }
   };
-
-  useEffect(() => {
-    if (!user || !numericModuleId) return;
-    loadData();
-  }, [user?.id, numericModuleId]);
 
   const ensureSourceCoursesLoaded = () => {
     if (availableCourses.length > 0) return;
@@ -135,7 +129,7 @@ export default function InstructorModuleLessons() {
     try {
       await api.createLesson(numericModuleId, { title: title.trim() });
       setTitle('');
-      loadData();
+      refreshLessons();
     } catch (error) {
       console.error('Failed to create lesson', error);
     } finally {
@@ -166,7 +160,7 @@ export default function InstructorModuleLessons() {
       setSelectedSourceModuleId(null);
       setSourceLessons([]);
       setSelectedLessonIds(new Set());
-      loadData();
+      refreshLessons();
     } catch (error) {
       console.error('Import lessons failed', error);
     } finally {
@@ -343,9 +337,7 @@ export default function InstructorModuleLessons() {
             </button>
           </form>
 
-          {loading ? (
-            <div className="text-gray-500">Loading…</div>
-          ) : lessons.length === 0 ? (
+          {lessons.length === 0 ? (
             <div className="text-gray-500">No lessons yet.</div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">

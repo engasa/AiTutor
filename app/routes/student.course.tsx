@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, useLoaderData, useNavigate, useParams } from 'react-router';
+import type { ClientLoaderFunctionArgs } from 'react-router';
 import Nav from '../components/Nav';
 import ProtectedRoute from '../components/ProtectedRoute';
 import {
@@ -14,26 +14,20 @@ import api from '../lib/api';
 import type { Course, Module } from '../lib/types';
 import { requireUser } from '../hooks/useLocalUser';
 
+export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
+  const courseId = Number(params.courseId);
+  const [course, modules] = await Promise.all([
+    api.courseById(courseId),
+    api.modulesForCourse(courseId),
+  ]);
+  return { course, modules };
+}
+
 export default function StudentCourseModules() {
   const navigate = useNavigate();
   const { courseId } = useParams();
   const user = requireUser('STUDENT');
-  const numericCourseId = courseId ? Number(courseId) : null;
-  const [course, setCourse] = useState<Course | null>(null);
-  const [modules, setModules] = useState<Module[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!user || !numericCourseId) return;
-    setLoading(true);
-    Promise.all([api.courseById(numericCourseId), api.modulesForCourse(numericCourseId)])
-      .then(([courseData, modulesData]) => {
-        setCourse(courseData);
-        setModules(modulesData);
-      })
-      .catch((error) => console.error('Failed to load course data', error))
-      .finally(() => setLoading(false));
-  }, [user?.id, numericCourseId]);
+  const { course, modules } = useLoaderData<typeof clientLoader>();
 
   return (
     <ProtectedRoute role="STUDENT">
@@ -54,13 +48,11 @@ export default function StudentCourseModules() {
             </BreadcrumbList>
           </Breadcrumb>
           <h2 className="text-2xl font-bold mb-4">Modules</h2>
-          {loading ? (
-            <div className="text-gray-500">Loading…</div>
-          ) : modules.length === 0 ? (
+          {modules.length === 0 ? (
             <div className="text-gray-500">No modules available yet.</div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {modules.map((module) => (
+              {modules.map((module : Module) => (
                 <button
                   key={module.id}
                   onClick={() => navigate(`/student/module/${module.id}`)}

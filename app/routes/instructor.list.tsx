@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, useLoaderData, useNavigate, useParams } from 'react-router';
+import type { ClientLoaderFunctionArgs } from 'react-router';
 import AddActivityPanel from '../components/AddActivityPanel';
 import ActivityDetailsCard from '../components/ActivityDetailsCard';
 import AddCourseTopicsButton from '../components/AddCourseTopicsButton';
@@ -18,16 +19,33 @@ import type { Activity, Course, Lesson, ModuleDetail, PromptTemplate } from '../
 import { CourseTopicsProvider, useCourseTopics } from '../hooks/useCourseTopics';
 import { requireUser } from '../hooks/useLocalUser';
 
+export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
+  const lessonId = Number(params.lessonId);
+  const [lesson, activities] = await Promise.all([
+    api.lessonById(lessonId),
+    api.activitiesForLesson(lessonId),
+  ]);
+
+  // Fetch module and course details for breadcrumb
+  let module = null;
+  let course = null;
+  if (lesson.moduleId) {
+    module = await api.moduleById(lesson.moduleId);
+    if (module.courseOfferingId) {
+      course = await api.courseById(module.courseOfferingId);
+    }
+  }
+
+  return { course, module, lesson, activities };
+}
+
 export default function InstructorLessonBuilder() {
   const navigate = useNavigate();
   const { lessonId } = useParams();
   const numericLessonId = lessonId ? Number(lessonId) : null;
   const user = requireUser('INSTRUCTOR');
-  const [course, setCourse] = useState<Course | null>(null);
-  const [module, setModule] = useState<ModuleDetail | null>(null);
-  const [lesson, setLesson] = useState<Lesson | null>(null);
-  const [activities, setActivities] = useState<Activity[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { course, module, lesson, activities: initialActivities } = useLoaderData<typeof clientLoader>();
+  const [activities, setActivities] = useState<Activity[]>(initialActivities);
 
   const [updatingTopicsFor, setUpdatingTopicsFor] = useState<number | null>(null);
 
@@ -41,31 +59,13 @@ export default function InstructorLessonBuilder() {
   const courseTopics = useCourseTopics(courseOfferingId);
   const { topics, loading: loadingTopics, error: topicsError } = courseTopics;
 
-  const refresh = async () => {
+  const refreshActivities = async () => {
     if (!numericLessonId) return;
-    setLoading(true);
     try {
-      const [lessonData, activityData] = await Promise.all([
-        api.lessonById(numericLessonId),
-        api.activitiesForLesson(numericLessonId),
-      ]);
-      setLesson(lessonData);
+      const activityData = await api.activitiesForLesson(numericLessonId);
       setActivities(activityData);
-
-      // Fetch module and course details for breadcrumb
-      if (lessonData.moduleId) {
-        const moduleData = await api.moduleById(lessonData.moduleId);
-        setModule(moduleData);
-
-        if (moduleData.courseOfferingId) {
-          const courseData = await api.courseById(moduleData.courseOfferingId);
-          setCourse(courseData);
-        }
-      }
     } catch (error) {
-      console.error('Failed to load lesson data', error);
-    } finally {
-      setLoading(false);
+      console.error('Failed to refresh activities', error);
     }
   };
 
@@ -77,11 +77,6 @@ export default function InstructorLessonBuilder() {
       .catch((error) => console.error('Failed to load prompts', error))
       .finally(() => setLoadingPrompts(false));
   };
-
-  useEffect(() => {
-    if (!user || !numericLessonId) return;
-    refresh();
-  }, [numericLessonId, user?.id]);
 
   useEffect(() => {
     if (!user) return;
@@ -309,9 +304,7 @@ export default function InstructorLessonBuilder() {
               <div className="lg:col-span-2 space-y-4">
               <div className="p-5 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
                 <div className="font-semibold mb-2">Activities</div>
-                {loading ? (
-                  <div className="text-gray-500">Loading…</div>
-                ) : activities.length === 0 ? (
+                {activities.length === 0 ? (
                   <div className="text-gray-500">No activities yet.</div>
                 ) : (
                   <ul className="space-y-2">
@@ -455,7 +448,7 @@ export default function InstructorLessonBuilder() {
                   prompts={prompts}
                   loadingPrompts={loadingPrompts}
                   onPromptCreated={handlePromptCreated}
-                  onActivityCreated={refresh}
+                  onActivityCreated={refreshActivities}
                 />
               )}
             </div>

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, useLoaderData, useNavigate, useParams } from 'react-router';
+import type { ClientLoaderFunctionArgs } from 'react-router';
 import Nav from '../components/Nav';
 import ProtectedRoute from '../components/ProtectedRoute';
 import {
@@ -14,46 +15,38 @@ import api from '../lib/api';
 import type { Activity, Course, Lesson, ModuleDetail } from '../lib/types';
 import { requireUser } from '../hooks/useLocalUser';
 
+export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
+  const lessonId = Number(params.lessonId);
+  const [lesson, activities] = await Promise.all([
+    api.lessonById(lessonId),
+    api.activitiesForLesson(lessonId),
+  ]);
+
+  // Fetch module and course details for breadcrumb
+  let module: ModuleDetail | null = null;
+  let course: Course | null = null;
+  if (lesson.moduleId) {
+    module = await api.moduleById(lesson.moduleId);
+    if (module?.courseOfferingId) {
+      course = await api.courseById(module.courseOfferingId);
+    }
+  }
+
+  return { course, module, lesson, activities };
+}
+
 export default function StudentLessonPlayer() {
   const navigate = useNavigate();
   const { lessonId } = useParams();
   const user = requireUser('STUDENT');
-  const numericLessonId = lessonId ? Number(lessonId) : null;
-  const [course, setCourse] = useState<Course | null>(null);
-  const [module, setModule] = useState<ModuleDetail | null>(null);
-  const [lesson, setLesson] = useState<Lesson | null>(null);
-  const [activities, setActivities] = useState<Activity[]>([]);
+  const { course, module, lesson, activities } = useLoaderData<typeof clientLoader>();
   const [idx, setIdx] = useState(0);
-  const [loading, setLoading] = useState(true);
   const [mcq, setMcq] = useState<number | null>(null);
   const [text, setText] = useState('');
   const [assistant, setAssistant] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [wasCorrect, setWasCorrect] = useState(false);
-
-  useEffect(() => {
-    if (!user || !numericLessonId) return;
-    setLoading(true);
-    Promise.all([api.lessonById(numericLessonId), api.activitiesForLesson(numericLessonId)])
-      .then(async ([lessonData, activityData]) => {
-        setLesson(lessonData);
-        setActivities(activityData);
-
-        // Fetch module and course details for breadcrumb
-        if (lessonData.moduleId) {
-          const moduleData = await api.moduleById(lessonData.moduleId);
-          setModule(moduleData);
-
-          if (moduleData.courseOfferingId) {
-            const courseData = await api.courseById(moduleData.courseOfferingId);
-            setCourse(courseData);
-          }
-        }
-      })
-      .catch((error) => console.error('Failed to load lesson data', error))
-      .finally(() => setLoading(false));
-  }, [numericLessonId, user?.id]);
 
   useEffect(() => {
     setMcq(null);
@@ -139,9 +132,7 @@ export default function StudentLessonPlayer() {
           </Breadcrumb>
           <h2 className="text-2xl font-bold mb-4">{lesson?.title || 'Lesson'}</h2>
 
-          {loading ? (
-            <div className="text-gray-500">Loading…</div>
-          ) : activities.length === 0 ? (
+          {activities.length === 0 ? (
             <div className="text-gray-500">No activities yet.</div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
@@ -151,7 +142,7 @@ export default function StudentLessonPlayer() {
                     Activity {idx + 1} of {activities.length}
                   </div>
                   <div className="prose dark:prose-invert max-w-none">
-                    {questionChunks.map((line, i) => (
+                    {questionChunks.map((line: string, i: number) => (
                       <p key={i}>{line}</p>
                     ))}
                   </div>
@@ -162,7 +153,7 @@ export default function StudentLessonPlayer() {
                         <>
                           <span className="mx-2 text-indigo-400">•</span>
                           <span>
-                            Secondary: {activity.secondaryTopics.map((topic) => topic.name).join(', ')}
+                            Secondary: {activity.secondaryTopics.map((topic: { id: number; name: string }) => topic.name).join(', ')}
                           </span>
                         </>
                       )}
@@ -173,7 +164,7 @@ export default function StudentLessonPlayer() {
                 <div className="p-5 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 space-y-3">
                   {activity?.type === 'MCQ' ? (
                     <div className="grid grid-cols-1 gap-2">
-                      {activity.options?.choices?.map((choice, i) => (
+                      {activity.options?.choices?.map((choice: string, i: number) => (
                         <label
                           key={i}
                           className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition ${

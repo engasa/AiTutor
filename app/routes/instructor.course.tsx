@@ -1,6 +1,7 @@
 import type { FormEvent } from 'react';
-import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { useState, useEffect } from 'react';
+import { Link, useLoaderData, useNavigate, useParams } from 'react-router';
+import type { ClientLoaderFunctionArgs } from 'react-router';
 import Nav from '../components/Nav';
 import ProtectedRoute from '../components/ProtectedRoute';
 import {
@@ -15,14 +16,22 @@ import api from '../lib/api';
 import type { Course, Module } from '../lib/types';
 import { requireUser } from '../hooks/useLocalUser';
 
+export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
+  const courseId = Number(params.courseId);
+  const [course, modules] = await Promise.all([
+    api.courseById(courseId),
+    api.modulesForCourse(courseId),
+  ]);
+  return { course, modules };
+}
+
 export default function InstructorCourseModules() {
   const navigate = useNavigate();
   const { courseId } = useParams();
   const user = requireUser('INSTRUCTOR');
   const numericCourseId = courseId ? Number(courseId) : null;
-  const [course, setCourse] = useState<Course | null>(null);
-  const [modules, setModules] = useState<Module[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { course, modules: initialModules } = useLoaderData<typeof clientLoader>();
+  const [modules, setModules] = useState<Module[]>(initialModules);
   const [title, setTitle] = useState('');
   const [creating, setCreating] = useState(false);
   const [showImport, setShowImport] = useState(false);
@@ -34,27 +43,15 @@ export default function InstructorCourseModules() {
   const [selectedModuleIds, setSelectedModuleIds] = useState<Set<number>>(new Set());
   const [importing, setImporting] = useState(false);
 
-  const loadData = async () => {
+  const refreshModules = async () => {
     if (!numericCourseId) return;
-    setLoading(true);
     try {
-      const [courseData, modulesData] = await Promise.all([
-        api.courseById(numericCourseId),
-        api.modulesForCourse(numericCourseId),
-      ]);
-      setCourse(courseData);
+      const modulesData = await api.modulesForCourse(numericCourseId);
       setModules(modulesData);
     } catch (error) {
-      console.error('Failed to load course data', error);
-    } finally {
-      setLoading(false);
+      console.error('Failed to refresh modules', error);
     }
   };
-
-  useEffect(() => {
-    if (!user || !numericCourseId) return;
-    loadData();
-  }, [user?.id, numericCourseId]);
 
   const ensureSourceCoursesLoaded = () => {
     if (availableCourses.length > 0) return;
@@ -96,7 +93,7 @@ export default function InstructorCourseModules() {
     try {
       await api.createModule(numericCourseId, { title: title.trim() });
       setTitle('');
-      loadData();
+      await refreshModules();
     } catch (error) {
       console.error('Failed to create module', error);
     } finally {
@@ -125,7 +122,7 @@ export default function InstructorCourseModules() {
       setSelectedSourceCourseId(null);
       setSourceModules([]);
       setSelectedModuleIds(new Set());
-      loadData();
+      await refreshModules();
     } catch (error) {
       console.error('Import failed', error);
     } finally {
@@ -266,9 +263,7 @@ export default function InstructorCourseModules() {
             </button>
           </form>
 
-          {loading ? (
-            <div className="text-gray-500">Loading…</div>
-          ) : modules.length === 0 ? (
+          {modules.length === 0 ? (
             <div className="text-gray-500">No modules yet.</div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
