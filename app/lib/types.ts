@@ -35,6 +35,7 @@ export type Lesson = {
   contentMd?: string | null;
   position: number;
   courseOfferingId?: number;
+  moduleId?: number;
 };
 
 export type Activity = {

@@ -31,6 +31,7 @@ export function mapLesson(lesson) {
     contentMd: lesson.contentMd,
     position: lesson.position,
     courseOfferingId: lesson.module?.courseOfferingId ?? lesson.courseOfferingId ?? undefined,
+    moduleId: lesson.moduleId ?? lesson.module?.id ?? undefined,
   };
 }
 

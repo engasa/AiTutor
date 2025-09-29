@@ -1,12 +1,20 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router';
 import AddActivityPanel from '../components/AddActivityPanel';
 import ActivityDetailsCard from '../components/ActivityDetailsCard';
 import AddCourseTopicsButton from '../components/AddCourseTopicsButton';
 import Nav from '../components/Nav';
 import ProtectedRoute from '../components/ProtectedRoute';
+import {
+  Breadcrumb,
+  BreadcrumbList,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from '../components/ui/breadcrumb';
 import api from '../lib/api';
-import type { Activity, Lesson, PromptTemplate } from '../lib/types';
+import type { Activity, Course, Lesson, ModuleDetail, PromptTemplate } from '../lib/types';
 import { CourseTopicsProvider, useCourseTopics } from '../hooks/useCourseTopics';
 import { requireUser } from '../hooks/useLocalUser';
 
@@ -15,6 +23,8 @@ export default function InstructorLessonBuilder() {
   const { lessonId } = useParams();
   const numericLessonId = lessonId ? Number(lessonId) : null;
   const user = requireUser('INSTRUCTOR');
+  const [course, setCourse] = useState<Course | null>(null);
+  const [module, setModule] = useState<ModuleDetail | null>(null);
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,15 +41,32 @@ export default function InstructorLessonBuilder() {
   const courseTopics = useCourseTopics(courseOfferingId);
   const { topics, loading: loadingTopics, error: topicsError } = courseTopics;
 
-  const refresh = () => {
+  const refresh = async () => {
     if (!numericLessonId) return;
     setLoading(true);
-    Promise.all([api.lessonById(numericLessonId), api.activitiesForLesson(numericLessonId)])
-      .then(([lessonData, activityData]) => {
-        setLesson(lessonData);
-        setActivities(activityData);
-      })
-      .finally(() => setLoading(false));
+    try {
+      const [lessonData, activityData] = await Promise.all([
+        api.lessonById(numericLessonId),
+        api.activitiesForLesson(numericLessonId),
+      ]);
+      setLesson(lessonData);
+      setActivities(activityData);
+
+      // Fetch module and course details for breadcrumb
+      if (lessonData.moduleId) {
+        const moduleData = await api.moduleById(lessonData.moduleId);
+        setModule(moduleData);
+
+        if (moduleData.courseOfferingId) {
+          const courseData = await api.courseById(moduleData.courseOfferingId);
+          setCourse(courseData);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load lesson data', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const loadPrompts = () => {
@@ -243,9 +270,39 @@ export default function InstructorLessonBuilder() {
         <div className="min-h-dvh bg-gradient-to-br from-sky-50 via-indigo-50 to-fuchsia-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-900">
           <Nav />
           <div className="container mx-auto px-4 py-8">
-            <button onClick={() => navigate(-1)} className="text-sm text-gray-600 hover:underline">
-              ← Back
-            </button>
+            <Breadcrumb className="mb-6">
+              <BreadcrumbList>
+                <BreadcrumbItem>
+                  <BreadcrumbLink asChild>
+                    <Link to="/instructor">Teaching</Link>
+                  </BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator>/</BreadcrumbSeparator>
+                <BreadcrumbItem>
+                  {course && module ? (
+                    <BreadcrumbLink asChild>
+                      <Link to={`/instructor/courses/${module.courseOfferingId}`}>{course.title}</Link>
+                    </BreadcrumbLink>
+                  ) : (
+                    <BreadcrumbPage>Course</BreadcrumbPage>
+                  )}
+                </BreadcrumbItem>
+                <BreadcrumbSeparator>/</BreadcrumbSeparator>
+                <BreadcrumbItem>
+                  {module && lesson ? (
+                    <BreadcrumbLink asChild>
+                      <Link to={`/instructor/module/${lesson.moduleId}`}>{module.title}</Link>
+                    </BreadcrumbLink>
+                  ) : (
+                    <BreadcrumbPage>Module</BreadcrumbPage>
+                  )}
+                </BreadcrumbItem>
+                <BreadcrumbSeparator>/</BreadcrumbSeparator>
+                <BreadcrumbItem>
+                  <BreadcrumbPage>{lesson?.title || 'Lesson'}</BreadcrumbPage>
+                </BreadcrumbItem>
+              </BreadcrumbList>
+            </Breadcrumb>
             <h2 className="text-2xl font-bold mb-4">{lesson?.title || 'Lesson'}</h2>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">

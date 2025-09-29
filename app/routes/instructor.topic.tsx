@@ -1,8 +1,16 @@
 import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router';
 import Nav from '../components/Nav';
 import ProtectedRoute from '../components/ProtectedRoute';
+import {
+  Breadcrumb,
+  BreadcrumbList,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from '../components/ui/breadcrumb';
 import api from '../lib/api';
 import type { Course, Lesson, Module, ModuleDetail } from '../lib/types';
 import { requireUser } from '../hooks/useLocalUser';
@@ -12,6 +20,7 @@ export default function InstructorModuleLessons() {
   const { moduleId } = useParams();
   const user = requireUser('INSTRUCTOR');
   const numericModuleId = moduleId ? Number(moduleId) : null;
+  const [course, setCourse] = useState<Course | null>(null);
   const [module, setModule] = useState<ModuleDetail | null>(null);
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,6 +48,12 @@ export default function InstructorModuleLessons() {
       ]);
       setModule(moduleDetail);
       setLessons(lessonData);
+
+      // Fetch course details for breadcrumb
+      if (moduleDetail.courseOfferingId) {
+        const courseData = await api.courseById(moduleDetail.courseOfferingId);
+        setCourse(courseData);
+      }
     } catch (error) {
       console.error('Failed to load module lessons', error);
     } finally {
@@ -164,13 +179,32 @@ export default function InstructorModuleLessons() {
       <div className="min-h-dvh bg-gradient-to-br from-sky-50 via-indigo-50 to-fuchsia-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-900">
         <Nav />
         <div className="container mx-auto px-4 py-8 space-y-6">
-          <button onClick={() => navigate(-1)} className="text-sm text-gray-600 hover:underline">
-            ← Back
-          </button>
+          <Breadcrumb className="mb-6">
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbLink asChild>
+                  <Link to="/instructor">Teaching</Link>
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator>/</BreadcrumbSeparator>
+              <BreadcrumbItem>
+                {course && module ? (
+                  <BreadcrumbLink asChild>
+                    <Link to={`/instructor/courses/${module.courseOfferingId}`}>{course.title}</Link>
+                  </BreadcrumbLink>
+                ) : (
+                  <BreadcrumbPage>Course</BreadcrumbPage>
+                )}
+              </BreadcrumbItem>
+              <BreadcrumbSeparator>/</BreadcrumbSeparator>
+              <BreadcrumbItem>
+                <BreadcrumbPage>{module?.title || 'Module'}</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-2xl font-bold">Lessons</h2>
-              {module && <p className="text-sm text-gray-500">Module: {module.title}</p>}
             </div>
             <button
               onClick={() => {

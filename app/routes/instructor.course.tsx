@@ -1,8 +1,16 @@
 import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router';
 import Nav from '../components/Nav';
 import ProtectedRoute from '../components/ProtectedRoute';
+import {
+  Breadcrumb,
+  BreadcrumbList,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from '../components/ui/breadcrumb';
 import api from '../lib/api';
 import type { Course, Module } from '../lib/types';
 import { requireUser } from '../hooks/useLocalUser';
@@ -12,6 +20,7 @@ export default function InstructorCourseModules() {
   const { courseId } = useParams();
   const user = requireUser('INSTRUCTOR');
   const numericCourseId = courseId ? Number(courseId) : null;
+  const [course, setCourse] = useState<Course | null>(null);
   const [modules, setModules] = useState<Module[]>([]);
   const [loading, setLoading] = useState(true);
   const [title, setTitle] = useState('');
@@ -25,18 +34,26 @@ export default function InstructorCourseModules() {
   const [selectedModuleIds, setSelectedModuleIds] = useState<Set<number>>(new Set());
   const [importing, setImporting] = useState(false);
 
-  const loadModules = () => {
+  const loadData = async () => {
     if (!numericCourseId) return;
     setLoading(true);
-    api
-      .modulesForCourse(numericCourseId)
-      .then((data) => setModules(data))
-      .finally(() => setLoading(false));
+    try {
+      const [courseData, modulesData] = await Promise.all([
+        api.courseById(numericCourseId),
+        api.modulesForCourse(numericCourseId),
+      ]);
+      setCourse(courseData);
+      setModules(modulesData);
+    } catch (error) {
+      console.error('Failed to load course data', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
     if (!user || !numericCourseId) return;
-    loadModules();
+    loadData();
   }, [user?.id, numericCourseId]);
 
   const ensureSourceCoursesLoaded = () => {
@@ -79,7 +96,7 @@ export default function InstructorCourseModules() {
     try {
       await api.createModule(numericCourseId, { title: title.trim() });
       setTitle('');
-      loadModules();
+      loadData();
     } catch (error) {
       console.error('Failed to create module', error);
     } finally {
@@ -108,7 +125,7 @@ export default function InstructorCourseModules() {
       setSelectedSourceCourseId(null);
       setSourceModules([]);
       setSelectedModuleIds(new Set());
-      loadModules();
+      loadData();
     } catch (error) {
       console.error('Import failed', error);
     } finally {
@@ -121,9 +138,19 @@ export default function InstructorCourseModules() {
       <div className="min-h-dvh bg-gradient-to-br from-sky-50 via-indigo-50 to-fuchsia-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-900">
         <Nav />
         <div className="container mx-auto px-4 py-8 space-y-6">
-          <button onClick={() => navigate(-1)} className="text-sm text-gray-600 hover:underline">
-            ← Back
-          </button>
+          <Breadcrumb className="mb-6">
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbLink asChild>
+                  <Link to="/instructor">Teaching</Link>
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator>/</BreadcrumbSeparator>
+              <BreadcrumbItem>
+                <BreadcrumbPage>{course?.title || 'Course'}</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
           <div className="flex items-center justify-between">
             <h2 className="text-2xl font-bold">Modules</h2>
             <div className="flex items-center gap-2">

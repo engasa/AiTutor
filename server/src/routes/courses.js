@@ -29,6 +29,41 @@ router.get('/courses', async (req, res) => {
   }
 });
 
+router.get('/courses/:courseId', async (req, res) => {
+  const authUser = req.user;
+  if (!authUser) return res.status(401).json({ error: 'Authentication required' });
+
+  const courseId = Number(req.params.courseId);
+  if (!Number.isFinite(courseId)) {
+    return res.status(400).json({ error: 'Invalid course id' });
+  }
+
+  try {
+    const course = await prisma.courseOffering.findUnique({
+      where: { id: courseId },
+      include: {
+        instructors: { select: { userId: true } },
+        enrollments: { select: { userId: true } },
+      },
+    });
+
+    if (!course) {
+      return res.status(404).json({ error: 'Course not found' });
+    }
+
+    const isInstructor = course.instructors.some((i) => i.userId === authUser.id);
+    const isStudent = course.enrollments.some((e) => e.userId === authUser.id);
+
+    if (!isInstructor && !isStudent) {
+      return res.status(403).json({ error: 'Not authorized for this course' });
+    }
+
+    res.json(mapCourseOffering(course));
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
 router.post('/courses', requireRole('INSTRUCTOR'), async (req, res) => {
   const instructor = req.user;
   const {

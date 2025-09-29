@@ -41,6 +41,7 @@ export const api = {
       body: JSON.stringify({ email, password }),
     }),
   listCourses: () => http('/api/courses'),
+  courseById: (courseId: number) => http(`/api/courses/${courseId}`),
   createCourse: (payload: {
     title: string;
     description?: string;

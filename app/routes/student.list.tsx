@@ -1,15 +1,26 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router';
 import Nav from '../components/Nav';
 import ProtectedRoute from '../components/ProtectedRoute';
+import {
+  Breadcrumb,
+  BreadcrumbList,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from '../components/ui/breadcrumb';
 import api from '../lib/api';
-import type { Activity, Lesson } from '../lib/types';
+import type { Activity, Course, Lesson, ModuleDetail } from '../lib/types';
 import { requireUser } from '../hooks/useLocalUser';
 
 export default function StudentLessonPlayer() {
   const navigate = useNavigate();
   const { lessonId } = useParams();
   const user = requireUser('STUDENT');
+  const numericLessonId = lessonId ? Number(lessonId) : null;
+  const [course, setCourse] = useState<Course | null>(null);
+  const [module, setModule] = useState<ModuleDetail | null>(null);
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [idx, setIdx] = useState(0);
@@ -22,15 +33,27 @@ export default function StudentLessonPlayer() {
   const [wasCorrect, setWasCorrect] = useState(false);
 
   useEffect(() => {
-    if (!user || !lessonId) return;
+    if (!user || !numericLessonId) return;
     setLoading(true);
-    Promise.all([api.lessonById(Number(lessonId)), api.activitiesForLesson(Number(lessonId))])
-      .then(([lessonData, activityData]) => {
+    Promise.all([api.lessonById(numericLessonId), api.activitiesForLesson(numericLessonId)])
+      .then(async ([lessonData, activityData]) => {
         setLesson(lessonData);
         setActivities(activityData);
+
+        // Fetch module and course details for breadcrumb
+        if (lessonData.moduleId) {
+          const moduleData = await api.moduleById(lessonData.moduleId);
+          setModule(moduleData);
+
+          if (moduleData.courseOfferingId) {
+            const courseData = await api.courseById(moduleData.courseOfferingId);
+            setCourse(courseData);
+          }
+        }
       })
+      .catch((error) => console.error('Failed to load lesson data', error))
       .finally(() => setLoading(false));
-  }, [lessonId, user?.id]);
+  }, [numericLessonId, user?.id]);
 
   useEffect(() => {
     setMcq(null);
@@ -81,9 +104,39 @@ export default function StudentLessonPlayer() {
       <div className="min-h-dvh bg-gradient-to-br from-rose-50 via-orange-50 to-amber-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-900">
         <Nav />
         <div className="container mx-auto px-4 py-6">
-          <button onClick={() => navigate(-1)} className="text-sm text-gray-600 hover:underline">
-            ← Back
-          </button>
+          <Breadcrumb className="mb-6">
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbLink asChild>
+                  <Link to="/student">My Courses</Link>
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator>/</BreadcrumbSeparator>
+              <BreadcrumbItem>
+                {course && module ? (
+                  <BreadcrumbLink asChild>
+                    <Link to={`/student/courses/${module.courseOfferingId}`}>{course.title}</Link>
+                  </BreadcrumbLink>
+                ) : (
+                  <BreadcrumbPage>Course</BreadcrumbPage>
+                )}
+              </BreadcrumbItem>
+              <BreadcrumbSeparator>/</BreadcrumbSeparator>
+              <BreadcrumbItem>
+                {module && lesson ? (
+                  <BreadcrumbLink asChild>
+                    <Link to={`/student/module/${lesson.moduleId}`}>{module.title}</Link>
+                  </BreadcrumbLink>
+                ) : (
+                  <BreadcrumbPage>Module</BreadcrumbPage>
+                )}
+              </BreadcrumbItem>
+              <BreadcrumbSeparator>/</BreadcrumbSeparator>
+              <BreadcrumbItem>
+                <BreadcrumbPage>{lesson?.title || 'Lesson'}</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
           <h2 className="text-2xl font-bold mb-4">{lesson?.title || 'Lesson'}</h2>
 
           {loading ? (

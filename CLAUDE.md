@@ -33,6 +33,7 @@ AiTutor is a full-stack educational platform built with React Router v7, TypeScr
 - **Advanced Topic Classification**: Activities have required mainTopic and optional secondaryTopics with many-to-many relationships
 - **Course-Scoped Topics**: Topics are unique within CourseOfferings, preventing cross-course pollution
 - **Sophisticated Content Cloning**: Cross-course lesson/activity import with automatic topic mapping
+- **Breadcrumb Navigation**: shadcn/ui breadcrumbs with "/" separator, hierarchical navigation across all nested routes
 - API client with Authorization headers and centralized error handling in `app/lib/api.ts`
 - SSR-compatible authentication that works with React Router v7 server-side rendering
 
@@ -59,6 +60,32 @@ npm run typecheck                             # Type check both frontend and bac
 npm run build                                  # Build for production
 npm start                                     # Serve built application
 ```
+
+## Breadcrumb Navigation System
+
+**Implementation:**
+All nested instructor and student routes use shadcn/ui breadcrumb primitives for hierarchical navigation. Breadcrumbs replace traditional back buttons with semantic, SEO-friendly navigation that shows the full path context.
+
+**Pattern:**
+- Compose `<Breadcrumb>`, `<BreadcrumbList>`, `<BreadcrumbItem>`, `<BreadcrumbLink>`, `<BreadcrumbPage>`, `<BreadcrumbSeparator>` directly in route files
+- Use React Router's `<Link>` component via `asChild` prop for navigation
+- Custom "/" separator (not chevrons) for clean visual hierarchy
+- Routes fetch hierarchical data (course → module → lesson) to build navigation paths
+- Conditional rendering: links become clickable once data loads, placeholders shown during loading
+
+**Routes with Breadcrumbs:**
+- `instructor.course.tsx`: Teaching / [Course Name]
+- `instructor.topic.tsx`: Teaching / [Course] / [Module]
+- `instructor.list.tsx`: Teaching / [Course] / [Module] / [Lesson]
+- `student.course.tsx`: My Courses / [Course Name]
+- `student.topic.tsx`: My Courses / [Course] / [Module]
+- `student.list.tsx`: My Courses / [Course] / [Module] / [Lesson]
+
+**Backend Support:**
+- `GET /api/courses/:id` returns course details for breadcrumb labels
+- Lesson type includes `moduleId` field (added to `mapLesson` utility)
+- Module type includes `courseOfferingId` field
+- Hierarchical data fetched efficiently using `Promise.all()` in route loaders
 
 ## Topic Classification System
 
@@ -150,8 +177,16 @@ The Prisma schema defines a complete educational platform with advanced topic cl
 - API state managed through React Router's data loading with protected route guards
 - No global state management - relies on URL state, server data, and JWT tokens
 
+**Navigation:**
+- **Breadcrumbs**: shadcn/ui primitives composed directly in routes (no wrapper component)
+- Custom "/" separator for clean visual hierarchy
+- Hierarchical paths: `Teaching / Course / Module / Lesson` (instructor) and `My Courses / Course / Module / Lesson` (student)
+- Conditional clickable links that activate once data loads
+- Graceful loading states with placeholder text
+
 **Styling:**
 - TailwindCSS v4 for styling
+- shadcn/ui component primitives (breadcrumbs, buttons, forms)
 - Responsive design patterns
 - Component-based CSS organization
 
@@ -165,9 +200,12 @@ RESTful API with JWT-based authentication and role-based protection:
 
 **Protected Endpoints (Require JWT token):**
 - `/api/courses` - Course management and user-specific course lists
+- `/api/courses/:id` - Get single course details (for breadcrumb navigation)
 - `/api/courses/:id/modules` - Module management within courses
 - `/api/courses/:id/topics` - **Topic management within courses (course-scoped)**
+- `/api/modules/:id` - Get module details with courseOfferingId
 - `/api/modules/:id/lessons` - Lesson management within modules
+- `/api/lessons/:id` - Get lesson details with moduleId
 - `/api/lessons/:id/activities` - Activity management within lessons
 - `/api/activities/:id` - **Activity updates and topic assignments (main + secondary topics)**
 - `/api/prompts` - Prompt template management
