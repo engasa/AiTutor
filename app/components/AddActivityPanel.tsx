@@ -1,7 +1,8 @@
 import type { FormEvent } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import api from '../lib/api';
-import type { PromptTemplate, Topic } from '../lib/types';
+import { useCourseTopicsContext } from '../hooks/useCourseTopics';
+import type { PromptTemplate } from '../lib/types';
 
 interface PromptFormState {
   name: string;
@@ -13,9 +14,6 @@ interface PromptFormState {
 
 interface AddActivityPanelProps {
   lessonId: number;
-  topics: Topic[];
-  loadingTopics: boolean;
-  topicsError: string | null;
   prompts: PromptTemplate[];
   loadingPrompts: boolean;
   onPromptCreated: (prompt: PromptTemplate) => void;
@@ -24,14 +22,12 @@ interface AddActivityPanelProps {
 
 export default function AddActivityPanel({
   lessonId,
-  topics,
-  loadingTopics,
-  topicsError,
   prompts,
   loadingPrompts,
   onPromptCreated,
   onActivityCreated,
 }: AddActivityPanelProps) {
+  const { topics, loading: loadingTopics, error: topicsError } = useCourseTopicsContext();
   const [type, setType] = useState<'MCQ' | 'SHORT_TEXT'>('MCQ');
   const [question, setQuestion] = useState('');
   const [choices, setChoices] = useState<string[]>(['', '', '', '']);

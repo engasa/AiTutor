@@ -1,11 +1,12 @@
-import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import AddActivityPanel from '../components/AddActivityPanel';
+import AddCourseTopicsButton from '../components/AddCourseTopicsButton';
 import Nav from '../components/Nav';
 import ProtectedRoute from '../components/ProtectedRoute';
 import api from '../lib/api';
-import type { Activity, Lesson, PromptTemplate, Topic } from '../lib/types';
+import type { Activity, Lesson, PromptTemplate } from '../lib/types';
+import { CourseTopicsProvider, useCourseTopics } from '../hooks/useCourseTopics';
 import { requireUser } from '../hooks/useLocalUser';
 
 export default function InstructorLessonBuilder() {
@@ -17,13 +18,6 @@ export default function InstructorLessonBuilder() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [topics, setTopics] = useState<Topic[]>([]);
-  const [loadingTopics, setLoadingTopics] = useState(false);
-  const [topicsError, setTopicsError] = useState<string | null>(null);
-
-  const [newTopicName, setNewTopicName] = useState('');
-  const [creatingTopic, setCreatingTopic] = useState(false);
-  const [topicCreateError, setTopicCreateError] = useState<string | null>(null);
   const [updatingTopicsFor, setUpdatingTopicsFor] = useState<number | null>(null);
 
   const [prompts, setPrompts] = useState<PromptTemplate[]>([]);
@@ -31,6 +25,10 @@ export default function InstructorLessonBuilder() {
   const [updatingPromptFor, setUpdatingPromptFor] = useState<number | null>(null);
 
   const [showAddPanel, setShowAddPanel] = useState(false);
+
+  const courseOfferingId = lesson?.courseOfferingId ?? null;
+  const courseTopics = useCourseTopics(courseOfferingId);
+  const { topics, loading: loadingTopics, error: topicsError } = courseTopics;
 
   const refresh = () => {
     if (!numericLessonId) return;
@@ -52,23 +50,6 @@ export default function InstructorLessonBuilder() {
       .finally(() => setLoadingPrompts(false));
   };
 
-  const loadTopics = (courseId: number) => {
-    setLoadingTopics(true);
-    setTopicsError(null);
-    api
-      .topicsForCourse(courseId)
-      .then((data: Topic[]) => {
-        const sorted = [...data].sort((a, b) => a.name.localeCompare(b.name));
-        setTopics(sorted);
-      })
-      .catch((error) => {
-        console.error('Failed to load topics', error);
-        setTopicsError('Could not load topics for this course.');
-        setTopics([]);
-      })
-      .finally(() => setLoadingTopics(false));
-  };
-
   useEffect(() => {
     if (!user || !numericLessonId) return;
     refresh();
@@ -78,12 +59,6 @@ export default function InstructorLessonBuilder() {
     if (!user) return;
     loadPrompts();
   }, [user?.id]);
-
-  useEffect(() => {
-    if (!lesson?.courseOfferingId) return;
-    loadTopics(lesson.courseOfferingId);
-  }, [lesson?.courseOfferingId]);
-
 
   const handlePromptCreated = (created: PromptTemplate) => {
     setPrompts((prev) => [created, ...prev.filter((prompt) => prompt.id !== created.id)]);
@@ -261,41 +236,19 @@ export default function InstructorLessonBuilder() {
     }
   };
 
-  const handleCreateTopic = async (event: FormEvent) => {
-    event.preventDefault();
-    if (!lesson?.courseOfferingId) return;
-    const name = newTopicName.trim();
-    if (!name) {
-      setTopicCreateError('Topic name is required.');
-      return;
-    }
-
-    setCreatingTopic(true);
-    setTopicCreateError(null);
-    try {
-      const created = await api.createTopic(lesson.courseOfferingId, { name });
-      setTopics((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
-      setNewTopicName('');
-    } catch (error) {
-      console.error('Failed to create topic', error);
-      setTopicCreateError('Could not create topic. Try a different name.');
-    } finally {
-      setCreatingTopic(false);
-    }
-  };
-
   return (
     <ProtectedRoute role="INSTRUCTOR">
-      <div className="min-h-dvh bg-gradient-to-br from-sky-50 via-indigo-50 to-fuchsia-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-900">
-        <Nav />
-        <div className="container mx-auto px-4 py-8">
-          <button onClick={() => navigate(-1)} className="text-sm text-gray-600 hover:underline">
-            ← Back
-          </button>
-          <h2 className="text-2xl font-bold mb-4">{lesson?.title || 'Lesson'}</h2>
+      <CourseTopicsProvider value={courseTopics}>
+        <div className="min-h-dvh bg-gradient-to-br from-sky-50 via-indigo-50 to-fuchsia-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-900">
+          <Nav />
+          <div className="container mx-auto px-4 py-8">
+            <button onClick={() => navigate(-1)} className="text-sm text-gray-600 hover:underline">
+              ← Back
+            </button>
+            <h2 className="text-2xl font-bold mb-4">{lesson?.title || 'Lesson'}</h2>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-            <div className="lg:col-span-2 space-y-4">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+              <div className="lg:col-span-2 space-y-4">
               <div className="p-5 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
                 <div className="font-semibold mb-2">Activities</div>
                 {loading ? (
@@ -439,9 +392,6 @@ export default function InstructorLessonBuilder() {
               {showAddPanel && numericLessonId !== null && (
                 <AddActivityPanel
                   lessonId={numericLessonId}
-                  topics={topics}
-                  loadingTopics={loadingTopics}
-                  topicsError={topicsError}
                   prompts={prompts}
                   loadingPrompts={loadingPrompts}
                   onPromptCreated={handlePromptCreated}
@@ -458,22 +408,8 @@ export default function InstructorLessonBuilder() {
                     <span className="text-xs text-gray-500">Course #{lesson.courseOfferingId}</span>
                   )}
                 </div>
-                <form onSubmit={handleCreateTopic} className="space-y-2">
-                  <input
-                    value={newTopicName}
-                    onChange={(event) => setNewTopicName(event.target.value)}
-                    placeholder="New topic name…"
-                    className="w-full px-3 py-2 rounded-xl border border-gray-300 dark:border-gray-700 bg-transparent"
-                  />
-                  {topicCreateError && <p className="text-xs text-rose-500">{topicCreateError}</p>}
-                  <button
-                    type="submit"
-                    disabled={creatingTopic || !newTopicName.trim() || !lesson?.courseOfferingId}
-                    className="w-full px-3 py-2 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 text-white text-sm font-semibold disabled:opacity-50"
-                  >
-                    {creatingTopic ? 'Adding…' : 'Add Topic'}
-                  </button>
-                </form>
+                {topicsError && <p className="text-xs text-rose-500">{topicsError}</p>}
+                <AddCourseTopicsButton disabled={!lesson?.courseOfferingId} />
                 <div className="space-y-1 max-h-48 overflow-y-auto text-sm">
                   {topics.length === 0 ? (
                     <div className="text-gray-500 text-xs">No topics yet.</div>
@@ -490,6 +426,7 @@ export default function InstructorLessonBuilder() {
           </div>
         </div>
       </div>
+    </CourseTopicsProvider>
     </ProtectedRoute>
   );
 }
