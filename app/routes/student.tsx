@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import Nav from '../components/Nav';
+import { ProgressBarFromData } from '../components/ProgressBar';
 import type { Course } from '../lib/types';
 import type { Route } from './+types/student';
 import { fetchJson, requireUserFromRequest } from '~/lib/server-api';
@@ -32,7 +33,12 @@ export default function StudentHome({ loaderData }: Route.ComponentProps) {
               >
                 <div className="font-semibold group-hover:underline">{course.title}</div>
                 {course.description && (
-                  <div className="text-sm text-gray-500">{course.description}</div>
+                  <div className="text-sm text-gray-500 mb-3">{course.description}</div>
+                )}
+                {course.progress && course.progress.total > 0 && (
+                  <div className="mt-3">
+                    <ProgressBarFromData progress={course.progress} size="sm" />
+                  </div>
                 )}
               </button>
             ))}

@@ -1,7 +1,8 @@
 import express from 'express';
 import { prisma } from '../config/database.js';
 import { requireRole } from '../middleware/auth.js';
-import { mapLesson } from '../utils/mappers.js';
+import { mapLesson, mapProgressData } from '../utils/mappers.js';
+import { calculateLessonProgress } from '../services/progressCalculation.js';
 
 const router = express.Router();
 
@@ -23,7 +24,22 @@ router.get('/modules/:moduleId/lessons', async (req, res) => {
       where: whereClause,
       orderBy: { position: 'asc' },
     });
-    res.json(lessons.map(mapLesson));
+
+    // For students, add progress to each lesson
+    if (authUser && authUser.role === 'STUDENT') {
+      const lessonsWithProgress = await Promise.all(
+        lessons.map(async (lesson) => {
+          const progress = await calculateLessonProgress(lesson.id, authUser.id);
+          return {
+            ...mapLesson(lesson),
+            progress: mapProgressData(progress),
+          };
+        }),
+      );
+      res.json(lessonsWithProgress);
+    } else {
+      res.json(lessons.map(mapLesson));
+    }
   } catch (e) {
     res.status(500).json({ error: String(e) });
   }

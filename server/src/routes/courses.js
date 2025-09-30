@@ -1,8 +1,9 @@
 import express from 'express';
 import { prisma } from '../config/database.js';
 import { requireRole } from '../middleware/auth.js';
-import { mapCourseOffering } from '../utils/mappers.js';
+import { mapCourseOffering, mapProgressData } from '../utils/mappers.js';
 import { cloneCourseContent, cloneLessonsFromOffering } from '../services/courseCloning.js';
+import { calculateCourseProgress } from '../services/progressCalculation.js';
 
 const router = express.Router();
 
@@ -12,14 +13,14 @@ router.get('/courses', async (req, res) => {
 
   try {
     if (authUser.role === 'INSTRUCTOR') {
-      // Instructors see all their courses regardless of publish status
+      // Instructors see all their courses regardless of publish status (no progress)
       const courses = await prisma.courseOffering.findMany({
         where: { instructors: { some: { userId: authUser.id } } },
         orderBy: { createdAt: 'desc' },
       });
       res.json(courses.map(mapCourseOffering));
     } else {
-      // Students only see published courses they're enrolled in
+      // Students only see published courses they're enrolled in (with progress)
       const courses = await prisma.courseOffering.findMany({
         where: {
           enrollments: { some: { userId: authUser.id } },
@@ -27,7 +28,19 @@ router.get('/courses', async (req, res) => {
         },
         orderBy: { createdAt: 'desc' },
       });
-      res.json(courses.map(mapCourseOffering));
+
+      // Calculate progress for each course
+      const coursesWithProgress = await Promise.all(
+        courses.map(async (course) => {
+          const progress = await calculateCourseProgress(course.id, authUser.id);
+          return {
+            ...mapCourseOffering(course),
+            progress: mapProgressData(progress),
+          };
+        }),
+      );
+
+      res.json(coursesWithProgress);
     }
   } catch (e) {
     res.status(500).json({ error: String(e) });

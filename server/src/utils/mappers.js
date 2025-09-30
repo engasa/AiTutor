@@ -64,5 +64,17 @@ export function mapActivity(activity) {
           )
           .filter(Boolean)
       : [],
+    completionStatus: activity.completionStatus ?? undefined,
+  };
+}
+
+export function mapProgressData(progressResult) {
+  if (!progressResult) {
+    return { completed: 0, total: 0, percentage: 0 };
+  }
+  return {
+    completed: progressResult.completed ?? 0,
+    total: progressResult.total ?? 0,
+    percentage: progressResult.percentage ?? 0,
   };
 }

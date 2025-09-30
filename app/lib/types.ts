@@ -7,6 +7,14 @@ export type User = {
   role: Role;
 };
 
+export type Progress = {
+  completed: number;
+  total: number;
+  percentage: number;
+};
+
+export type CompletionStatus = 'correct' | 'incorrect' | 'not_attempted';
+
 export type Course = {
   id: number;
   title: string;
@@ -14,6 +22,7 @@ export type Course = {
   isPublished: boolean;
   startDate?: string | null;
   endDate?: string | null;
+  progress?: Progress;
 };
 
 export type Module = {
@@ -22,6 +31,7 @@ export type Module = {
   description?: string | null;
   position: number;
   isPublished: boolean;
+  progress?: Progress;
 };
 
 export type ModuleDetail = Module & {
@@ -36,6 +46,7 @@ export type Lesson = {
   isPublished: boolean;
   courseOfferingId?: number;
   moduleId?: number;
+  progress?: Progress;
 };
 
 export type Activity = {
@@ -52,6 +63,7 @@ export type Activity = {
   promptTemplate?: { id: number; name: string } | null;
   mainTopic: Topic | null;
   secondaryTopics: Topic[];
+  completionStatus?: CompletionStatus;
 };
 
 

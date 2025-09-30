@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Link, useNavigate } from 'react-router';
 import Nav from '../components/Nav';
+import { ProgressBarFromData } from '../components/ProgressBar';
 import {
   Breadcrumb,
   BreadcrumbList,
@@ -77,6 +78,11 @@ export default function StudentModuleLessons({ loaderData }: Route.ComponentProp
                 className="text-left p-5 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-950/60 hover:shadow-md transition group"
               >
                 <div className="font-semibold group-hover:underline">{lesson.title}</div>
+                {lesson.progress && lesson.progress.total > 0 && (
+                  <div className="mt-3">
+                    <ProgressBarFromData progress={lesson.progress} size="sm" />
+                  </div>
+                )}
               </button>
             ))}
           </div>

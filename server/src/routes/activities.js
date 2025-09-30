@@ -3,10 +3,12 @@ import { prisma } from '../config/database.js';
 import { requireRole } from '../middleware/auth.js';
 import { mapActivity } from '../utils/mappers.js';
 import { evaluateQuestion } from '../services/activityEvaluation.js';
+import { getActivityCompletionStatuses } from '../services/progressCalculation.js';
 
 const router = express.Router();
 
 router.get('/lessons/:lessonId/activities', async (req, res) => {
+  const authUser = req.user;
   const lessonId = Number(req.params.lessonId);
   if (!Number.isFinite(lessonId)) {
     return res.status(400).json({ error: 'Invalid lesson id' });
@@ -24,7 +26,21 @@ router.get('/lessons/:lessonId/activities', async (req, res) => {
         },
       },
     });
-    res.json(activities.map(mapActivity));
+
+    // For students, add completion status to each activity
+    if (authUser && authUser.role === 'STUDENT') {
+      const activityIds = activities.map((a) => a.id);
+      const statusMap = await getActivityCompletionStatuses(activityIds, authUser.id);
+
+      const activitiesWithStatus = activities.map((activity) => {
+        const status = statusMap.get(activity.id) || 'not_attempted';
+        return mapActivity({ ...activity, completionStatus: status });
+      });
+
+      res.json(activitiesWithStatus);
+    } else {
+      res.json(activities.map(mapActivity));
+    }
   } catch (e) {
     res.status(500).json({ error: String(e) });
   }
