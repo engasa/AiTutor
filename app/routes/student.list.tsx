@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { CheckCircle2, XCircle, Circle } from 'lucide-react';
 import Nav from '../components/Nav';
 import { ProgressBar } from '../components/ProgressBar';
 import {
@@ -151,40 +150,6 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
         )}
 
         <div className="grid lg:grid-cols-4 gap-6">
-          {/* Activity Navigation Sidebar */}
-          <div className="lg:col-span-1">
-            <div className="p-4 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
-              <h3 className="font-semibold mb-3 text-sm uppercase tracking-wide text-gray-700 dark:text-gray-300">
-                Activities
-              </h3>
-              <div className="space-y-1">
-                {orderedActivities.map((act, i) => (
-                  <button
-                    key={act.id}
-                    onClick={() => setIdx(i)}
-                    className={`flex items-center gap-2 w-full p-2 rounded-lg text-left text-sm transition ${
-                      idx === i
-                        ? 'bg-gradient-to-r from-rose-50 to-orange-50 dark:from-rose-950/30 dark:to-orange-950/30 font-semibold'
-                        : 'hover:bg-gray-50 dark:hover:bg-gray-900'
-                    }`}
-                  >
-                    {/* Completion icon */}
-                    {act.completionStatus === 'correct' && (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />
-                    )}
-                    {act.completionStatus === 'incorrect' && (
-                      <XCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
-                    )}
-                    {act.completionStatus === 'not_attempted' && (
-                      <Circle className="w-4 h-4 text-gray-300 dark:text-gray-700 flex-shrink-0" />
-                    )}
-                    <span className="truncate">{act.title || `Activity ${i + 1}`}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
           <div className="lg:col-span-3 space-y-4">
             <div className="p-5 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 space-y-3">
               <div>
