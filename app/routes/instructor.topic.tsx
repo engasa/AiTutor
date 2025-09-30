@@ -11,6 +11,13 @@ import {
   BreadcrumbSeparator,
 } from '../components/ui/breadcrumb';
 import { Button } from '../components/ui/button';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '../components/ui/tooltip';
+import { cn } from '~/lib/utils';
 import api from '../lib/api';
 import type { Course, Lesson, Module, ModuleDetail } from '../lib/types';
 import type { Route } from './+types/instructor.topic';
@@ -201,7 +208,8 @@ export default function InstructorModuleLessons({ loaderData }: Route.ComponentP
   };
 
   return (
-    <div className="min-h-dvh bg-gradient-to-br from-sky-50 via-indigo-50 to-fuchsia-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-900">
+    <TooltipProvider delayDuration={150}>
+      <div className="min-h-dvh bg-gradient-to-br from-sky-50 via-indigo-50 to-fuchsia-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-900">
       <Nav />
       <div className="container mx-auto px-4 py-8 space-y-6">
           <Breadcrumb className="mb-6">
@@ -265,7 +273,7 @@ export default function InstructorModuleLessons({ loaderData }: Route.ComponentP
                   <option value="">Select course…</option>
                   {availableCourses.map((course) => (
                     <option key={course.id} value={course.id}>
-                      {course.title} • {course.status}
+                      {course.title}
                     </option>
                   ))}
                 </select>
@@ -374,11 +382,38 @@ export default function InstructorModuleLessons({ loaderData }: Route.ComponentP
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
               {lessons.map((lesson) => {
                 const canPublish = course?.isPublished && module?.isPublished;
-                const disabledReason = !course?.isPublished
-                  ? 'Cannot publish: parent course is not published'
+                const blocked = !lesson.isPublished && !canPublish;
+                const parentName = !course?.isPublished
+                  ? course?.title || 'the parent course'
                   : !module?.isPublished
-                  ? 'Cannot publish: parent module is not published'
-                  : '';
+                  ? module?.title || 'the parent module'
+                  : null;
+                const tooltipMessage = blocked && parentName
+                  ? `${parentName} is unpublished, so you can't publish ${lesson.title}.`
+                  : null;
+                const busy = publishingId === lesson.id;
+                const button = (
+                  <Button
+                    size="sm"
+                    disabled={busy}
+                    aria-disabled={blocked}
+                    className={cn(
+                      'px-3 py-1.5 text-xs font-semibold transition',
+                      lesson.isPublished
+                        ? 'bg-emerald-400 text-emerald-900 hover:bg-emerald-500 dark:bg-emerald-500/80 dark:text-white dark:hover:bg-emerald-500/70'
+                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700',
+                      blocked && 'cursor-not-allowed opacity-60 hover:bg-gray-300/80 dark:hover:bg-gray-700/80',
+                      busy && 'cursor-progress',
+                    )}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      if (busy || blocked) return;
+                      togglePublish(lesson.id, lesson.isPublished);
+                    }}
+                  >
+                    {busy ? 'Saving…' : lesson.isPublished ? 'Published' : 'Unpublished'}
+                  </Button>
+                );
                 return (
                   <div
                     key={lesson.id}
@@ -392,39 +427,19 @@ export default function InstructorModuleLessons({ loaderData }: Route.ComponentP
                         navigate(`/instructor/lesson/${lesson.id}`);
                       }
                     }}
-                  >
-                    <div className="font-semibold group-hover:underline">{lesson.title}</div>
-                    <div className="flex-grow"></div>
-                    <div className="flex items-center justify-between mt-4 gap-2">
-                      <span
-                        className={`text-xs font-medium px-2 py-1 rounded-md ${
-                          lesson.isPublished
-                            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                            : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
-                        }`}
-                      >
-                        {lesson.isPublished ? 'Published' : 'Unpublished'}
-                      </span>
-                      <div
-                        onClick={(e) => e.stopPropagation()}
-                        onKeyDown={(e) => e.stopPropagation()}
-                      >
-                        <Button
-                          size="sm"
-                          variant={lesson.isPublished ? 'outline' : 'default'}
-                          disabled={publishingId === lesson.id || (!lesson.isPublished && !canPublish)}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            togglePublish(lesson.id, lesson.isPublished);
-                          }}
-                          title={!canPublish && !lesson.isPublished ? disabledReason : ''}
-                        >
-                          {publishingId === lesson.id
-                            ? '...'
-                            : lesson.isPublished
-                            ? 'Unpublish'
-                            : 'Publish'}
-                        </Button>
+                    >
+                      <div className="font-semibold group-hover:underline">{lesson.title}</div>
+                      <div className="flex-grow"></div>
+                    <div className="mt-4 flex justify-end">
+                      <div onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                        {tooltipMessage ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>{button}</TooltipTrigger>
+                            <TooltipContent>{tooltipMessage}</TooltipContent>
+                          </Tooltip>
+                        ) : (
+                          button
+                        )}
                       </div>
                     </div>
                   </div>
@@ -433,6 +448,7 @@ export default function InstructorModuleLessons({ loaderData }: Route.ComponentP
             </div>
           )}
       </div>
-    </div>
+      </div>
+    </TooltipProvider>
   );
 }

@@ -11,6 +11,13 @@ import {
   BreadcrumbSeparator,
 } from '../components/ui/breadcrumb';
 import { Button } from '../components/ui/button';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '../components/ui/tooltip';
+import { cn } from '~/lib/utils';
 import api from '../lib/api';
 import type { Course, Module } from '../lib/types';
 import type { Route } from './+types/instructor.course';
@@ -165,7 +172,8 @@ export default function InstructorCourseModules({ loaderData }: Route.ComponentP
   };
 
   return (
-    <div className="min-h-dvh bg-gradient-to-br from-sky-50 via-indigo-50 to-fuchsia-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-900">
+    <TooltipProvider delayDuration={150}>
+      <div className="min-h-dvh bg-gradient-to-br from-sky-50 via-indigo-50 to-fuchsia-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-900">
       <Nav />
       <div className="container mx-auto px-4 py-8 space-y-6">
           <Breadcrumb className="mb-6">
@@ -302,6 +310,33 @@ export default function InstructorCourseModules({ loaderData }: Route.ComponentP
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
               {modules.map((m) => {
                 const canPublish = course?.isPublished;
+                const blocked = !m.isPublished && !canPublish;
+                const tooltipMessage = blocked
+                  ? `Publish ${m.title} after publishing ${course?.title ?? 'the parent course'}.`
+                  : null;
+                const busy = publishingId === m.id;
+                const button = (
+                  <Button
+                    size="sm"
+                    disabled={busy}
+                    aria-disabled={blocked}
+                    className={cn(
+                      'px-3 py-1.5 text-xs font-semibold transition',
+                      m.isPublished
+                        ? 'bg-emerald-400 text-emerald-900 hover:bg-emerald-500 dark:bg-emerald-500/80 dark:text-white dark:hover:bg-emerald-500/70'
+                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700',
+                      blocked && 'cursor-not-allowed opacity-60 hover:bg-gray-300/80 dark:hover:bg-gray-700/80',
+                      busy && 'cursor-progress',
+                    )}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      if (busy || blocked) return;
+                      togglePublish(m.id, m.isPublished);
+                    }}
+                  >
+                    {busy ? 'Saving…' : m.isPublished ? 'Published' : 'Unpublished'}
+                  </Button>
+                );
                 return (
                   <div
                     key={m.id}
@@ -315,44 +350,20 @@ export default function InstructorCourseModules({ loaderData }: Route.ComponentP
                         navigate(`/instructor/module/${m.id}`);
                       }
                     }}
-                  >
-                    <div className="font-semibold group-hover:underline">{m.title}</div>
-                    {m.description && <div className="text-sm text-gray-500 mt-1">{m.description}</div>}
-                    <div className="flex-grow"></div>
-                    <div className="flex items-center justify-between mt-4 gap-2">
-                      <span
-                        className={`text-xs font-medium px-2 py-1 rounded-md ${
-                          m.isPublished
-                            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                            : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
-                        }`}
-                      >
-                        {m.isPublished ? 'Published' : 'Unpublished'}
-                      </span>
-                      <div
-                        onClick={(e) => e.stopPropagation()}
-                        onKeyDown={(e) => e.stopPropagation()}
-                      >
-                        <Button
-                          size="sm"
-                          variant={m.isPublished ? 'outline' : 'default'}
-                          disabled={publishingId === m.id || (!m.isPublished && !canPublish)}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            togglePublish(m.id, m.isPublished);
-                          }}
-                          title={
-                            !canPublish && !m.isPublished
-                              ? 'Cannot publish: parent course is not published'
-                              : ''
-                          }
-                        >
-                          {publishingId === m.id
-                            ? '...'
-                            : m.isPublished
-                            ? 'Unpublish'
-                            : 'Publish'}
-                        </Button>
+                    >
+                      <div className="font-semibold group-hover:underline">{m.title}</div>
+                      {m.description && <div className="text-sm text-gray-500 mt-1">{m.description}</div>}
+                      <div className="flex-grow"></div>
+                    <div className="mt-4 flex justify-end">
+                      <div onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                        {tooltipMessage ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>{button}</TooltipTrigger>
+                            <TooltipContent>{tooltipMessage}</TooltipContent>
+                          </Tooltip>
+                        ) : (
+                          button
+                        )}
                       </div>
                     </div>
                   </div>
@@ -361,6 +372,7 @@ export default function InstructorCourseModules({ loaderData }: Route.ComponentP
             </div>
           )}
       </div>
-    </div>
+      </div>
+    </TooltipProvider>
   );
 }

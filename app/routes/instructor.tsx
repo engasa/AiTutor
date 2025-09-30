@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import Nav from '../components/Nav';
 import { Button } from '../components/ui/button';
+import { cn } from '~/lib/utils';
 import api from '../lib/api';
 import type { Course } from '../lib/types';
 import type { Route } from './+types/instructor';
@@ -186,36 +187,29 @@ export default function InstructorHome({ loaderData }: Route.ComponentProps) {
                     <div className="text-sm text-gray-500 mt-2">{c.description}</div>
                   )}
                   <div className="flex-grow"></div>
-                  <div className="flex items-center justify-between mt-4 gap-2">
-                    <span
-                      className={`text-xs font-medium px-2 py-1 rounded-md ${
+                  <div className="mt-4 flex justify-end">
+                    <Button
+                      size="sm"
+                      disabled={publishingId === c.id}
+                      className={cn(
+                        'px-3 py-1.5 text-xs font-semibold transition',
                         c.isPublished
-                          ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                          : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
-                      }`}
+                          ? 'bg-emerald-400 text-emerald-900 hover:bg-emerald-500 dark:bg-emerald-500/80 dark:text-white dark:hover:bg-emerald-500/70'
+                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700',
+                        publishingId === c.id && 'cursor-progress',
+                      )}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        if (publishingId === c.id) return;
+                        togglePublish(c.id, c.isPublished);
+                      }}
                     >
-                      {c.isPublished ? 'Published' : 'Unpublished'}
-                    </span>
-                    <div
-                      onClick={(event) => event.stopPropagation()}
-                      onKeyDown={(event) => event.stopPropagation()}
-                    >
-                      <Button
-                        size="sm"
-                        variant={c.isPublished ? 'outline' : 'default'}
-                        disabled={publishingId === c.id}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          togglePublish(c.id, c.isPublished);
-                        }}
-                      >
-                        {publishingId === c.id
-                          ? '...'
-                          : c.isPublished
-                          ? 'Unpublish'
-                          : 'Publish'}
-                      </Button>
-                    </div>
+                      {publishingId === c.id
+                        ? 'Saving…'
+                        : c.isPublished
+                        ? 'Published'
+                        : 'Unpublished'}
+                    </Button>
                   </div>
                 </div>
               ))}
