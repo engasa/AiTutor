@@ -9,7 +9,7 @@ export function mapCourseOffering(offering) {
     id: offering.id,
     title: offering.title,
     description: offering.description,
-    status: offering.status,
+    isPublished: offering.isPublished,
     startDate: offering.startDate,
     endDate: offering.endDate,
   };
@@ -21,6 +21,8 @@ export function mapModule(module) {
     title: module.title,
     description: module.description,
     position: module.position,
+    isPublished: module.isPublished,
+    courseOfferingId: module.courseOfferingId,
   };
 }
 
@@ -30,6 +32,7 @@ export function mapLesson(lesson) {
     title: lesson.title,
     contentMd: lesson.contentMd,
     position: lesson.position,
+    isPublished: lesson.isPublished,
     courseOfferingId: lesson.module?.courseOfferingId ?? lesson.courseOfferingId ?? undefined,
     moduleId: lesson.moduleId ?? lesson.module?.id ?? undefined,
   };

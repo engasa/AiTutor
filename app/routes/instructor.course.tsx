@@ -10,6 +10,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '../components/ui/breadcrumb';
+import { Button } from '../components/ui/button';
 import api from '../lib/api';
 import type { Course, Module } from '../lib/types';
 import type { Route } from './+types/instructor.course';
@@ -46,6 +47,7 @@ export default function InstructorCourseModules({ loaderData }: Route.ComponentP
   const [loadingSourceModules, setLoadingSourceModules] = useState(false);
   const [selectedModuleIds, setSelectedModuleIds] = useState<Set<number>>(new Set());
   const [importing, setImporting] = useState(false);
+  const [publishingId, setPublishingId] = useState<number | null>(null);
 
   useEffect(() => {
     setModules(initialModules);
@@ -138,6 +140,30 @@ export default function InstructorCourseModules({ loaderData }: Route.ComponentP
     }
   };
 
+  const togglePublish = async (moduleId: number, currentlyPublished: boolean) => {
+    // Optimistic update
+    setModules((prev) =>
+      prev.map((m) => (m.id === moduleId ? { ...m, isPublished: !currentlyPublished } : m))
+    );
+    setPublishingId(moduleId);
+
+    try {
+      const updated = currentlyPublished
+        ? await api.unpublishModule(moduleId)
+        : await api.publishModule(moduleId);
+      // Confirm with server response
+      setModules((prev) => prev.map((m) => (m.id === moduleId ? updated : m)));
+    } catch (error) {
+      console.error('Failed to toggle publish status', error);
+      // Rollback on error
+      setModules((prev) =>
+        prev.map((m) => (m.id === moduleId ? { ...m, isPublished: currentlyPublished } : m))
+      );
+    } finally {
+      setPublishingId((current) => (current === moduleId ? null : current));
+    }
+  };
+
   return (
     <div className="min-h-dvh bg-gradient-to-br from-sky-50 via-indigo-50 to-fuchsia-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-900">
       <Nav />
@@ -191,7 +217,7 @@ export default function InstructorCourseModules({ loaderData }: Route.ComponentP
                   <option value="">Select course…</option>
                   {availableCourses.map((course) => (
                     <option key={course.id} value={course.id}>
-                      {course.title} • {course.status}
+                      {course.title}
                     </option>
                   ))}
                 </select>
@@ -274,16 +300,64 @@ export default function InstructorCourseModules({ loaderData }: Route.ComponentP
             <div className="text-gray-500">No modules yet.</div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {modules.map((m) => (
-                <button
-                  key={m.id}
-                  onClick={() => navigate(`/instructor/module/${m.id}`)}
-                  className="text-left p-5 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-950/60 hover:shadow-md transition group"
-                >
-                  <div className="font-semibold group-hover:underline">{m.title}</div>
-                  {m.description && <div className="text-sm text-gray-500">{m.description}</div>}
-                </button>
-              ))}
+              {modules.map((m) => {
+                const canPublish = course?.isPublished;
+                return (
+                  <div
+                    key={m.id}
+                    className="text-left p-5 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-950/60 hover:shadow-md transition group cursor-pointer flex flex-col h-full"
+                    onClick={() => navigate(`/instructor/module/${m.id}`)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        navigate(`/instructor/module/${m.id}`);
+                      }
+                    }}
+                  >
+                    <div className="font-semibold group-hover:underline">{m.title}</div>
+                    {m.description && <div className="text-sm text-gray-500 mt-1">{m.description}</div>}
+                    <div className="flex-grow"></div>
+                    <div className="flex items-center justify-between mt-4 gap-2">
+                      <span
+                        className={`text-xs font-medium px-2 py-1 rounded-md ${
+                          m.isPublished
+                            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                            : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+                        }`}
+                      >
+                        {m.isPublished ? 'Published' : 'Unpublished'}
+                      </span>
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => e.stopPropagation()}
+                      >
+                        <Button
+                          size="sm"
+                          variant={m.isPublished ? 'outline' : 'default'}
+                          disabled={publishingId === m.id || (!m.isPublished && !canPublish)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            togglePublish(m.id, m.isPublished);
+                          }}
+                          title={
+                            !canPublish && !m.isPublished
+                              ? 'Cannot publish: parent course is not published'
+                              : ''
+                          }
+                        >
+                          {publishingId === m.id
+                            ? '...'
+                            : m.isPublished
+                            ? 'Unpublish'
+                            : 'Publish'}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
       </div>

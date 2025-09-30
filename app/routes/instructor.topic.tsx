@@ -10,6 +10,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '../components/ui/breadcrumb';
+import { Button } from '../components/ui/button';
 import api from '../lib/api';
 import type { Course, Lesson, Module, ModuleDetail } from '../lib/types';
 import type { Route } from './+types/instructor.topic';
@@ -51,6 +52,7 @@ export default function InstructorModuleLessons({ loaderData }: Route.ComponentP
   const [loadingSourceLessons, setLoadingSourceLessons] = useState(false);
   const [selectedLessonIds, setSelectedLessonIds] = useState<Set<number>>(new Set());
   const [importing, setImporting] = useState(false);
+  const [publishingId, setPublishingId] = useState<number | null>(null);
 
   useEffect(() => {
     setLessons(initialLessons);
@@ -171,6 +173,30 @@ export default function InstructorModuleLessons({ loaderData }: Route.ComponentP
       console.error('Import lessons failed', error);
     } finally {
       setImporting(false);
+    }
+  };
+
+  const togglePublish = async (lessonId: number, currentlyPublished: boolean) => {
+    // Optimistic update
+    setLessons((prev) =>
+      prev.map((l) => (l.id === lessonId ? { ...l, isPublished: !currentlyPublished } : l))
+    );
+    setPublishingId(lessonId);
+
+    try {
+      const updated = currentlyPublished
+        ? await api.unpublishLesson(lessonId)
+        : await api.publishLesson(lessonId);
+      // Confirm with server response
+      setLessons((prev) => prev.map((l) => (l.id === lessonId ? updated : l)));
+    } catch (error) {
+      console.error('Failed to toggle publish status', error);
+      // Rollback on error
+      setLessons((prev) =>
+        prev.map((l) => (l.id === lessonId ? { ...l, isPublished: currentlyPublished } : l))
+      );
+    } finally {
+      setPublishingId((current) => (current === lessonId ? null : current));
     }
   };
 
@@ -346,15 +372,64 @@ export default function InstructorModuleLessons({ loaderData }: Route.ComponentP
             <div className="text-gray-500">No lessons yet.</div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {lessons.map((lesson) => (
-                <button
-                  key={lesson.id}
-                  onClick={() => navigate(`/instructor/lesson/${lesson.id}`)}
-                  className="text-left p-5 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-950/60 hover:shadow-md transition group"
-                >
-                  <div className="font-semibold group-hover:underline">{lesson.title}</div>
-                </button>
-              ))}
+              {lessons.map((lesson) => {
+                const canPublish = course?.isPublished && module?.isPublished;
+                const disabledReason = !course?.isPublished
+                  ? 'Cannot publish: parent course is not published'
+                  : !module?.isPublished
+                  ? 'Cannot publish: parent module is not published'
+                  : '';
+                return (
+                  <div
+                    key={lesson.id}
+                    className="text-left p-5 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-950/60 hover:shadow-md transition group cursor-pointer flex flex-col h-full"
+                    onClick={() => navigate(`/instructor/lesson/${lesson.id}`)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        navigate(`/instructor/lesson/${lesson.id}`);
+                      }
+                    }}
+                  >
+                    <div className="font-semibold group-hover:underline">{lesson.title}</div>
+                    <div className="flex-grow"></div>
+                    <div className="flex items-center justify-between mt-4 gap-2">
+                      <span
+                        className={`text-xs font-medium px-2 py-1 rounded-md ${
+                          lesson.isPublished
+                            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                            : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+                        }`}
+                      >
+                        {lesson.isPublished ? 'Published' : 'Unpublished'}
+                      </span>
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => e.stopPropagation()}
+                      >
+                        <Button
+                          size="sm"
+                          variant={lesson.isPublished ? 'outline' : 'default'}
+                          disabled={publishingId === lesson.id || (!lesson.isPublished && !canPublish)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            togglePublish(lesson.id, lesson.isPublished);
+                          }}
+                          title={!canPublish && !lesson.isPublished ? disabledReason : ''}
+                        >
+                          {publishingId === lesson.id
+                            ? '...'
+                            : lesson.isPublished
+                            ? 'Unpublish'
+                            : 'Publish'}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
       </div>

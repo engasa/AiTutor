@@ -12,14 +12,19 @@ router.get('/courses', async (req, res) => {
 
   try {
     if (authUser.role === 'INSTRUCTOR') {
+      // Instructors see all their courses regardless of publish status
       const courses = await prisma.courseOffering.findMany({
         where: { instructors: { some: { userId: authUser.id } } },
         orderBy: { createdAt: 'desc' },
       });
       res.json(courses.map(mapCourseOffering));
     } else {
+      // Students only see published courses they're enrolled in
       const courses = await prisma.courseOffering.findMany({
-        where: { enrollments: { some: { userId: authUser.id } } },
+        where: {
+          enrollments: { some: { userId: authUser.id } },
+          isPublished: true,
+        },
         orderBy: { createdAt: 'desc' },
       });
       res.json(courses.map(mapCourseOffering));
@@ -70,7 +75,6 @@ router.post('/courses', requireRole('INSTRUCTOR'), async (req, res) => {
     title,
     description,
     sourceCourseId,
-    status = 'DRAFT',
     startDate,
     endDate,
   } = req.body || {};
@@ -103,7 +107,6 @@ router.post('/courses', requireRole('INSTRUCTOR'), async (req, res) => {
       data: {
         title,
         description,
-        status,
         startDate: startDate ? new Date(startDate) : null,
         endDate: endDate ? new Date(endDate) : null,
       },
@@ -146,14 +149,10 @@ router.patch('/courses/:courseId', requireRole('INSTRUCTOR'), async (req, res) =
     return res.status(400).json({ error: 'Invalid course id' });
   }
 
-  const { status, title, description, startDate, endDate } = req.body || {};
+  const { title, description, startDate, endDate } = req.body || {};
 
-  if (!status && !title && !description && !startDate && !endDate) {
+  if (!title && !description && !startDate && !endDate) {
     return res.status(400).json({ error: 'Nothing to update' });
-  }
-
-  if (status && !['DRAFT', 'ACTIVE', 'ARCHIVED'].includes(status)) {
-    return res.status(400).json({ error: 'Invalid status value' });
   }
 
   try {
@@ -167,7 +166,6 @@ router.patch('/courses/:courseId', requireRole('INSTRUCTOR'), async (req, res) =
     const updated = await prisma.courseOffering.update({
       where: { id: courseId },
       data: {
-        status: status ?? undefined,
         title: title ?? undefined,
         description: description ?? undefined,
         startDate: startDate ? new Date(startDate) : startDate === null ? null : undefined,
@@ -318,6 +316,88 @@ router.post('/courses/:courseId/import', requireRole('INSTRUCTOR'), async (req, 
     });
 
     res.json(updated);
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// Publish a course (no restrictions, no cascading)
+router.patch('/courses/:courseId/publish', requireRole('INSTRUCTOR'), async (req, res) => {
+  const instructor = req.user;
+  const courseId = Number(req.params.courseId);
+  if (!Number.isFinite(courseId)) {
+    return res.status(400).json({ error: 'Invalid course id' });
+  }
+
+  try {
+    const instructorAssignment = await prisma.courseInstructor.findFirst({
+      where: { courseOfferingId: courseId, userId: instructor.id },
+    });
+    if (!instructorAssignment) {
+      return res.status(403).json({ error: 'Not authorized for this course' });
+    }
+
+    const updated = await prisma.courseOffering.update({
+      where: { id: courseId },
+      data: { isPublished: true },
+    });
+
+    res.json(mapCourseOffering(updated));
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// Unpublish a course (cascades to all modules and lessons)
+router.patch('/courses/:courseId/unpublish', requireRole('INSTRUCTOR'), async (req, res) => {
+  const instructor = req.user;
+  const courseId = Number(req.params.courseId);
+  if (!Number.isFinite(courseId)) {
+    return res.status(400).json({ error: 'Invalid course id' });
+  }
+
+  try {
+    const instructorAssignment = await prisma.courseInstructor.findFirst({
+      where: { courseOfferingId: courseId, userId: instructor.id },
+    });
+    if (!instructorAssignment) {
+      return res.status(403).json({ error: 'Not authorized for this course' });
+    }
+
+    // Unpublish course and cascade to all modules and lessons
+    await prisma.$transaction(async (tx) => {
+      // Update the course
+      await tx.courseOffering.update({
+        where: { id: courseId },
+        data: { isPublished: false },
+      });
+
+      // Update all modules in this course
+      await tx.module.updateMany({
+        where: { courseOfferingId: courseId },
+        data: { isPublished: false },
+      });
+
+      // Update all lessons in modules of this course
+      const modules = await tx.module.findMany({
+        where: { courseOfferingId: courseId },
+        select: { id: true },
+      });
+      const moduleIds = modules.map((m) => m.id);
+
+      if (moduleIds.length > 0) {
+        await tx.lesson.updateMany({
+          where: { moduleId: { in: moduleIds } },
+          data: { isPublished: false },
+        });
+      }
+    });
+
+    const updated = await prisma.courseOffering.findUnique({
+      where: { id: courseId },
+    });
+
+    res.json(mapCourseOffering(updated));
   } catch (e) {
     res.status(500).json({ error: String(e) });
   }

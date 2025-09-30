@@ -41,7 +41,6 @@ export const api = {
     sourceCourseId?: number;
     startDate?: string;
     endDate?: string;
-    status?: 'DRAFT' | 'ACTIVE' | 'ARCHIVED';
   }) =>
     http('/api/courses', {
       method: 'POST',
@@ -50,7 +49,6 @@ export const api = {
   updateCourse: (
     courseId: number,
     payload: {
-      status?: 'DRAFT' | 'ACTIVE' | 'ARCHIVED';
       title?: string;
       description?: string | null;
       startDate?: string | null;
@@ -60,6 +58,14 @@ export const api = {
     http(`/api/courses/${courseId}`, {
       method: 'PATCH',
       body: JSON.stringify(payload),
+    }),
+  publishCourse: (courseId: number) =>
+    http(`/api/courses/${courseId}/publish`, {
+      method: 'PATCH',
+    }),
+  unpublishCourse: (courseId: number) =>
+    http(`/api/courses/${courseId}/unpublish`, {
+      method: 'PATCH',
     }),
   importIntoCourse: (
     courseId: number,
@@ -84,6 +90,14 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
+  publishModule: (moduleId: number) =>
+    http(`/api/modules/${moduleId}/publish`, {
+      method: 'PATCH',
+    }),
+  unpublishModule: (moduleId: number) =>
+    http(`/api/modules/${moduleId}/unpublish`, {
+      method: 'PATCH',
+    }),
   lessonsForModule: (moduleId: number) => http(`/api/modules/${moduleId}/lessons`),
   createLesson: (
     moduleId: number,
@@ -92,6 +106,14 @@ export const api = {
     http(`/api/modules/${moduleId}/lessons`, {
       method: 'POST',
       body: JSON.stringify(payload),
+    }),
+  publishLesson: (lessonId: number) =>
+    http(`/api/lessons/${lessonId}/publish`, {
+      method: 'PATCH',
+    }),
+  unpublishLesson: (lessonId: number) =>
+    http(`/api/lessons/${lessonId}/unpublish`, {
+      method: 'PATCH',
     }),
   lessonById: (lessonId: number) => http(`/api/lessons/${lessonId}`),
   activitiesForLesson: (lessonId: number) => http(`/api/lessons/${lessonId}/activities`),

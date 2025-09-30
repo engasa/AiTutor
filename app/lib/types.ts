@@ -7,13 +7,11 @@ export type User = {
   role: Role;
 };
 
-export type CourseStatus = 'DRAFT' | 'ACTIVE' | 'ARCHIVED';
-
 export type Course = {
   id: number;
   title: string;
   description?: string | null;
-  status: CourseStatus;
+  isPublished: boolean;
   startDate?: string | null;
   endDate?: string | null;
 };
@@ -23,6 +21,7 @@ export type Module = {
   title: string;
   description?: string | null;
   position: number;
+  isPublished: boolean;
 };
 
 export type ModuleDetail = Module & {
@@ -34,6 +33,7 @@ export type Lesson = {
   title: string;
   contentMd?: string | null;
   position: number;
+  isPublished: boolean;
   courseOfferingId?: number;
   moduleId?: number;
 };

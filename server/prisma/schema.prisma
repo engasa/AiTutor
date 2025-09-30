@@ -12,12 +12,6 @@ enum Role {
   INSTRUCTOR
 }
 
-enum CourseOfferingStatus {
-  DRAFT
-  ACTIVE
-  ARCHIVED
-}
-
 enum InstructorRole {
   LEAD
   ASSISTANT
@@ -53,14 +47,14 @@ model PromptTemplate {
 }
 
 model CourseOffering {
-  id          Int                   @id @default(autoincrement())
+  id          Int        @id @default(autoincrement())
   title       String
   description String?
   startDate   DateTime?
   endDate     DateTime?
-  status      CourseOfferingStatus  @default(DRAFT)
-  createdAt   DateTime              @default(now())
-  updatedAt   DateTime              @updatedAt
+  isPublished Boolean    @default(false)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 
   modules      Module[]
   instructors  CourseInstructor[]
@@ -108,6 +102,7 @@ model Module {
   title            String
   description      String?
   position         Int             @default(0)
+  isPublished      Boolean         @default(false)
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
   courseOffering   CourseOffering  @relation(fields: [courseOfferingId], references: [id], onDelete: Cascade)
@@ -117,14 +112,15 @@ model Module {
 }
 
 model Lesson {
-  id         Int      @id @default(autoincrement())
-  title      String
-  contentMd  String?
-  position   Int      @default(0)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  module     Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
-  moduleId   Int
+  id          Int      @id @default(autoincrement())
+  title       String
+  contentMd   String?
+  position    Int      @default(0)
+  isPublished Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  module      Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  moduleId    Int
 
   activities Activity[]
 }

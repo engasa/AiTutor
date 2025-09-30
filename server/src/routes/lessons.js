@@ -6,14 +6,21 @@ import { mapLesson } from '../utils/mappers.js';
 const router = express.Router();
 
 router.get('/modules/:moduleId/lessons', async (req, res) => {
+  const authUser = req.user;
   const moduleId = Number(req.params.moduleId);
   if (!Number.isFinite(moduleId)) {
     return res.status(400).json({ error: 'Invalid module id' });
   }
 
   try {
+    // Students only see published lessons
+    const whereClause =
+      authUser && authUser.role === 'STUDENT'
+        ? { moduleId, isPublished: true }
+        : { moduleId };
+
     const lessons = await prisma.lesson.findMany({
-      where: { moduleId },
+      where: whereClause,
       orderBy: { position: 'asc' },
     });
     res.json(lessons.map(mapLesson));
@@ -59,6 +66,104 @@ router.get('/lessons/:lessonId', async (req, res) => {
     });
     if (!lesson) return res.status(404).json({ error: 'Lesson not found' });
     res.json(mapLesson(lesson));
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// Publish a lesson (requires parent module AND course to be published)
+router.patch('/lessons/:lessonId/publish', requireRole('INSTRUCTOR'), async (req, res) => {
+  const instructor = req.user;
+  const lessonId = Number(req.params.lessonId);
+  if (!Number.isFinite(lessonId)) {
+    return res.status(400).json({ error: 'Invalid lesson id' });
+  }
+
+  try {
+    const lesson = await prisma.lesson.findUnique({
+      where: { id: lessonId },
+      include: {
+        module: {
+          include: {
+            courseOffering: {
+              include: { instructors: { select: { userId: true } } },
+            },
+          },
+        },
+      },
+    });
+
+    if (!lesson) {
+      return res.status(404).json({ error: 'Lesson not found' });
+    }
+
+    const isInstructor = lesson.module.courseOffering.instructors.some((i) => i.userId === instructor.id);
+    if (!isInstructor) {
+      return res.status(403).json({ error: 'Not authorized for this lesson' });
+    }
+
+    // Validate parent course is published
+    if (!lesson.module.courseOffering.isPublished) {
+      return res.status(400).json({
+        error: 'Cannot publish lesson: parent course is not published'
+      });
+    }
+
+    // Validate parent module is published
+    if (!lesson.module.isPublished) {
+      return res.status(400).json({
+        error: 'Cannot publish lesson: parent module is not published'
+      });
+    }
+
+    const updated = await prisma.lesson.update({
+      where: { id: lessonId },
+      data: { isPublished: true },
+    });
+
+    res.json(mapLesson(updated));
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// Unpublish a lesson (no cascading, lessons have no children)
+router.patch('/lessons/:lessonId/unpublish', requireRole('INSTRUCTOR'), async (req, res) => {
+  const instructor = req.user;
+  const lessonId = Number(req.params.lessonId);
+  if (!Number.isFinite(lessonId)) {
+    return res.status(400).json({ error: 'Invalid lesson id' });
+  }
+
+  try {
+    const lesson = await prisma.lesson.findUnique({
+      where: { id: lessonId },
+      include: {
+        module: {
+          include: {
+            courseOffering: {
+              include: { instructors: { select: { userId: true } } },
+            },
+          },
+        },
+      },
+    });
+
+    if (!lesson) {
+      return res.status(404).json({ error: 'Lesson not found' });
+    }
+
+    const isInstructor = lesson.module.courseOffering.instructors.some((i) => i.userId === instructor.id);
+    if (!isInstructor) {
+      return res.status(403).json({ error: 'Not authorized for this lesson' });
+    }
+
+    const updated = await prisma.lesson.update({
+      where: { id: lessonId },
+      data: { isPublished: false },
+    });
+
+    res.json(mapLesson(updated));
   } catch (e) {
     res.status(500).json({ error: String(e) });
   }
