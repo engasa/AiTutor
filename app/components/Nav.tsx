@@ -6,8 +6,8 @@ export default function Nav() {
   const loc = useLocation();
   const { user, logout } = useLocalUser();
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate('/');
   };
 
@@ -47,4 +47,3 @@ export default function Nav() {
     </div>
   );
 }
-

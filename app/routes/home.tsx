@@ -26,8 +26,8 @@ export default function Home() {
 
     try {
       const response = await api.login(email, password);
-      const { token, user } = response;
-      saveAuth(token, { id: user.id, name: user.name, role: user.role });
+      const { user } = response;
+      saveAuth({ id: user.id, name: user.name, role: user.role });
       navigate(user.role === 'STUDENT' ? '/student' : '/instructor');
     } catch (err) {
       setError('Invalid email or password');

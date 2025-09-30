@@ -1,19 +1,13 @@
-import { getAuthToken } from '../hooks/useLocalUser';
-
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
 async function http(path: string, init?: RequestInit) {
-  const token = getAuthToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
 
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
+    credentials: 'include',
     headers: {
       ...headers,
       ...(init?.headers || {}),
@@ -23,7 +17,6 @@ async function http(path: string, init?: RequestInit) {
   if (!res.ok) {
     if (res.status === 401 || res.status === 403) {
       if (typeof window !== 'undefined') {
-        localStorage.removeItem('aitutor_auth_token');
         window.location.href = '/';
       }
       throw new Error('Authentication required');
@@ -155,6 +148,10 @@ export const api = {
     http('/api/prompts', {
       method: 'POST',
       body: JSON.stringify(payload),
+    }),
+  logout: () =>
+    http('/api/logout', {
+      method: 'POST',
     }),
 };
 

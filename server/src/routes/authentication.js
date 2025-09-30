@@ -6,6 +6,14 @@ import { toPublicUser } from '../utils/mappers.js';
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+const AUTH_COOKIE_NAME = 'aitutor_auth_token';
+const COOKIE_OPTIONS = {
+  httpOnly: true,
+  sameSite: 'lax',
+  secure: process.env.NODE_ENV === 'production',
+  maxAge: 24 * 60 * 60 * 1000,
+  path: '/',
+};
 
 router.post('/login', async (req, res) => {
   const { email, password } = req.body || {};
@@ -28,6 +36,7 @@ router.post('/login', async (req, res) => {
       expiresIn: '24h',
     });
 
+    res.cookie(AUTH_COOKIE_NAME, token, COOKIE_OPTIONS);
     res.json({ token, user: toPublicUser(user) });
   } catch (e) {
     res.status(500).json({ error: String(e) });
@@ -37,6 +46,11 @@ router.post('/login', async (req, res) => {
 router.get('/me', async (req, res) => {
   const authUser = req.user;
   res.json({ user: toPublicUser(authUser) });
+});
+
+router.post('/logout', (req, res) => {
+  res.clearCookie(AUTH_COOKIE_NAME, { ...COOKIE_OPTIONS, maxAge: 0 });
+  res.json({ ok: true });
 });
 
 export default router;

@@ -1,11 +1,11 @@
 import type { FormEvent } from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import Nav from '../components/Nav';
-import ProtectedRoute from '../components/ProtectedRoute';
 import api from '../lib/api';
 import type { Course, CourseStatus } from '../lib/types';
-import { requireUser } from '../hooks/useLocalUser';
+import type { Route } from './+types/instructor';
+import { fetchJson, requireUserFromRequest } from '~/lib/server-api';
 
 const statusLabels: Record<CourseStatus, string> = {
   ACTIVE: 'Active',
@@ -21,11 +21,16 @@ const statusOptions: Array<{ value: CourseStatus; label: string }> = [
   { value: 'ARCHIVED', label: statusLabels.ARCHIVED },
 ];
 
-export default function InstructorHome() {
+export async function loader({ request }: Route.LoaderArgs) {
+  await requireUserFromRequest(request, 'INSTRUCTOR');
+  const courses = await fetchJson<Course[]>(request, '/api/courses');
+  return { courses };
+}
+
+export default function InstructorHome({ loaderData }: Route.ComponentProps) {
   const navigate = useNavigate();
-  const user = requireUser('INSTRUCTOR');
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [courses, setCourses] = useState<Course[]>(loaderData.courses ?? []);
+  const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [title, setTitle] = useState('');
@@ -46,7 +51,6 @@ export default function InstructorHome() {
   );
 
   const loadCourses = async () => {
-    if (!user) return;
     setLoading(true);
     try {
       const data: Course[] = await api.listCourses();
@@ -73,11 +77,6 @@ export default function InstructorHome() {
     }
   };
 
-  useEffect(() => {
-    if (!user) return;
-    loadCourses();
-  }, [user?.id]);
-
   const onCreate = async (event: FormEvent) => {
     event.preventDefault();
     if (!title.trim()) return;
@@ -102,10 +101,9 @@ export default function InstructorHome() {
   };
 
   return (
-    <ProtectedRoute role="INSTRUCTOR">
-      <div className="min-h-dvh bg-gradient-to-br from-sky-50 via-indigo-50 to-fuchsia-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-900">
-        <Nav />
-        <div className="container mx-auto px-4 py-8 space-y-6">
+    <div className="min-h-dvh bg-gradient-to-br from-sky-50 via-indigo-50 to-fuchsia-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-900">
+      <Nav />
+      <div className="container mx-auto px-4 py-8 space-y-6">
           <div className="flex items-center justify-between">
             <h2 className="text-2xl font-bold">Teaching</h2>
             <button
@@ -240,8 +238,7 @@ export default function InstructorHome() {
               ))}
             </div>
           )}
-        </div>
       </div>
-    </ProtectedRoute>
+    </div>
   );
 }

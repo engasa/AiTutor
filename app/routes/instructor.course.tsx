@@ -1,9 +1,7 @@
 import type { FormEvent } from 'react';
 import { useState, useEffect } from 'react';
-import { Link, useLoaderData, useNavigate, useParams } from 'react-router';
-import type { ClientLoaderFunctionArgs } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router';
 import Nav from '../components/Nav';
-import ProtectedRoute from '../components/ProtectedRoute';
 import {
   Breadcrumb,
   BreadcrumbList,
@@ -14,23 +12,29 @@ import {
 } from '../components/ui/breadcrumb';
 import api from '../lib/api';
 import type { Course, Module } from '../lib/types';
-import { requireUser } from '../hooks/useLocalUser';
+import type { Route } from './+types/instructor.course';
+import { fetchJson, requireUserFromRequest } from '~/lib/server-api';
 
-export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
+export async function loader({ request, params }: Route.LoaderArgs) {
+  await requireUserFromRequest(request, 'INSTRUCTOR');
   const courseId = Number(params.courseId);
+  if (!Number.isFinite(courseId)) {
+    throw new Response('Invalid course id', { status: 400 });
+  }
+
   const [course, modules] = await Promise.all([
-    api.courseById(courseId),
-    api.modulesForCourse(courseId),
+    fetchJson<Course>(request, `/api/courses/${courseId}`),
+    fetchJson<Module[]>(request, `/api/courses/${courseId}/modules`),
   ]);
+
   return { course, modules };
 }
 
-export default function InstructorCourseModules() {
+export default function InstructorCourseModules({ loaderData }: Route.ComponentProps) {
   const navigate = useNavigate();
   const { courseId } = useParams();
-  const user = requireUser('INSTRUCTOR');
   const numericCourseId = courseId ? Number(courseId) : null;
-  const { course, modules: initialModules } = useLoaderData<typeof clientLoader>();
+  const { course, modules: initialModules } = loaderData;
   const [modules, setModules] = useState<Module[]>(initialModules);
   const [title, setTitle] = useState('');
   const [creating, setCreating] = useState(false);
@@ -135,10 +139,9 @@ export default function InstructorCourseModules() {
   };
 
   return (
-    <ProtectedRoute role="INSTRUCTOR">
-      <div className="min-h-dvh bg-gradient-to-br from-sky-50 via-indigo-50 to-fuchsia-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-900">
-        <Nav />
-        <div className="container mx-auto px-4 py-8 space-y-6">
+    <div className="min-h-dvh bg-gradient-to-br from-sky-50 via-indigo-50 to-fuchsia-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-900">
+      <Nav />
+      <div className="container mx-auto px-4 py-8 space-y-6">
           <Breadcrumb className="mb-6">
             <BreadcrumbList>
               <BreadcrumbItem>
@@ -283,8 +286,7 @@ export default function InstructorCourseModules() {
               ))}
             </div>
           )}
-        </div>
       </div>
-    </ProtectedRoute>
+    </div>
   );
 }

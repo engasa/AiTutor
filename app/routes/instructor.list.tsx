@@ -1,11 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Link, useLoaderData, useNavigate, useParams } from 'react-router';
-import type { ClientLoaderFunctionArgs } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router';
 import AddActivityPanel from '../components/AddActivityPanel';
 import ActivityDetailsCard from '../components/ActivityDetailsCard';
 import AddCourseTopicsButton from '../components/AddCourseTopicsButton';
 import Nav from '../components/Nav';
-import ProtectedRoute from '../components/ProtectedRoute';
 import {
   Breadcrumb,
   BreadcrumbList,
@@ -17,34 +15,38 @@ import {
 import api from '../lib/api';
 import type { Activity, Course, Lesson, ModuleDetail, PromptTemplate } from '../lib/types';
 import { CourseTopicsProvider, useCourseTopics } from '../hooks/useCourseTopics';
-import { requireUser } from '../hooks/useLocalUser';
+import type { Route } from './+types/instructor.list';
+import { fetchJson, requireUserFromRequest } from '~/lib/server-api';
 
-export async function clientLoader({ params }: ClientLoaderFunctionArgs) {
+export async function loader({ request, params }: Route.LoaderArgs) {
+  await requireUserFromRequest(request, 'INSTRUCTOR');
   const lessonId = Number(params.lessonId);
+  if (!Number.isFinite(lessonId)) {
+    throw new Response('Invalid lesson id', { status: 400 });
+  }
+
   const [lesson, activities] = await Promise.all([
-    api.lessonById(lessonId),
-    api.activitiesForLesson(lessonId),
+    fetchJson<Lesson>(request, `/api/lessons/${lessonId}`),
+    fetchJson<Activity[]>(request, `/api/lessons/${lessonId}/activities`),
   ]);
 
-  // Fetch module and course details for breadcrumb
-  let module = null;
-  let course = null;
+  let module: ModuleDetail | null = null;
+  let course: Course | null = null;
   if (lesson.moduleId) {
-    module = await api.moduleById(lesson.moduleId);
+    module = await fetchJson<ModuleDetail>(request, `/api/modules/${lesson.moduleId}`);
     if (module.courseOfferingId) {
-      course = await api.courseById(module.courseOfferingId);
+      course = await fetchJson<Course>(request, `/api/courses/${module.courseOfferingId}`);
     }
   }
 
   return { course, module, lesson, activities };
 }
 
-export default function InstructorLessonBuilder() {
+export default function InstructorLessonBuilder({ loaderData }: Route.ComponentProps) {
   const navigate = useNavigate();
   const { lessonId } = useParams();
   const numericLessonId = lessonId ? Number(lessonId) : null;
-  const user = requireUser('INSTRUCTOR');
-  const { course, module, lesson, activities: initialActivities } = useLoaderData<typeof clientLoader>();
+  const { course, module, lesson, activities: initialActivities } = loaderData;
   const [activities, setActivities] = useState<Activity[]>(initialActivities);
 
   const [updatingTopicsFor, setUpdatingTopicsFor] = useState<number | null>(null);
@@ -83,9 +85,8 @@ export default function InstructorLessonBuilder() {
   };
 
   useEffect(() => {
-    if (!user) return;
     loadPrompts();
-  }, [user?.id]);
+  }, []);
 
   const handlePromptCreated = (created: PromptTemplate) => {
     setPrompts((prev) => [created, ...prev.filter((prompt) => prompt.id !== created.id)]);
@@ -264,11 +265,10 @@ export default function InstructorLessonBuilder() {
   };
 
   return (
-    <ProtectedRoute role="INSTRUCTOR">
-      <CourseTopicsProvider value={courseTopics}>
-        <div className="min-h-dvh bg-gradient-to-br from-sky-50 via-indigo-50 to-fuchsia-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-900">
-          <Nav />
-          <div className="container mx-auto px-4 py-8">
+    <CourseTopicsProvider value={courseTopics}>
+      <div className="min-h-dvh bg-gradient-to-br from-sky-50 via-indigo-50 to-fuchsia-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-900">
+        <Nav />
+        <div className="container mx-auto px-4 py-8">
             <Breadcrumb className="mb-6">
               <BreadcrumbList>
                 <BreadcrumbItem>
@@ -484,6 +484,5 @@ export default function InstructorLessonBuilder() {
         </div>
       </div>
     </CourseTopicsProvider>
-    </ProtectedRoute>
   );
 }
