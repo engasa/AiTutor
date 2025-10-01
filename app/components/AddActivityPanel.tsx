@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import api from '../lib/api';
 import { useCourseTopicsContext } from '../hooks/useCourseTopics';
 import type { PromptTemplate } from '../lib/types';
@@ -52,25 +52,21 @@ export default function AddActivityPanel({
   const [creatingPrompt, setCreatingPrompt] = useState(false);
   const [promptError, setPromptError] = useState<string | null>(null);
 
-  useEffect(() => {
+  // Adjust main topic selection during render when topics change
+  const [prevTopics, setPrevTopics] = useState(topics);
+  if (topics !== prevTopics) {
+    setPrevTopics(topics);
+
     if (topics.length === 0) {
-      setSelectedMainTopicId('');
-      setSelectedSecondaryTopicIds([]);
-      return;
-    }
-
-    setSelectedMainTopicId((current) => {
-      if (current !== '' && topics.some((topic) => topic.id === current)) {
-        return current;
+      if (selectedMainTopicId !== '') setSelectedMainTopicId('');
+      if (selectedSecondaryTopicIds.length > 0) setSelectedSecondaryTopicIds([]);
+    } else {
+      // If current selection is invalid, default to first topic
+      if (selectedMainTopicId === '' || !topics.some((topic) => topic.id === selectedMainTopicId)) {
+        setSelectedMainTopicId(topics[0].id);
       }
-      return topics[0].id;
-    });
-  }, [topics]);
-
-  useEffect(() => {
-    if (typeof selectedMainTopicId !== 'number') return;
-    setSelectedSecondaryTopicIds((prev) => prev.filter((id) => id !== selectedMainTopicId));
-  }, [selectedMainTopicId]);
+    }
+  }
 
   const availableSecondaryTopics = useMemo(
     () =>
@@ -319,9 +315,14 @@ export default function AddActivityPanel({
         <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Main topic</label>
         <select
           value={selectedMainTopicId === '' ? '' : selectedMainTopicId}
-          onChange={(event) =>
-            setSelectedMainTopicId(event.target.value ? Number(event.target.value) : '')
-          }
+          onChange={(event) => {
+            const newMainTopicId = event.target.value ? Number(event.target.value) : '';
+            setSelectedMainTopicId(newMainTopicId);
+            // Remove new main topic from secondary topics if it was selected there
+            if (typeof newMainTopicId === 'number') {
+              setSelectedSecondaryTopicIds((prev) => prev.filter((id) => id !== newMainTopicId));
+            }
+          }}
           disabled={loadingTopics || topics.length === 0}
           className="w-full px-3 py-2 rounded-xl border border-indigo-200 dark:border-indigo-900 bg-white dark:bg-gray-950 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:opacity-60"
         >

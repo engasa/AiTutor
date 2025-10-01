@@ -54,9 +54,12 @@ export default function InstructorModuleLessons({ loaderData }: Route.ComponentP
   const [importing, setImporting] = useState(false);
   const [publishingId, setPublishingId] = useState<number | null>(null);
 
-  useEffect(() => {
+  // Adjust state during render when loader data changes
+  const [prevInitialLessons, setPrevInitialLessons] = useState(initialLessons);
+  if (initialLessons !== prevInitialLessons) {
+    setPrevInitialLessons(initialLessons);
     setLessons(initialLessons);
-  }, [initialLessons]);
+  }
 
   const refreshLessons = async () => {
     if (!numericModuleId) return;
@@ -82,13 +85,6 @@ export default function InstructorModuleLessons({ loaderData }: Route.ComponentP
       .catch((error) => console.error('Failed to load courses', error))
       .finally(() => setLoadingSourceCourses(false));
   };
-
-  useEffect(() => {
-    if (!module?.courseOfferingId) return;
-    setAvailableCourses((courses) =>
-      courses.filter((course: Course) => course.id !== module.courseOfferingId)
-    );
-  }, [module?.courseOfferingId]);
 
   useEffect(() => {
     if (selectedSourceCourseId == null) {

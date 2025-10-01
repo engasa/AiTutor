@@ -49,9 +49,12 @@ export default function InstructorCourseModules({ loaderData }: Route.ComponentP
   const [importing, setImporting] = useState(false);
   const [publishingId, setPublishingId] = useState<number | null>(null);
 
-  useEffect(() => {
+  // Adjust state during render when loader data changes
+  const [prevInitialModules, setPrevInitialModules] = useState(initialModules);
+  if (initialModules !== prevInitialModules) {
+    setPrevInitialModules(initialModules);
     setModules(initialModules);
-  }, [initialModules]);
+  }
 
   const refreshModules = async () => {
     if (!numericCourseId) return;

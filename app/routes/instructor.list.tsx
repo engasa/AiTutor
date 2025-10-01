@@ -61,9 +61,12 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
   const courseTopics = useCourseTopics(courseOfferingId);
   const { topics, loading: loadingTopics, error: topicsError } = courseTopics;
 
-  useEffect(() => {
+  // Adjust state during render when loader data changes
+  const [prevInitialActivities, setPrevInitialActivities] = useState(initialActivities);
+  if (initialActivities !== prevInitialActivities) {
+    setPrevInitialActivities(initialActivities);
     setActivities(initialActivities);
-  }, [initialActivities]);
+  }
 
   const refreshActivities = async () => {
     if (!numericLessonId) return;

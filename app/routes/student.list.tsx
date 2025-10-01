@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-  import Nav from '../components/Nav';
+import Nav from '../components/Nav';
 import { ProgressBar } from '../components/ProgressBar';
 import {
   Breadcrumb,
@@ -53,18 +53,12 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
   const [result, setResult] = useState<string | null>(null);
   const [wasCorrect, setWasCorrect] = useState(false);
 
-  // Sync local state when loader data changes
-  useEffect(() => {
+  // Adjust state during render when loader data changes
+  const [prevActivities, setPrevActivities] = useState(activities);
+  if (activities !== prevActivities) {
+    setPrevActivities(activities);
     setOrderedActivities(activities ?? []);
-  }, [activities]);
-
-  useEffect(() => {
-    setMcq(null);
-    setText('');
-    setAssistant([]);
-    setResult(null);
-    setWasCorrect(false);
-  }, [idx]);
+  }
 
   const activity = orderedActivities[idx];
   const canNext = idx < orderedActivities.length - 1;
@@ -247,14 +241,30 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
                 <div className="ml-auto flex items-center gap-2">
                   <button
                     disabled={!canPrev}
-                    onClick={() => setIdx((i) => Math.max(0, i - 1))}
+                    onClick={() => {
+                      setIdx((i) => Math.max(0, i - 1));
+                      // Reset form state when navigating
+                      setMcq(null);
+                      setText('');
+                      setAssistant([]);
+                      setResult(null);
+                      setWasCorrect(false);
+                    }}
                     className="px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 disabled:opacity-50"
                   >
                     Prev
                   </button>
                   <button
                     disabled={!canNext}
-                    onClick={() => setIdx((i) => Math.min(orderedActivities.length - 1, i + 1))}
+                    onClick={() => {
+                      setIdx((i) => Math.min(orderedActivities.length - 1, i + 1));
+                      // Reset form state when navigating
+                      setMcq(null);
+                      setText('');
+                      setAssistant([]);
+                      setResult(null);
+                      setWasCorrect(false);
+                    }}
                     className="px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 disabled:opacity-50"
                   >
                     Next
