@@ -32,6 +32,7 @@ export default function AddActivityPanel({
   const [question, setQuestion] = useState('');
   const [choices, setChoices] = useState<string[]>(['', '', '', '']);
   const [correct, setCorrect] = useState(0);
+  const [hasSelectedCorrect, setHasSelectedCorrect] = useState(false);
   const [textAnswer, setTextAnswer] = useState('');
   const [hint, setHint] = useState('');
   const [busy, setBusy] = useState(false);
@@ -199,6 +200,7 @@ export default function AddActivityPanel({
       setQuestion('');
       setChoices(['', '', '', '']);
       setCorrect(0);
+      setHasSelectedCorrect(false);
       setTextAnswer('');
       setHint('');
       setSelectedSecondaryTopicIds([]);
@@ -264,37 +266,43 @@ export default function AddActivityPanel({
         <div className="space-y-3">
           <div className="text-xs font-semibold text-gray-600 dark:text-gray-400">Choices</div>
           <div className="space-y-2">
-            {choices.map((choice, index) => (
-              <label
-                key={index}
-                className={`flex items-center gap-3 px-3 py-2 rounded-xl border ${
-                  correct === index
-                    ? 'border-transparent ring-2 ring-offset-2 ring-amber-500 dark:ring-offset-gray-950'
-                    : 'border-gray-300 dark:border-gray-700'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="correct"
-                  className="sr-only"
-                  checked={correct === index}
-                  onChange={() => setCorrect(index)}
-                />
-                <span className="text-xs font-semibold text-gray-500 w-6">{String.fromCharCode(65 + index)}.</span>
-                <input
-                  value={choice}
-                  onChange={(event) =>
-                    setChoices((prev) => {
-                      const next = [...prev];
-                      next[index] = event.target.value;
-                      return next;
-                    })
-                  }
-                  placeholder="Option text"
-                  className="flex-1 min-w-0 border-none bg-transparent focus:outline-none"
-                />
-              </label>
-            ))}
+            {choices.map((choice, index) => {
+              const isSelected = correct === index && hasSelectedCorrect;
+              return (
+                <label
+                  key={index}
+                  className={`flex items-center gap-3 px-3 py-2 rounded-xl border cursor-pointer transition focus-within:outline-none bg-white dark:bg-gray-900 ${
+                    isSelected
+                      ? 'border-amber-400 dark:border-amber-600'
+                      : 'border-gray-300 dark:border-gray-700 hover:border-amber-300 dark:hover:border-amber-800'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="correct"
+                    className="sr-only"
+                    checked={correct === index}
+                    onChange={() => {
+                      setCorrect(index);
+                      setHasSelectedCorrect(true);
+                    }}
+                  />
+                  <span className="text-xs font-semibold text-gray-500 w-6">{String.fromCharCode(65 + index)}.</span>
+                  <input
+                    value={choice}
+                    onChange={(event) =>
+                      setChoices((prev) => {
+                        const next = [...prev];
+                        next[index] = event.target.value;
+                        return next;
+                      })
+                    }
+                    placeholder="Option text"
+                    className="flex-1 min-w-0 border-none bg-transparent focus:outline-none"
+                  />
+                </label>
+              );
+            })}
           </div>
         </div>
       ) : (
