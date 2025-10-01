@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import Nav from '../components/Nav';
+  import Nav from '../components/Nav';
 import { ProgressBar } from '../components/ProgressBar';
 import {
   Breadcrumb,
@@ -44,7 +44,7 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
   const navigate = useNavigate();
   const { user } = useLocalUser();
   const { course, module, lesson, activities } = loaderData;
-  const orderedActivities = useMemo(() => activities ?? [], [activities]);
+  const [orderedActivities, setOrderedActivities] = useState<Activity[]>(activities ?? []);
   const [idx, setIdx] = useState(0);
   const [mcq, setMcq] = useState<number | null>(null);
   const [text, setText] = useState('');
@@ -52,6 +52,11 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [wasCorrect, setWasCorrect] = useState(false);
+
+  // Sync local state when loader data changes
+  useEffect(() => {
+    setOrderedActivities(activities ?? []);
+  }, [activities]);
 
   useEffect(() => {
     setMcq(null);
@@ -79,6 +84,14 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
       else payload.answerText = text;
       const res = await api.submitAnswer(activity.id, payload);
       setResult(res.isCorrect ? 'Correct! 🎉' : 'Not quite. Keep going!');
+
+      // Update the activity's completion status based on latest answer
+      setOrderedActivities((prev) =>
+        prev.map((a, i) =>
+          i === idx ? { ...a, completionStatus: res.isCorrect ? ('correct' as const) : undefined } : a
+        )
+      );
+
       if (res.isCorrect) {
         setWasCorrect(true);
         setAssistant([res.message || 'Great job! Proceed when you are ready for the next question.']);

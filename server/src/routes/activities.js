@@ -296,11 +296,20 @@ router.post('/questions/:id/answer', async (req, res) => {
       answerOption,
     });
 
+    // Get the latest attempt number for this activity and user
+    const latestSubmission = await prisma.submission.findFirst({
+      where: { userId, activityId },
+      orderBy: { attemptNumber: 'desc' },
+      select: { attemptNumber: true },
+    });
+
+    const nextAttemptNumber = latestSubmission ? latestSubmission.attemptNumber + 1 : 1;
+
     await prisma.submission.create({
       data: {
         userId,
         activityId,
-        attemptNumber: 1,
+        attemptNumber: nextAttemptNumber,
         response: {
           answerText: answerText ?? null,
           answerOption: typeof answerOption === 'number' ? answerOption : null,
