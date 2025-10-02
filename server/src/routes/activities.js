@@ -284,12 +284,46 @@ router.post('/questions/:id/answer', async (req, res) => {
     return res.status(400).json({ error: 'Invalid activity id' });
   }
 
-  const { userId, answerText, answerOption } = req.body || {};
-  if (!userId) return res.status(400).json({ error: 'userId required' });
+  // Always use the authenticated user; never trust body.userId
+  const authUser = req.user;
+  if (!authUser) return res.status(401).json({ error: 'Authentication required' });
+
+  const { answerText, answerOption } = req.body || {};
 
   try {
-    const activity = await prisma.activity.findUnique({ where: { id: activityId } });
+    // Load activity with course offering context for authorization
+    const activity = await prisma.activity.findUnique({
+      where: { id: activityId },
+      include: {
+        lesson: {
+          include: {
+            module: {
+              include: {
+                courseOffering: {
+                  select: {
+                    id: true,
+                    instructors: { select: { userId: true } },
+                    enrollments: { select: { userId: true } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
     if (!activity) return res.status(404).json({ error: 'Activity not found' });
+
+    // Authorization: user must be enrolled (student) or an instructor of the course
+    const course = activity.lesson?.module?.courseOffering;
+    if (!course) return res.status(500).json({ error: 'Activity course context missing' });
+
+    const isInstructorForCourse = course.instructors.some((i) => i.userId === authUser.id);
+    const isEnrolledStudent = course.enrollments.some((e) => e.userId === authUser.id);
+
+    if (!(isInstructorForCourse || isEnrolledStudent)) {
+      return res.status(403).json({ error: 'Not authorized for this activity' });
+    }
 
     const { isCorrect, assistantCue } = evaluateQuestion(activity, {
       answerText,
@@ -298,7 +332,7 @@ router.post('/questions/:id/answer', async (req, res) => {
 
     // Get the latest attempt number for this activity and user
     const latestSubmission = await prisma.submission.findFirst({
-      where: { userId, activityId },
+      where: { userId: authUser.id, activityId },
       orderBy: { attemptNumber: 'desc' },
       select: { attemptNumber: true },
     });
@@ -307,11 +341,11 @@ router.post('/questions/:id/answer', async (req, res) => {
 
     await prisma.submission.create({
       data: {
-        userId,
+        userId: authUser.id,
         activityId,
         attemptNumber: nextAttemptNumber,
         response: {
-          answerText: answerText ?? null,
+          answerText: typeof answerText === 'string' ? answerText : null,
           answerOption: typeof answerOption === 'number' ? answerOption : null,
         },
         aiFeedback: isCorrect
