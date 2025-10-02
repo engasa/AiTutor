@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import AddActivityPanel from '../components/AddActivityPanel';
 import ActivityDetailsCard from '../components/ActivityDetailsCard';
@@ -61,6 +61,36 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
   const courseTopics = useCourseTopics(courseOfferingId);
   const { topics, loading: loadingTopics, error: topicsError } = courseTopics;
 
+  const [showTopicSaving, setShowTopicSaving] = useState(false);
+  const topicSavingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const beginTopicUpdate = (activityId: number) => {
+    setUpdatingTopicsFor(activityId);
+    setShowTopicSaving(false);
+    if (topicSavingTimeoutRef.current) {
+      clearTimeout(topicSavingTimeoutRef.current);
+    }
+    topicSavingTimeoutRef.current = setTimeout(() => setShowTopicSaving(true), 300);
+  };
+
+  const endTopicUpdate = (activityId: number) => {
+    let shouldClear = false;
+    setUpdatingTopicsFor((current) => {
+      if (current !== activityId) {
+        return current;
+      }
+      shouldClear = true;
+      return null;
+    });
+    if (shouldClear) {
+      if (topicSavingTimeoutRef.current) {
+        clearTimeout(topicSavingTimeoutRef.current);
+        topicSavingTimeoutRef.current = null;
+      }
+      setShowTopicSaving(false);
+    }
+  };
+
   // Adjust state during render when loader data changes
   const [prevInitialActivities, setPrevInitialActivities] = useState(initialActivities);
   if (initialActivities !== prevInitialActivities) {
@@ -89,6 +119,12 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
 
   useEffect(() => {
     loadPrompts();
+    return () => {
+      if (topicSavingTimeoutRef.current) {
+        clearTimeout(topicSavingTimeoutRef.current);
+        topicSavingTimeoutRef.current = null;
+      }
+    };
   }, []);
 
   const handlePromptCreated = (created: PromptTemplate) => {
@@ -175,7 +211,7 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
       ),
     );
 
-    setUpdatingTopicsFor(activityId);
+    beginTopicUpdate(activityId);
     try {
       const updated = await api.updateActivity(activityId, { mainTopicId: newTopicId });
       setActivities((prev) =>
@@ -203,7 +239,7 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
         ),
       );
     } finally {
-      setUpdatingTopicsFor((current) => (current === activityId ? null : current));
+      endTopicUpdate(activityId);
     }
   };
 
@@ -234,7 +270,7 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
       ),
     );
 
-    setUpdatingTopicsFor(activityId);
+    beginTopicUpdate(activityId);
     try {
       const updated = await api.updateActivity(activityId, {
         secondaryTopicIds: nextSecondary.map((item) => item.id),
@@ -263,7 +299,7 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
         ),
       );
     } finally {
-      setUpdatingTopicsFor((current) => (current === activityId ? null : current));
+      endTopicUpdate(activityId);
     }
   };
 
@@ -352,7 +388,9 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
                                       handleActivityMainTopicChange(activity.id, event.target.value)
                                     }
                                     disabled={loadingTopics || isUpdatingTopics}
-                                    className="w-full px-3 py-2 rounded-lg border border-indigo-200 dark:border-indigo-900 bg-white dark:bg-gray-950 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:opacity-60"
+                                    className={`w-full px-3 py-2 rounded-lg border border-indigo-200 dark:border-indigo-900 bg-white dark:bg-gray-950 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 ${
+                                      showTopicSaving ? 'disabled:opacity-60' : ''
+                                    }`}
                                   >
                                     <option value="">Select a topic…</option>
                                     {topics.map((topic) => (
@@ -378,7 +416,9 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
                                               checked
                                                 ? 'border-transparent bg-indigo-500 text-white shadow'
                                                 : 'border-indigo-200 dark:border-indigo-900 bg-indigo-50/60 dark:bg-indigo-950/20'
-                                            } ${isUpdatingTopics ? 'opacity-60' : ''}`}
+                                            } ${
+                                              showTopicSaving && isUpdatingTopics ? 'opacity-60' : ''
+                                            }`}
                                           >
                                             <input
                                               type="checkbox"
@@ -401,7 +441,7 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
                                 </div>
                               </div>
                             )}
-                            {isUpdatingTopics && (
+                            {showTopicSaving && isUpdatingTopics && (
                               <span className="text-[0.7rem] text-indigo-500">Saving…</span>
                             )}
                           </div>
