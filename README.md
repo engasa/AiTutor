@@ -18,10 +18,10 @@ A modern, production-ready template for building full-stack React applications u
 
 ### Installation
 
-Install the dependencies:
+Install the dependencies (Bun):
 
 ```bash
-npm install
+bun install
 ```
 
 ### Development
@@ -34,17 +34,17 @@ docker compose up -d db
 
 # Prisma migrate + seed (first time)
 cd server
-npx prisma migrate deploy
-npm run seed
+bunx prisma migrate deploy
+bun run seed
 
 # Start the API (http://localhost:4000)
-npm run dev
+bun run dev
 ```
 
 In a separate terminal, start the React Router dev server:
 
 ```bash
-npm run dev
+bun run dev
 ```
 
 Frontend runs at `http://localhost:5173`. The app expects the API at `http://localhost:4000` (override with `VITE_API_URL`).
@@ -56,7 +56,7 @@ Login is simulated: choose a Student or Instructor on the home page to explore f
 Create a production build:
 
 ```bash
-npm run build
+bun run build
 ```
 
 ## Deployment
