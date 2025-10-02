@@ -117,9 +117,9 @@ async function createCourseWithContent(course, modules, defaults, topics = []) {
     data: {
       title: course.title,
       description: course.description ?? null,
-      status: course.status ?? 'ACTIVE',
       startDate: course.startDate ?? null,
       endDate: course.endDate ?? null,
+      isPublished: Boolean(course.isPublished ?? false),
     },
   });
 
@@ -465,7 +465,7 @@ async function main() {
     {
       title: 'Intro to Algorithms - Fall Cohort',
       description: 'Primary offering cloned by instructors for new cohorts.',
-      status: 'ACTIVE',
+      isPublished: true,
       startDate: new Date('2025-09-01'),
       endDate: new Date('2025-12-15'),
     },
@@ -597,7 +597,7 @@ async function main() {
     {
       title: 'Linear Algebra - Evening Cohort',
       description: 'Vectors, matrices, and linear transformations.',
-      status: 'ACTIVE',
+      isPublished: true,
       startDate: new Date('2025-09-05'),
       endDate: new Date('2025-12-10'),
     },
@@ -659,7 +659,7 @@ async function main() {
     {
       title: 'Physics I - Seminar',
       description: 'Kinematics and Newtonian mechanics.',
-      status: 'DRAFT',
+      isPublished: false,
     },
     [
       {
