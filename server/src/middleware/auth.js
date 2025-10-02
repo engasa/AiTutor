@@ -1,7 +1,5 @@
 import jwt from 'jsonwebtoken';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '../config/database.js';
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 const AUTH_COOKIE_NAME = 'aitutor_auth_token';
 
