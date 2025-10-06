@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function clearDatabase() {
+  await prisma.systemPrompt.deleteMany();
   await prisma.submission.deleteMany();
   await prisma.activity.deleteMany();
   await prisma.lesson.deleteMany();
@@ -13,6 +14,17 @@ async function clearDatabase() {
   await prisma.courseOffering.deleteMany();
   await prisma.promptTemplate.deleteMany();
   await prisma.user.deleteMany();
+}
+
+async function createBaseSystemPrompt() {
+  const helpfulBasePrompt = `Act as a patient teaching assistant who guides learners toward answers through open-ended questions, vivid analogies, and gentle reminders of prerequisite ideas. Your focus is on building confidence, reinforcing problem-solving heuristics, and spotlighting the reasoning steps that are most relevant for the learner’s current goal. Acknowledge partial understanding, restate the objective clearly, and suggest one actionable next step at a time. Encourage reflection, invite the learner to articulate their thinking, and only uncover final solutions when absolutely necessary. Maintain an encouraging, empowering tone that treats mistakes as opportunities to learn. Offer gentle hints before revealing strategies outright, and adapt guidance to the learner’s pace.`;
+
+  return prisma.systemPrompt.create({
+    data: {
+      slug: 'global-activity-base',
+      content: helpfulBasePrompt,
+    },
+  });
 }
 
 async function createUsers() {
@@ -458,6 +470,7 @@ async function main() {
   console.log('Resetting and seeding database with course-based samples...');
   await clearDatabase();
 
+  await createBaseSystemPrompt();
   const { student, studentTwo, instructor, assistant } = await createUsers();
   const foundation = await createPromptTemplates();
 
