@@ -17,11 +17,7 @@ export function evaluateQuestion(activity, payload) {
     }
   }
 
-  const hints = Array.isArray(config.hints) ? config.hints : [];
-  const assistantCue = hints.length > 0 ? hints[0] : 'Reflect on the key ideas in the question.';
-
   return {
     isCorrect,
-    assistantCue,
   };
 }

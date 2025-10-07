@@ -92,7 +92,6 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
         setAssistant([res.message || 'Great job! Proceed when you are ready for the next question.']);
       } else {
         setWasCorrect(false);
-        if (res.assistantCue) setAssistant((a) => [...a, res.assistantCue]);
       }
     } catch (e) {
       setResult('There was a problem submitting.');

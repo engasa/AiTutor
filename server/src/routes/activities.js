@@ -326,7 +326,7 @@ router.post('/questions/:id/answer', async (req, res) => {
       return res.status(403).json({ error: 'Not authorized for this activity' });
     }
 
-    const { isCorrect, assistantCue } = evaluateQuestion(activity, {
+    const { isCorrect } = evaluateQuestion(activity, {
       answerText,
       answerOption,
     });
@@ -360,7 +360,6 @@ router.post('/questions/:id/answer', async (req, res) => {
       ok: true,
       isCorrect,
       message: isCorrect ? 'Nice! That looks right.' : 'Not quite. Try another angle.',
-      assistantCue,
     });
   } catch (e) {
     res.status(500).json({ error: String(e) });
