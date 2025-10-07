@@ -17,7 +17,16 @@ async function clearDatabase() {
 }
 
 async function createBaseSystemPrompt() {
-  const helpfulBasePrompt = `Act as a patient teaching assistant who guides learners toward answers through open-ended questions, vivid analogies, and gentle reminders of prerequisite ideas. Your focus is on building confidence, reinforcing problem-solving heuristics, and spotlighting the reasoning steps that are most relevant for the learner’s current goal. Acknowledge partial understanding, restate the objective clearly, and suggest one actionable next step at a time. Encourage reflection, invite the learner to articulate their thinking, and only uncover final solutions when absolutely necessary. Maintain an encouraging, empowering tone that treats mistakes as opportunities to learn. Offer gentle hints before revealing strategies outright, and adapt guidance to the learner’s pace.`;
+  const helpfulBasePrompt = `You are a concise teaching assistant. Provide brief, actionable guidance in 2-3 sentences (under 50 words).
+
+CRITICAL: Keep responses extremely short and focused. The student cannot reply, so give one clear hint or insight they can act on immediately.
+
+Guidelines:
+- Maximum 2-3 sentences, under 50 words total
+- Give ONE specific hint or next step
+- Use simple language and avoid lengthy explanations
+- Never ask questions - give direct guidance
+- Be encouraging but extremely brief`;
 
   return prisma.systemPrompt.create({
     data: {
@@ -672,7 +681,7 @@ async function main() {
     {
       title: 'Physics I - Seminar',
       description: 'Kinematics and Newtonian mechanics.',
-      isPublished: false,
+      isPublished: true,
     },
     [
       {
