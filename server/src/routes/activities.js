@@ -4,6 +4,7 @@ import { requireRole } from '../middleware/auth.js';
 import { mapActivity } from '../utils/mappers.js';
 import { evaluateQuestion } from '../services/activityEvaluation.js';
 import { getActivityCompletionStatuses } from '../services/progressCalculation.js';
+import { generateGuidance } from '../services/aiGuidance.js';
 
 const router = express.Router();
 
@@ -362,6 +363,74 @@ router.post('/questions/:id/answer', async (req, res) => {
       assistantCue,
     });
   } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+router.post('/activities/:activityId/guidance', async (req, res) => {
+  const authUser = req.user;
+  const activityId = Number(req.params.activityId);
+
+  if (!Number.isFinite(activityId)) {
+    return res.status(400).json({ error: 'Invalid activity id' });
+  }
+
+  if (!authUser) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  const { studentAnswer } = req.body || {};
+
+  try {
+    // Load activity with course offering context for authorization
+    const activity = await prisma.activity.findUnique({
+      where: { id: activityId },
+      include: {
+        promptTemplate: { select: { id: true, systemPrompt: true } },
+        lesson: {
+          include: {
+            module: {
+              include: {
+                courseOffering: {
+                  select: {
+                    id: true,
+                    instructors: { select: { userId: true } },
+                    enrollments: { select: { userId: true } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!activity) {
+      return res.status(404).json({ error: 'Activity not found' });
+    }
+
+    // Authorization: user must be enrolled (student) or an instructor of the course
+    const course = activity.lesson?.module?.courseOffering;
+    if (!course) {
+      return res.status(500).json({ error: 'Activity course context missing' });
+    }
+
+    const isInstructorForCourse = course.instructors.some((i) => i.userId === authUser.id);
+    const isEnrolledStudent = course.enrollments.some((e) => e.userId === authUser.id);
+
+    if (!(isInstructorForCourse || isEnrolledStudent)) {
+      return res.status(403).json({ error: 'Not authorized for this activity' });
+    }
+
+    // Generate AI guidance
+    const aiMessage = await generateGuidance(activity, studentAnswer);
+
+    res.json({
+      ok: true,
+      message: aiMessage,
+    });
+  } catch (e) {
+    console.error('Error generating guidance:', e);
     res.status(500).json({ error: String(e) });
   }
 });

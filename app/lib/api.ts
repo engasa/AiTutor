@@ -159,6 +159,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
+  getActivityGuidance: (activityId: number, studentAnswer?: string | number) =>
+    http(`/api/activities/${activityId}/guidance`, {
+      method: 'POST',
+      body: JSON.stringify({ studentAnswer }),
+    }),
   listPrompts: () => http('/api/prompts'),
   createPrompt: (payload: {
     name: string;

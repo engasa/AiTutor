@@ -50,6 +50,7 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
   const [text, setText] = useState('');
   const [assistant, setAssistant] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [loadingGuidance, setLoadingGuidance] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [wasCorrect, setWasCorrect] = useState(false);
 
@@ -101,10 +102,31 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
     }
   };
 
-  const nudge = () => {
-    if (!activity || wasCorrect) return;
-    const next = activity.hints[assistant.length] || 'Break the question down into smaller parts.';
-    setAssistant((a) => [...a, next]);
+  const nudge = async () => {
+    if (!activity || wasCorrect || loadingGuidance) return;
+
+    setLoadingGuidance(true);
+    try {
+      // Determine student's current answer (convert null to undefined for API)
+      const studentAnswer = activity.type === 'MCQ' ? mcq : text;
+
+      // Call AI guidance API
+      const response = await api.getActivityGuidance(
+        activity.id,
+        studentAnswer ?? undefined
+      );
+
+      // Append AI response to assistant conversation
+      setAssistant((prev) => [...prev, response.message]);
+    } catch (error) {
+      console.error('AI guidance failed:', error);
+      setAssistant((prev) => [
+        ...prev,
+        'AI study buddy not available right now. Please try again later.',
+      ]);
+    } finally {
+      setLoadingGuidance(false);
+    }
   };
 
   return (
@@ -233,10 +255,10 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
                 </button>
                 <button
                   onClick={nudge}
-                  disabled={wasCorrect}
+                  disabled={wasCorrect || loadingGuidance}
                   className="px-4 py-2 rounded-xl font-semibold bg-gray-100 dark:bg-gray-800 disabled:opacity-50"
                 >
-                  Guide me
+                  {loadingGuidance ? 'Thinking...' : 'Guide me'}
                 </button>
                 <div className="ml-auto flex items-center gap-2">
                   <button
@@ -249,6 +271,7 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
                       setAssistant([]);
                       setResult(null);
                       setWasCorrect(false);
+                      setLoadingGuidance(false);
                     }}
                     className="px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 disabled:opacity-50"
                   >
@@ -264,6 +287,7 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
                       setAssistant([]);
                       setResult(null);
                       setWasCorrect(false);
+                      setLoadingGuidance(false);
                     }}
                     className="px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 disabled:opacity-50"
                   >
