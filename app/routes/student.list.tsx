@@ -249,8 +249,9 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
 
             <div className="p-5 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 space-y-3">
               {activity?.type === 'MCQ' ? (
-                <div className="grid grid-cols-1 gap-2">
-                  {activity.options?.choices?.map((choice, i) => (
+                Array.isArray(activity?.options?.choices) ? (
+                  <div className="grid grid-cols-1 gap-2">
+                  {activity.options.choices.map((choice, i) => (
                     <label
                       key={i}
                       className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition ${
@@ -270,6 +271,9 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
                     </label>
                   ))}
                 </div>
+                ) : (
+                  <div className="text-sm text-rose-600">This question's options are misconfigured.</div>
+                )
               ) : (
                 <div>
                   <input
