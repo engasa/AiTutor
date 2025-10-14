@@ -5,6 +5,7 @@ import { mapActivity } from '../utils/mappers.js';
 import { evaluateQuestion } from '../services/activityEvaluation.js';
 import { getActivityCompletionStatuses } from '../services/progressCalculation.js';
 import { generateGuidance } from '../services/aiGuidance.js';
+import { CreateActivitySchema, UpdateActivitySchema } from '../../../shared/schemas/activity.js';
 
 const router = express.Router();
 
@@ -53,28 +54,14 @@ router.post('/lessons/:lessonId/activities', requireRole('INSTRUCTOR'), async (r
     return res.status(400).json({ error: 'Invalid lesson id' });
   }
 
-  const {
-    title,
-    question,
-    prompt,
-    type,
-    options,
-    answer,
-    hints,
-    instructionsMd,
-    promptTemplateId,
-    mainTopicId,
-    secondaryTopicIds,
-  } = req.body || {};
-
-  const questionText = question ?? prompt;
-
-  if (!questionText) {
-    return res.status(400).json({ error: 'question required' });
-  }
-
-  if (typeof mainTopicId !== 'number' || !Number.isFinite(mainTopicId)) {
-    return res.status(400).json({ error: 'mainTopicId is required' });
+  // Accept legacy `prompt` field by mapping it to question before validation
+  const raw = { ...(req.body || {}) };
+  if (!raw.question && raw.prompt) raw.question = raw.prompt;
+  let payload;
+  try {
+    payload = CreateActivitySchema.parse(raw);
+  } catch (e) {
+    return res.status(400).json({ error: 'Invalid payload', details: e?.errors || String(e) });
   }
 
   try {
@@ -91,17 +78,17 @@ router.post('/lessons/:lessonId/activities', requireRole('INSTRUCTOR'), async (r
 
     const courseOfferingId = lesson.module.courseOfferingId;
 
-    const mainTopic = await prisma.topic.findUnique({ where: { id: mainTopicId } });
+    const mainTopic = await prisma.topic.findUnique({ where: { id: payload.mainTopicId } });
     if (!mainTopic || mainTopic.courseOfferingId !== courseOfferingId) {
       return res.status(400).json({ error: 'mainTopicId must belong to the lesson course' });
     }
 
-    const normalizedSecondaryIds = Array.isArray(secondaryTopicIds)
+    const normalizedSecondaryIds = Array.isArray(payload.secondaryTopicIds)
       ? Array.from(
           new Set(
-            secondaryTopicIds
+            payload.secondaryTopicIds
               .map((value) => Number(value))
-              .filter((value) => Number.isFinite(value) && value !== mainTopicId),
+              .filter((value) => Number.isFinite(value) && value !== payload.mainTopicId),
           ),
         )
       : [];
@@ -116,26 +103,19 @@ router.post('/lessons/:lessonId/activities', requireRole('INSTRUCTOR'), async (r
       }
     }
 
-    // Normalize options to an array of strings in stored config
-    const normalizedOptions = (() => {
-      if (Array.isArray(options)) return options;
-      if (options && Array.isArray(options.choices)) return options.choices;
-      return null;
-    })();
-
     const activity = await prisma.activity.create({
       data: {
-        title: title ?? null,
-        instructionsMd: instructionsMd ?? 'Answer the question.',
+        title: payload.title ?? null,
+        instructionsMd: payload.instructionsMd ?? 'Answer the question.',
         lessonId,
-        promptTemplateId: promptTemplateId ?? null,
-        mainTopicId,
+        promptTemplateId: payload.promptTemplateId ?? null,
+        mainTopicId: payload.mainTopicId,
         config: {
-          question: questionText,
-          questionType: type ?? 'MCQ',
-          options: normalizedOptions,
-          answer: answer ?? null,
-          hints: Array.isArray(hints) ? hints : [],
+          question: payload.question,
+          questionType: payload.type ?? 'MCQ',
+          options: payload.options,
+          answer: payload.answer ?? null,
+          hints: Array.isArray(payload.hints) ? payload.hints : [],
         },
         secondaryTopics:
           normalizedSecondaryIds.length > 0
@@ -168,12 +148,16 @@ router.patch('/activities/:activityId', requireRole('INSTRUCTOR'), async (req, r
     return res.status(400).json({ error: 'Invalid activity id' });
   }
 
-  const { promptTemplateId, mainTopicId, secondaryTopicIds } = req.body || {};
-
+  let payload;
+  try {
+    payload = UpdateActivitySchema.parse(req.body || {});
+  } catch (e) {
+    return res.status(400).json({ error: 'Invalid payload', details: e?.errors || String(e) });
+  }
   if (
-    typeof promptTemplateId === 'undefined' &&
-    typeof mainTopicId === 'undefined' &&
-    typeof secondaryTopicIds === 'undefined'
+    typeof payload.promptTemplateId === 'undefined' &&
+    typeof payload.mainTopicId === 'undefined' &&
+    typeof payload.secondaryTopicIds === 'undefined'
   ) {
     return res.status(400).json({ error: 'Nothing to update' });
   }
@@ -213,40 +197,40 @@ router.patch('/activities/:activityId', requireRole('INSTRUCTOR'), async (req, r
 
     const updateData = {};
 
-    if (typeof promptTemplateId !== 'undefined') {
-      if (promptTemplateId === null) {
+    if (typeof payload.promptTemplateId !== 'undefined') {
+      if (payload.promptTemplateId === null) {
         updateData.promptTemplateId = null;
-      } else if (typeof promptTemplateId === 'number') {
-        const prompt = await prisma.promptTemplate.findUnique({ where: { id: promptTemplateId } });
+      } else if (typeof payload.promptTemplateId === 'number') {
+        const prompt = await prisma.promptTemplate.findUnique({ where: { id: payload.promptTemplateId } });
         if (!prompt) {
           return res.status(400).json({ error: 'Invalid promptTemplateId' });
         }
-        updateData.promptTemplateId = promptTemplateId;
+        updateData.promptTemplateId = payload.promptTemplateId;
       } else {
         return res.status(400).json({ error: 'promptTemplateId must be a number or null' });
       }
     }
 
     let resolvedMainTopicId = activity.mainTopicId;
-    if (typeof mainTopicId !== 'undefined') {
-      if (typeof mainTopicId !== 'number' || !Number.isFinite(mainTopicId)) {
+    if (typeof payload.mainTopicId !== 'undefined') {
+      if (typeof payload.mainTopicId !== 'number' || !Number.isFinite(payload.mainTopicId)) {
         return res.status(400).json({ error: 'mainTopicId must be a number' });
       }
-      const mainTopic = await prisma.topic.findUnique({ where: { id: mainTopicId } });
+      const mainTopic = await prisma.topic.findUnique({ where: { id: payload.mainTopicId } });
       if (!mainTopic || mainTopic.courseOfferingId !== courseOfferingId) {
         return res.status(400).json({ error: 'mainTopicId must belong to the activity course' });
       }
-      updateData.mainTopicId = mainTopicId;
-      resolvedMainTopicId = mainTopicId;
+      updateData.mainTopicId = payload.mainTopicId;
+      resolvedMainTopicId = payload.mainTopicId;
     }
 
-    if (typeof secondaryTopicIds !== 'undefined') {
-      if (!Array.isArray(secondaryTopicIds)) {
+    if (typeof payload.secondaryTopicIds !== 'undefined') {
+      if (!Array.isArray(payload.secondaryTopicIds)) {
         return res.status(400).json({ error: 'secondaryTopicIds must be an array of ids' });
       }
       const normalizedSecondaryIds = Array.from(
         new Set(
-          secondaryTopicIds
+          payload.secondaryTopicIds
             .map((value) => Number(value))
             .filter((value) => Number.isFinite(value) && value !== resolvedMainTopicId),
         ),
