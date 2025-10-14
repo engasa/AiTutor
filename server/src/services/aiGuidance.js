@@ -79,7 +79,9 @@ function constructUserMessage(activity, studentAnswer = null) {
  * @private
  */
 function constructMCQMessage(question, config, studentAnswer) {
-  const options = config.options || [];
+  const options = Array.isArray(config.options)
+    ? config.options
+    : (config.options && Array.isArray(config.options.choices) ? config.options.choices : []);
   const correctIndex = config.answer?.correctIndex;
 
   let message = `Question: ${question}\n\nOptions:\n`;

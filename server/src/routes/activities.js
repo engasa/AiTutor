@@ -116,6 +116,13 @@ router.post('/lessons/:lessonId/activities', requireRole('INSTRUCTOR'), async (r
       }
     }
 
+    // Normalize options to an array of strings in stored config
+    const normalizedOptions = (() => {
+      if (Array.isArray(options)) return options;
+      if (options && Array.isArray(options.choices)) return options.choices;
+      return null;
+    })();
+
     const activity = await prisma.activity.create({
       data: {
         title: title ?? null,
@@ -126,7 +133,7 @@ router.post('/lessons/:lessonId/activities', requireRole('INSTRUCTOR'), async (r
         config: {
           question: questionText,
           questionType: type ?? 'MCQ',
-          options: options ?? null,
+          options: normalizedOptions,
           answer: answer ?? null,
           hints: Array.isArray(hints) ? hints : [],
         },

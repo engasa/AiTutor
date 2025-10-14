@@ -51,7 +51,18 @@ export function mapActivity(activity) {
       : null,
     question: config.question ?? config.prompt ?? activity.instructionsMd,
     type: config.questionType ?? 'MCQ',
-    options: config.options ? { choices: config.options } : null,
+    // Normalize options to always be { choices: string[] } for the client
+    options: (() => {
+      if (!('options' in config) || config.options == null) return null;
+      // Accept both legacy array form and new object form
+      if (Array.isArray(config.options)) {
+        return { choices: config.options };
+      }
+      if (config.options && Array.isArray(config.options.choices)) {
+        return { choices: config.options.choices };
+      }
+      return null;
+    })(),
     answer: config.answer ?? null,
     hints: Array.isArray(config.hints) ? config.hints : [],
     mainTopic: activity.mainTopic
