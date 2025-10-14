@@ -71,7 +71,6 @@ export type PromptTemplate = {
   id: number;
   name: string;
   systemPrompt: string;
-  userPrompt: string;
   temperature?: number | null;
   topP?: number | null;
 };

@@ -19,13 +19,12 @@ router.post('/prompts', requireRole('INSTRUCTOR'), async (req, res) => {
   const {
     name,
     systemPrompt,
-    userPrompt,
     temperature,
     topP,
   } = req.body || {};
 
-  if (!name || !systemPrompt || !userPrompt) {
-    return res.status(400).json({ error: 'name, systemPrompt, and userPrompt are required' });
+  if (!name || !systemPrompt) {
+    return res.status(400).json({ error: 'name and systemPrompt are required' });
   }
 
   try {
@@ -33,7 +32,6 @@ router.post('/prompts', requireRole('INSTRUCTOR'), async (req, res) => {
       data: {
         name,
         systemPrompt,
-        userPrompt,
         temperature: typeof temperature === 'number' ? temperature : null,
         topP: typeof topP === 'number' ? topP : null,
       },

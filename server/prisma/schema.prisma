@@ -36,7 +36,6 @@ model PromptTemplate {
   id             Int           @id @default(autoincrement())
   name           String
   systemPrompt   String
-  userPrompt     String
   temperature    Float?
   topP           Float?
   isActive       Boolean       @default(true)

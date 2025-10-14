@@ -7,7 +7,6 @@ import type { PromptTemplate } from '../lib/types';
 interface PromptFormState {
   name: string;
   systemPrompt: string;
-  userPrompt: string;
   temperature: string;
   topP: string;
 }
@@ -46,7 +45,6 @@ export default function AddActivityPanel({
   const [promptForm, setPromptForm] = useState<PromptFormState>({
     name: '',
     systemPrompt: '',
-    userPrompt: '',
     temperature: '',
     topP: '',
   });
@@ -81,7 +79,6 @@ export default function AddActivityPanel({
     setPromptForm({
       name: '',
       systemPrompt: '',
-      userPrompt: '',
       temperature: '',
       topP: '',
     });
@@ -102,17 +99,15 @@ export default function AddActivityPanel({
     if (creatingPrompt) return;
     const name = promptForm.name.trim();
     const systemPrompt = promptForm.systemPrompt.trim();
-    const userPrompt = promptForm.userPrompt.trim();
 
-    if (!name || !systemPrompt || !userPrompt) {
-      setPromptError('Please provide a name, system prompt, and user prompt.');
+    if (!name || !systemPrompt) {
+      setPromptError('Please provide a name and system prompt.');
       return;
     }
 
     const payload: Parameters<typeof api.createPrompt>[0] = {
       name,
       systemPrompt,
-      userPrompt,
     };
 
     if (promptForm.temperature.trim()) {
@@ -436,20 +431,6 @@ export default function AddActivityPanel({
                 }
                 rows={3}
                 placeholder="You are a helpful TA who offers hints without giving away the answer."
-                className="w-full px-3 py-2 rounded-lg border border-purple-200 dark:border-purple-900 bg-white dark:bg-gray-950 text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-purple-700 dark:text-purple-200 mb-1">
-                User prompt template
-              </label>
-              <textarea
-                value={promptForm.userPrompt}
-                onChange={(event) =>
-                  setPromptForm((prev) => ({ ...prev, userPrompt: event.target.value }))
-                }
-                rows={3}
-                placeholder="Lesson: {{lesson_title}}\nQuestion: {{question_prompt}}\nStudent answer: {{student_answer}}\nOffer a concise hint."
                 className="w-full px-3 py-2 rounded-lg border border-purple-200 dark:border-purple-900 bg-white dark:bg-gray-950 text-sm"
               />
             </div>

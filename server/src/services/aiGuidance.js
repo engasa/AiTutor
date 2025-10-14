@@ -1,11 +1,40 @@
 import { prisma } from '../config/database.js';
 
 /**
- * Compose the system prompt by combining base prompt + activity-specific prompt template
- * @param {Object} activity - Activity with optional promptTemplate included
- * @returns {Promise<string>} - Combined system prompt
+ * Replace placeholders in a prompt template with actual values
+ * @param {string} template - Template string with placeholders
+ * @param {Object} context - Context object with replacement values
+ * @returns {string} - Template with placeholders replaced
  */
-async function composeSystemPrompt(activity) {
+function replacePlaceholders(template, context) {
+  let result = template;
+
+  // Replace topic placeholders
+  if (context.topic) {
+    result = result.replace(/\[INSERT TOPIC HERE\]/g, context.topic);
+    result = result.replace(/\[ENTER TOPIC\]/g, context.topic);
+  }
+
+  // Replace knowledge level placeholder
+  if (context.knowledgeLevel) {
+    result = result.replace(/\[ENTER KNOWLEDGE LEVEL\]/g, context.knowledgeLevel);
+  }
+
+  // Replace code snippet placeholder
+  if (context.codeSnippet) {
+    result = result.replace(/\[ENTER CODE HERE\]/g, context.codeSnippet);
+  }
+
+  return result;
+}
+
+/**
+ * Compose the system prompt by combining base prompt + activity-specific prompt template
+ * @param {Object} activity - Activity with optional promptTemplate included and mainTopic
+ * @param {Object} context - Context with { topic, knowledgeLevel, codeSnippet }
+ * @returns {Promise<string>} - Combined system prompt with placeholders replaced
+ */
+async function composeSystemPrompt(activity, context = {}) {
   // Fetch base system prompt
   const basePrompt = await prisma.systemPrompt.findUnique({
     where: { slug: 'global-activity-base' },
@@ -15,7 +44,10 @@ async function composeSystemPrompt(activity) {
 
   // If activity has a prompt template, append its system prompt
   if (activity.promptTemplate?.systemPrompt) {
-    systemPrompt += '\n\n' + activity.promptTemplate.systemPrompt;
+    const templatePrompt = activity.promptTemplate.systemPrompt;
+    // Replace placeholders in the prompt template
+    const processedTemplate = replacePlaceholders(templatePrompt, context);
+    systemPrompt += '\n\n' + processedTemplate;
   }
 
   return systemPrompt;
@@ -167,19 +199,32 @@ async function callEduAI(systemPrompt, userMessage) {
 
 /**
  * Main function: Generate AI guidance for an activity
- * @param {Object} activity - Activity object with promptTemplate relation included
+ * @param {Object} activity - Activity object with promptTemplate relation included and mainTopic
  * @param {string|number|null} studentAnswer - Optional student answer for context
+ * @param {string|null} knowledgeLevel - Student's knowledge level (e.g., "beginner", "intermediate", "advanced")
+ * @param {string|null} codeSnippet - Optional code snippet for Exercise Prompt
  * @returns {Promise<string>} - AI-generated guidance message
  */
-export async function generateGuidance(activity, studentAnswer = null) {
+export async function generateGuidance(activity, studentAnswer = null, knowledgeLevel = null, codeSnippet = null) {
   try {
-    // Compose system prompt
-    const systemPrompt = await composeSystemPrompt(activity);
+    // Build context object for placeholder replacement
+    const context = {
+      topic: activity.mainTopic?.name || 'the subject',
+      knowledgeLevel: knowledgeLevel || 'a university student',
+      codeSnippet: codeSnippet || '',
+    };
+
+    // Compose system prompt with placeholder replacement
+    const systemPrompt = await composeSystemPrompt(activity, context);
 
     // Construct user message
     const userMessage = constructUserMessage(activity, studentAnswer);
 
-    console.log('[aiGuidance] Requesting guidance for activity', activity.id);
+    console.log('[aiGuidance] Requesting guidance for activity', activity.id, 'with context:', {
+      topic: context.topic,
+      knowledgeLevel: context.knowledgeLevel,
+      hasCodeSnippet: !!context.codeSnippet,
+    });
 
     // Call AI API
     const aiResponse = await callEduAI(systemPrompt, userMessage);

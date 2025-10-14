@@ -54,6 +54,15 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
   const [result, setResult] = useState<string | null>(null);
   const [wasCorrect, setWasCorrect] = useState(false);
 
+  // Pre-chat context for AI guidance
+  const [showPreChatModal, setShowPreChatModal] = useState(false);
+  const [chatContext, setChatContext] = useState<{
+    knowledgeLevel: string;
+    codeSnippet: string;
+  } | null>(null);
+  const [tempKnowledgeLevel, setTempKnowledgeLevel] = useState('');
+  const [tempCodeSnippet, setTempCodeSnippet] = useState('');
+
   // Adjust state during render when loader data changes
   const [prevActivities, setPrevActivities] = useState(activities);
   if (activities !== prevActivities) {
@@ -104,16 +113,23 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
   const nudge = async () => {
     if (!activity || wasCorrect || loadingGuidance) return;
 
+    // Check if we need to collect chat context first
+    if (!chatContext) {
+      setShowPreChatModal(true);
+      return;
+    }
+
     setLoadingGuidance(true);
     try {
       // Determine student's current answer (convert null to undefined for API)
       const studentAnswer = activity.type === 'MCQ' ? mcq : text;
 
-      // Call AI guidance API
-      const response = await api.getActivityGuidance(
-        activity.id,
-        studentAnswer ?? undefined
-      );
+      // Call AI guidance API with knowledge level and code snippet
+      const response = await api.getActivityGuidance(activity.id, {
+        studentAnswer: studentAnswer ?? undefined,
+        knowledgeLevel: chatContext.knowledgeLevel,
+        codeSnippet: chatContext.codeSnippet || undefined,
+      });
 
       // Append AI response to assistant conversation
       setAssistant((prev) => [...prev, response.message]);
@@ -126,6 +142,30 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
     } finally {
       setLoadingGuidance(false);
     }
+  };
+
+  const handleStartGuidance = () => {
+    if (!tempKnowledgeLevel) {
+      return; // Validation - knowledge level is required
+    }
+
+    // Check if code snippet is required for Exercise Prompt
+    const needsCodeSnippet = activity?.promptTemplate?.name === 'Exercise Prompt';
+    if (needsCodeSnippet && !tempCodeSnippet.trim()) {
+      return; // Validation - code snippet required for Exercise Prompt
+    }
+
+    // Save context and close modal
+    setChatContext({
+      knowledgeLevel: tempKnowledgeLevel,
+      codeSnippet: tempCodeSnippet,
+    });
+    setShowPreChatModal(false);
+
+    // Automatically trigger guidance after context is saved
+    setTimeout(() => {
+      nudge();
+    }, 0);
   };
 
   return (
@@ -271,6 +311,9 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
                       setResult(null);
                       setWasCorrect(false);
                       setLoadingGuidance(false);
+                      setChatContext(null); // Reset chat context for new activity
+                      setTempKnowledgeLevel('');
+                      setTempCodeSnippet('');
                     }}
                     className="px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 disabled:opacity-50"
                   >
@@ -287,6 +330,9 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
                       setResult(null);
                       setWasCorrect(false);
                       setLoadingGuidance(false);
+                      setChatContext(null); // Reset chat context for new activity
+                      setTempKnowledgeLevel('');
+                      setTempCodeSnippet('');
                     }}
                     className="px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 disabled:opacity-50"
                   >
@@ -324,6 +370,75 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
             </div>
           </aside>
         </div>
+
+        {/* Pre-Chat Modal */}
+        {showPreChatModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="max-w-lg w-full bg-white dark:bg-gray-900 rounded-2xl shadow-2xl p-6 space-y-4">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                  Before we start...
+                </h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                  Help me personalize your learning experience!
+                </p>
+              </div>
+
+              {/* Knowledge Level (Always Required) */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  What's your knowledge level on this topic? *
+                </label>
+                <select
+                  value={tempKnowledgeLevel}
+                  onChange={(e) => setTempKnowledgeLevel(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                >
+                  <option value="">Select your level</option>
+                  <option value="beginner">Beginner - I'm new to this</option>
+                  <option value="intermediate">Intermediate - I have some experience</option>
+                  <option value="advanced">Advanced - I'm quite experienced</option>
+                </select>
+              </div>
+
+              {/* Code Snippet (Only for Exercise Prompt) */}
+              {activity?.promptTemplate?.name === 'Exercise Prompt' && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    Paste your code snippet here *
+                  </label>
+                  <textarea
+                    value={tempCodeSnippet}
+                    onChange={(e) => setTempCodeSnippet(e.target.value)}
+                    placeholder="Paste the code you'd like help with..."
+                    rows={8}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-mono text-sm"
+                  />
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => setShowPreChatModal(false)}
+                  className="flex-1 px-4 py-2 rounded-xl font-semibold bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleStartGuidance}
+                  disabled={
+                    !tempKnowledgeLevel ||
+                    (activity?.promptTemplate?.name === 'Exercise Prompt' && !tempCodeSnippet.trim())
+                  }
+                  className="flex-1 px-4 py-2 rounded-xl font-semibold text-white bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed shadow"
+                >
+                  Start Guidance
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
