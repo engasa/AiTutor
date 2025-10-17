@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, useParams } from 'react-router';
 import AddActivityPanel from '../components/AddActivityPanel';
 import ActivityDetailsCard from '../components/ActivityDetailsCard';
+import EditActivityPanel from '../components/EditActivityPanel';
 import AddCourseTopicsButton from '../components/AddCourseTopicsButton';
 import Nav from '../components/Nav';
 import {
@@ -17,6 +18,8 @@ import type { Activity, Course, Lesson, ModuleDetail, PromptTemplate } from '../
 import { CourseTopicsProvider, useCourseTopics } from '../hooks/useCourseTopics';
 import type { Route } from './+types/instructor.list';
 import { fetchJson, requireUserFromRequest } from '~/lib/server-api';
+
+import type { ActivityUpdatePayload } from '../lib/activityForm';
 
 export async function loader({ request, params }: Route.LoaderArgs) {
   await requireUserFromRequest(request, 'INSTRUCTOR');
@@ -43,7 +46,6 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 }
 
 export default function InstructorLessonBuilder({ loaderData }: Route.ComponentProps) {
-  const navigate = useNavigate();
   const { lessonId } = useParams();
   const numericLessonId = lessonId ? Number(lessonId) : null;
   const { course, module, lesson, activities: initialActivities } = loaderData;
@@ -56,6 +58,11 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
   const [updatingPromptFor, setUpdatingPromptFor] = useState<number | null>(null);
 
   const [showAddPanel, setShowAddPanel] = useState(false);
+
+  const [editingActivityId, setEditingActivityId] = useState<number | null>(null);
+  const [savingActivityId, setSavingActivityId] = useState<number | null>(null);
+  const [deletingActivityId, setDeletingActivityId] = useState<number | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const courseOfferingId = lesson?.courseOfferingId ?? null;
   const courseTopics = useCourseTopics(courseOfferingId);
@@ -98,6 +105,44 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
     setActivities(initialActivities);
   }
 
+  const beginEditingActivity = (activity: Activity) => {
+    setEditingActivityId(activity.id);
+    setEditError(null);
+  };
+
+  const cancelEditingActivity = () => {
+    setEditingActivityId(null);
+    setSavingActivityId(null);
+    setEditError(null);
+  };
+
+  const handleEditSubmit = async (activityId: number, payload: ActivityUpdatePayload) => {
+    setEditError(null);
+    setSavingActivityId(activityId);
+    try {
+      const updatePayload: Parameters<typeof api.updateActivity>[1] = {
+        title: payload.title,
+        instructionsMd: payload.instructionsMd,
+        question: payload.question,
+        type: payload.type,
+        options: payload.options,
+        answer: payload.answer,
+        hints: payload.hints,
+      };
+
+      const updated = await api.updateActivity(activityId, updatePayload);
+      setActivities((prev) =>
+        prev.map((activity) => (activity.id === activityId ? updated : activity)),
+      );
+      cancelEditingActivity();
+    } catch (error) {
+      console.error('Failed to update activity', error);
+      setEditError('Could not save activity. Please try again.');
+    } finally {
+      setSavingActivityId((current) => (current === activityId ? null : current));
+    }
+  };
+
   const refreshActivities = async () => {
     if (!numericLessonId) return;
     try {
@@ -129,6 +174,30 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
 
   const handlePromptCreated = (created: PromptTemplate) => {
     setPrompts((prev) => [created, ...prev.filter((prompt) => prompt.id !== created.id)]);
+  };
+
+  const handleDeleteActivity = async (activityId: number) => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    const confirmed = window.confirm('Remove this activity? This action cannot be undone.');
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingActivityId(activityId);
+    try {
+      await api.deleteActivity(activityId);
+      setActivities((prev) => prev.filter((activity) => activity.id !== activityId));
+      if (editingActivityId === activityId) {
+        cancelEditingActivity();
+      }
+    } catch (error) {
+      console.error('Failed to remove activity', error);
+      alert('Failed to remove activity. Please try again.');
+    } finally {
+      setDeletingActivityId((current) => (current === activityId ? null : current));
+    }
   };
 
   const handleActivityPromptChange = async (activityId: number, value: string) => {
@@ -356,17 +425,65 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
                       const isUpdatingTopics = updatingTopicsFor === activity.id;
                       const mainTopicId = activity.mainTopic?.id ?? '';
                       const secondaryIds = new Set(activity.secondaryTopics.map((item) => item.id));
+                      const isEditing = editingActivityId === activity.id;
+                      const isSaving = savingActivityId === activity.id;
+                      const isDeleting = deletingActivityId === activity.id;
                       return (
                         <li
                           key={activity.id}
                           className="p-3 rounded-xl border border-gray-200 dark:border-gray-800 space-y-3"
                         >
-                          <div>
-                            <div className="text-xs text-gray-500">#{i + 1} • {activity.type}</div>
-                            <div className="font-medium whitespace-pre-wrap">{activity.question}</div>
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="text-xs text-gray-500">#{i + 1} • {activity.type}</div>
+                              <div className="font-medium whitespace-pre-wrap">
+                                {activity.question}
+                              </div>
+                              {(isSaving || isDeleting) && (
+                                <div className="text-[0.7rem] text-gray-500 mt-1">
+                                  {isSaving ? 'Saving…' : 'Removing…'}
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex gap-2">
+                              {isEditing ? (
+                                <span className="px-3 py-1 rounded-lg bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-200 text-xs font-medium">
+                                  Editing…
+                                </span>
+                              ) : (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => beginEditingActivity(activity)}
+                                    className="px-3 py-1 rounded-lg bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-200 text-xs font-medium hover:bg-indigo-200 dark:hover:bg-indigo-900/60 transition"
+                                    disabled={isDeleting}
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteActivity(activity.id)}
+                                    className="px-3 py-1 rounded-lg bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-200 text-xs font-medium hover:bg-rose-200 dark:hover:bg-rose-900/60 transition"
+                                    disabled={isDeleting}
+                                  >
+                                    {isDeleting ? 'Removing…' : 'Remove'}
+                                  </button>
+                                </>
+                              )}
+                            </div>
                           </div>
 
-                          <ActivityDetailsCard activity={activity} />
+                          {isEditing ? (
+                            <EditActivityPanel
+                              activity={activity}
+                              busy={isSaving}
+                              error={editError}
+                              onSubmit={(payload) => handleEditSubmit(activity.id, payload)}
+                              onCancel={cancelEditingActivity}
+                            />
+                          ) : (
+                            <ActivityDetailsCard activity={activity} />
+                          )}
 
                           <div className="rounded-xl border border-dashed border-indigo-200/70 dark:border-indigo-900/60 bg-indigo-50/50 dark:bg-indigo-950/20 p-3 space-y-3">
                             <div className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">

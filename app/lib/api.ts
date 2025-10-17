@@ -139,14 +139,37 @@ export const api = {
   updateActivity: (
     activityId: number,
     payload: {
+      title?: string | null;
+      instructionsMd?: string;
+      question?: string;
+      type?: 'MCQ' | 'SHORT_TEXT';
+      options?: { choices?: string[] } | string[] | null;
+      answer?: any;
+      hints?: string[];
       promptTemplateId?: number | null;
       mainTopicId?: number;
       secondaryTopicIds?: number[];
     }
-  ) =>
-    http(`/api/activities/${activityId}`, {
+  ) => {
+    const body: Record<string, unknown> = { ...payload };
+    if (Object.prototype.hasOwnProperty.call(payload, 'options')) {
+      const value = payload.options;
+      if (value === null) {
+        body.options = null;
+      } else if (Array.isArray(value)) {
+        body.options = value;
+      } else if (value && Array.isArray(value.choices)) {
+        body.options = value.choices;
+      }
+    }
+    return http(`/api/activities/${activityId}`, {
       method: 'PATCH',
-      body: JSON.stringify(payload),
+      body: JSON.stringify(body),
+    });
+  },
+  deleteActivity: (activityId: number) =>
+    http(`/api/activities/${activityId}`, {
+      method: 'DELETE',
     }),
   topicsForCourse: (courseId: number) => http(`/api/courses/${courseId}/topics`),
   createTopic: (courseId: number, payload: { name: string }) =>

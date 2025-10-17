@@ -154,11 +154,19 @@ router.patch('/activities/:activityId', requireRole('INSTRUCTOR'), async (req, r
   } catch (e) {
     return res.status(400).json({ error: 'Invalid payload', details: e?.errors || String(e) });
   }
-  if (
+  const noUpdatableFields =
     typeof payload.promptTemplateId === 'undefined' &&
     typeof payload.mainTopicId === 'undefined' &&
-    typeof payload.secondaryTopicIds === 'undefined'
-  ) {
+    typeof payload.secondaryTopicIds === 'undefined' &&
+    typeof payload.title === 'undefined' &&
+    typeof payload.instructionsMd === 'undefined' &&
+    typeof payload.question === 'undefined' &&
+    typeof payload.type === 'undefined' &&
+    typeof payload.options === 'undefined' &&
+    typeof payload.answer === 'undefined' &&
+    typeof payload.hints === 'undefined';
+
+  if (noUpdatableFields) {
     return res.status(400).json({ error: 'Nothing to update' });
   }
 
@@ -196,6 +204,69 @@ router.patch('/activities/:activityId', requireRole('INSTRUCTOR'), async (req, r
     const courseOfferingId = activity.lesson.module.courseOfferingId;
 
     const updateData = {};
+
+    if (typeof payload.title !== 'undefined') {
+      if (payload.title === null) {
+        updateData.title = null;
+      } else {
+        const trimmedTitle = payload.title.trim();
+        updateData.title = trimmedTitle.length > 0 ? trimmedTitle : null;
+      }
+    }
+
+    if (typeof payload.instructionsMd !== 'undefined') {
+      updateData.instructionsMd = payload.instructionsMd;
+    }
+
+    const currentConfig = activity.config && typeof activity.config === 'object'
+      ? { ...activity.config }
+      : {};
+    let configChanged = false;
+
+    if (typeof payload.question !== 'undefined') {
+      const questionText = payload.question.trim();
+      if (questionText.length === 0) {
+        return res.status(400).json({ error: 'question must not be empty' });
+      }
+      currentConfig.question = questionText;
+      configChanged = true;
+    }
+
+    if (typeof payload.type !== 'undefined') {
+      currentConfig.questionType = payload.type;
+      if (payload.type === 'SHORT_TEXT') {
+        currentConfig.options = null;
+      }
+      configChanged = true;
+    }
+
+    if (typeof payload.options !== 'undefined') {
+      if (payload.options === null) {
+        currentConfig.options = null;
+      } else {
+        currentConfig.options = payload.options.map((choice) => choice);
+      }
+      configChanged = true;
+    }
+
+    if (typeof payload.answer !== 'undefined') {
+      currentConfig.answer = payload.answer;
+      configChanged = true;
+    }
+
+    if (typeof payload.hints !== 'undefined') {
+      const normalizedHints = Array.isArray(payload.hints)
+        ? payload.hints
+            .map((hint) => hint.trim())
+            .filter((hint) => hint.length > 0)
+        : [];
+      currentConfig.hints = normalizedHints;
+      configChanged = true;
+    }
+
+    if (configChanged) {
+      updateData.config = currentConfig;
+    }
 
     if (typeof payload.promptTemplateId !== 'undefined') {
       if (payload.promptTemplateId === null) {
@@ -265,6 +336,51 @@ router.patch('/activities/:activityId', requireRole('INSTRUCTOR'), async (req, r
     });
 
     res.json(mapActivity(updated));
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+router.delete('/activities/:activityId', requireRole('INSTRUCTOR'), async (req, res) => {
+  const instructor = req.user;
+  const activityId = Number(req.params.activityId);
+  if (!Number.isFinite(activityId)) {
+    return res.status(400).json({ error: 'Invalid activity id' });
+  }
+
+  try {
+    const activity = await prisma.activity.findUnique({
+      where: { id: activityId },
+      include: {
+        lesson: {
+          include: {
+            module: {
+              include: {
+                courseOffering: {
+                  include: { instructors: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!activity) {
+      return res.status(404).json({ error: 'Activity not found' });
+    }
+
+    const isInstructor = activity.lesson.module.courseOffering.instructors.some(
+      (assignment) => assignment.userId === instructor.id,
+    );
+
+    if (!isInstructor) {
+      return res.status(403).json({ error: 'Not authorized for this activity' });
+    }
+
+    await prisma.activity.delete({ where: { id: activityId } });
+
+    res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: String(e) });
   }

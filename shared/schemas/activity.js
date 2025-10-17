@@ -18,6 +18,13 @@ export const CreateActivitySchema = z.object({
 });
 
 export const UpdateActivitySchema = z.object({
+  title: z.string().nullable().optional(),
+  instructionsMd: z.string().optional(),
+  question: z.string().min(1).optional(),
+  type: z.enum(['MCQ', 'SHORT_TEXT']).optional(),
+  options: MCQOptionsSchema.nullish().transform((v) => (v ?? null)).optional(),
+  answer: z.any().optional(),
+  hints: z.array(z.string()).optional(),
   promptTemplateId: z.number().int().nullable().optional(),
   mainTopicId: z.number().int().optional(),
   secondaryTopicIds: z.array(z.number().int()).optional(),
