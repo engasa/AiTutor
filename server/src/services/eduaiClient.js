@@ -1,3 +1,4 @@
+import { EduAiCourseListSchema, EduAiTopicListSchema } from '../schemas/eduai.js';
 const DEFAULT_BASE_URL = 'http://localhost:5174/api';
 
 function normalizeBaseUrl(rawUrl) {
@@ -47,14 +48,34 @@ async function requestEduAi(path, options = {}) {
 
 export async function listEduAiCourses() {
   const data = await requestEduAi('/courses');
-  if (!data || typeof data !== 'object' || !Array.isArray(data.courses)) {
-    throw new Error('Unexpected response when fetching EduAI courses');
+  try {
+    const parsed = EduAiCourseListSchema.parse(data);
+    return parsed.courses;
+  } catch (e) {
+    const err = new Error('Invalid response when fetching EduAI courses');
+    err.cause = e;
+    err.status = 502;
+    throw err;
   }
-  return data.courses;
 }
 
 export async function findEduAiCourseById(courseId) {
   if (!courseId) return null;
   const courses = await listEduAiCourses();
   return courses.find((course) => course.id === courseId) ?? null;
+}
+
+// Fetch topics for a specific EduAI course by external id
+export async function listEduAiCourseTopics(externalCourseId) {
+  if (!externalCourseId) return [];
+  const data = await requestEduAi(`/courses/${externalCourseId}/topics`);
+  try {
+    const parsed = EduAiTopicListSchema.parse(data);
+    return parsed.topics;
+  } catch (e) {
+    const err = new Error('Invalid response when fetching EduAI course topics');
+    err.cause = e;
+    err.status = 502;
+    throw err;
+  }
 }

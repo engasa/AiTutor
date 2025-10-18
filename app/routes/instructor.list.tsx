@@ -626,7 +626,14 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
                   )}
                 </div>
                 {topicsError && <p className="text-xs text-rose-500">{topicsError}</p>}
-                <AddCourseTopicsButton disabled={!lesson?.courseOfferingId} />
+                <AddCourseTopicsButton
+                  disabled={!lesson?.courseOfferingId || !!course?.externalId || course?.externalSource === 'EDUAI'}
+                />
+                {!!course?.externalId && (
+                  <div className="text-[0.7rem] text-gray-500">
+                    Topics are synced from EduAI for this course.
+                  </div>
+                )}
                 <div className="space-y-1 max-h-48 overflow-y-auto text-sm">
                   {topics.length === 0 ? (
                     <div className="text-gray-500 text-xs">No topics yet.</div>

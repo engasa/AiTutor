@@ -1,6 +1,7 @@
 import express from 'express';
 import { prisma } from '../config/database.js';
 import { requireRole } from '../middleware/auth.js';
+import { syncExternalCourseTopics } from '../services/topicSync.js';
 
 const router = express.Router();
 
@@ -41,6 +42,16 @@ router.get('/courses/:courseId/topics', async (req, res) => {
       return res.status(403).json({ error: 'Not authorized for this course' });
     }
 
+    // If this is an imported course, sync topics from EduAI first
+    if (course.externalId) {
+      try {
+        await syncExternalCourseTopics(courseId);
+      } catch (e) {
+        // Non-fatal; log and continue with whatever is in DB
+        console.error('[topics] Failed to sync external topics:', e);
+      }
+    }
+
     const topics = await prisma.topic.findMany({
       where: { courseOfferingId: courseId },
       orderBy: { name: 'asc' },
@@ -70,6 +81,13 @@ router.post('/courses/:courseId/topics', requireRole('INSTRUCTOR'), async (req, 
     }
     if (!isInstructor) {
       return res.status(403).json({ error: 'Not authorized for this course' });
+    }
+
+    // Block manual topic creation for imported (external) courses
+    if (course.externalId) {
+      return res
+        .status(403)
+        .json({ error: 'Topics for imported courses are managed by EduAI and cannot be added here' });
     }
 
     const topic = await prisma.topic.create({

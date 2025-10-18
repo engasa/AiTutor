@@ -5,6 +5,7 @@ import { mapCourseOffering, mapProgressData } from '../utils/mappers.js';
 import { cloneCourseContent, cloneLessonsFromOffering } from '../services/courseCloning.js';
 import { calculateCourseProgress } from '../services/progressCalculation.js';
 import { findEduAiCourseById, listEduAiCourses } from '../services/eduaiClient.js';
+import { syncExternalCourseTopics } from '../services/topicSync.js';
 
 const router = express.Router();
 
@@ -140,6 +141,14 @@ router.post('/courses/import-external', requireRole('INSTRUCTOR'), async (req, r
 
       return offering;
     });
+
+    // After creation, sync topics from EduAI into local DB
+    try {
+      await syncExternalCourseTopics(created.id);
+    } catch (e) {
+      console.error('[eduai] Failed to sync topics for imported course', e);
+      // Do not fail the import due to topic sync issues
+    }
 
     res.status(201).json(mapCourseOffering(created));
   } catch (error) {
