@@ -10,8 +10,27 @@ const router = express.Router();
 
 router.get('/eduai/courses', requireRole('INSTRUCTOR'), async (req, res) => {
   try {
+    // Fetch available courses from EduAI
     const courses = await listEduAiCourses();
-    res.json(courses);
+
+    // Exclude any EduAI course already imported by this instructor
+    // We identify imported ones via CourseOffering.externalId (source id) scoped to the instructor
+    const instructorId = req.user?.id;
+    const imported = await prisma.courseOffering.findMany({
+      where: {
+        externalSource: 'EDUAI',
+        externalId: { not: null },
+        instructors: { some: { userId: instructorId } },
+      },
+      select: { externalId: true },
+    });
+
+    const importedIds = new Set(imported.map((c) => c.externalId).filter(Boolean));
+    const filtered = Array.isArray(courses)
+      ? courses.filter((c) => c && typeof c.id === 'string' && !importedIds.has(c.id))
+      : [];
+
+    res.json(filtered);
   } catch (error) {
     console.error('[eduai] Failed to list courses', error);
     const status = Number.isInteger(error?.status) ? error.status : 502;
