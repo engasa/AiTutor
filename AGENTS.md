@@ -28,5 +28,5 @@
 - PRs should outline scope, affected routes or endpoints, manual verification, and linked issues. Attach screenshots or GIFs for UI work and flag migrations or seed updates.
 
 ## Environment & Configuration Tips
-- Client reads `VITE_API_URL`; server needs `DATABASE_URL` and `JWT_SECRET` in `server/.env`. Ensure Postgres is running before migrations or seeds.
+- Client reads `VITE_API_URL`; server needs `DATABASE_URL`, `JWT_SECRET`, and `EDUAI_BASE_URL` (defaults to `http://localhost:5174/api`) plus EduAI keys in `server/.env`. Ensure Postgres is running before migrations or seeds.
 - After modifying Tailwind, routing, or the Prisma schema, rerun `bun run typecheck` and refresh seeds to keep generated artifacts aligned.
