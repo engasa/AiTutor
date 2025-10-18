@@ -143,6 +143,7 @@ export default function InstructorCourseModules({ loaderData }: Route.ComponentP
     }
   };
 
+
   const togglePublish = async (moduleId: number, currentlyPublished: boolean) => {
     // Optimistic update
     setModules((prev) =>

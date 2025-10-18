@@ -20,6 +20,40 @@ import type { Route } from './+types/instructor.list';
 import { fetchJson, requireUserFromRequest } from '~/lib/server-api';
 
 import type { ActivityUpdatePayload } from '../lib/activityForm';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '~/components/ui/tooltip';
+import TopicSyncMappingDialog from '~/components/TopicSyncMappingDialog';
+
+function SyncTopicsButton({
+  courseId,
+  syncing,
+  onSync,
+}: {
+  courseId: number;
+  syncing: boolean;
+  onSync: () => Promise<void>;
+}) {
+  const label = syncing ? 'Syncing…' : 'Sync now';
+  return (
+    <TooltipProvider delayDuration={150}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            aria-label="Sync topics now"
+            onClick={() => {
+              if (!syncing) onSync();
+            }}
+            disabled={syncing}
+            className="px-3 py-2 rounded-xl border border-indigo-300 dark:border-indigo-800 bg-indigo-50/70 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-200 text-xs font-semibold disabled:opacity-60"
+          >
+            {label}
+          </button>
+        </TooltipTrigger>
+        <TooltipContent>Topics are synced from EduAI for this course.</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
 
 export async function loader({ request, params }: Route.LoaderArgs) {
   await requireUserFromRequest(request, 'INSTRUCTOR');
@@ -67,6 +101,9 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
   const courseOfferingId = lesson?.courseOfferingId ?? null;
   const courseTopics = useCourseTopics(courseOfferingId);
   const { topics, loading: loadingTopics, error: topicsError } = courseTopics;
+  const [syncingTopics, setSyncingTopics] = useState(false);
+  const [showMapping, setShowMapping] = useState(false);
+  const [missingTopics, setMissingTopics] = useState<{ id: number; name: string }[]>([]);
 
   const [showTopicSaving, setShowTopicSaving] = useState(false);
   const topicSavingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -626,14 +663,35 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
                   )}
                 </div>
                 {topicsError && <p className="text-xs text-rose-500">{topicsError}</p>}
-                <AddCourseTopicsButton
-                  disabled={!lesson?.courseOfferingId || !!course?.externalId || course?.externalSource === 'EDUAI'}
-                />
-                {!!course?.externalId && (
-                  <div className="text-[0.7rem] text-gray-500">
-                    Topics are synced from EduAI for this course.
-                  </div>
-                )}
+                <div className="flex items-center gap-2">
+                  <AddCourseTopicsButton
+                    disabled={!lesson?.courseOfferingId || !!course?.externalId || course?.externalSource === 'EDUAI'}
+                  />
+                  {!!course?.externalId && lesson?.courseOfferingId && (
+                    <SyncTopicsButton
+                      courseId={lesson.courseOfferingId}
+                      syncing={syncingTopics}
+                      onSync={async () => {
+                        if (!lesson?.courseOfferingId) return;
+                        setSyncingTopics(true);
+                        try {
+                          const result = await api.syncCourseTopics(lesson.courseOfferingId);
+                          // Refresh topics first so the dialog options reflect latest topics
+                          await courseTopics.refresh();
+                          if (result && Array.isArray(result.missingTopics) && result.missingTopics.length > 0) {
+                            setMissingTopics(result.missingTopics.map((t: any) => ({ id: t.id, name: t.name })));
+                            setShowMapping(true);
+                          }
+                        } catch (e) {
+                          console.error('Failed to sync topics', e);
+                          alert('Failed to sync topics from EduAI. Please try again.');
+                        } finally {
+                          setSyncingTopics(false);
+                        }
+                      }}
+                    />
+                  )}
+                </div>
                 <div className="space-y-1 max-h-48 overflow-y-auto text-sm">
                   {topics.length === 0 ? (
                     <div className="text-gray-500 text-xs">No topics yet.</div>
@@ -650,6 +708,18 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
           </div>
         </div>
       </div>
+      <TopicSyncMappingDialog
+        open={showMapping}
+        onClose={() => setShowMapping(false)}
+        topics={topics}
+        missing={missingTopics}
+        busy={syncingTopics}
+        onApply={async (mappings) => {
+          if (!lesson?.courseOfferingId) return;
+          await api.remapCourseTopics(lesson.courseOfferingId, mappings);
+          await Promise.all([courseTopics.refresh(), refreshActivities()]);
+        }}
+      />
     </CourseTopicsProvider>
   );
 }

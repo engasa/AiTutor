@@ -23,7 +23,7 @@ export async function syncExternalCourseTopics(courseOfferingId) {
 
   // Fetch topics from EduAI
   const externalTopics = await listEduAiCourseTopics(course.externalId);
-  const names = Array.from(
+  const upstreamNames = Array.from(
     new Set(
       externalTopics
         .map((t) => (t && typeof t.name === 'string' ? t.name.trim() : ''))
@@ -31,22 +31,22 @@ export async function syncExternalCourseTopics(courseOfferingId) {
     ),
   );
 
-  if (names.length === 0) {
+  if (upstreamNames.length === 0) {
     // Nothing to import; return current local topics
     const local = await prisma.topic.findMany({
       where: { courseOfferingId },
       orderBy: { name: 'asc' },
     });
-    return local;
+    return { topics: local, upstreamNames: [] };
   }
 
   // Ensure existing topics by name; create missing ones
   const existing = await prisma.topic.findMany({
-    where: { courseOfferingId, name: { in: names } },
+    where: { courseOfferingId, name: { in: upstreamNames } },
     select: { id: true, name: true },
   });
   const have = new Set(existing.map((t) => t.name));
-  const toCreate = names.filter((n) => !have.has(n));
+  const toCreate = upstreamNames.filter((n) => !have.has(n));
 
   if (toCreate.length > 0) {
     // Create missing topics
@@ -60,6 +60,5 @@ export async function syncExternalCourseTopics(courseOfferingId) {
     where: { courseOfferingId },
     orderBy: { name: 'asc' },
   });
-  return local;
+  return { topics: local, upstreamNames };
 }
-
