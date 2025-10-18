@@ -4,8 +4,20 @@ import { requireRole } from '../middleware/auth.js';
 import { mapCourseOffering, mapProgressData } from '../utils/mappers.js';
 import { cloneCourseContent, cloneLessonsFromOffering } from '../services/courseCloning.js';
 import { calculateCourseProgress } from '../services/progressCalculation.js';
+import { findEduAiCourseById, listEduAiCourses } from '../services/eduaiClient.js';
 
 const router = express.Router();
+
+router.get('/eduai/courses', requireRole('INSTRUCTOR'), async (req, res) => {
+  try {
+    const courses = await listEduAiCourses();
+    res.json(courses);
+  } catch (error) {
+    console.error('[eduai] Failed to list courses', error);
+    const status = Number.isInteger(error?.status) ? error.status : 502;
+    res.status(status).json({ error: error.message || 'Unable to fetch EduAI courses' });
+  }
+});
 
 router.get('/courses', async (req, res) => {
   const authUser = req.user;
@@ -44,6 +56,77 @@ router.get('/courses', async (req, res) => {
     }
   } catch (e) {
     res.status(500).json({ error: String(e) });
+  }
+});
+
+router.post('/courses/import-external', requireRole('INSTRUCTOR'), async (req, res) => {
+  const instructor = req.user;
+  const { externalCourseId } = req.body || {};
+
+  if (!externalCourseId || typeof externalCourseId !== 'string') {
+    return res.status(400).json({ error: 'externalCourseId is required' });
+  }
+
+  try {
+    const externalCourse = await findEduAiCourseById(externalCourseId);
+    if (!externalCourse) {
+      return res.status(404).json({ error: 'EduAI course not found' });
+    }
+
+    const alreadyImported = await prisma.courseOffering.findFirst({
+      where: {
+        externalId: externalCourseId,
+        instructors: { some: { userId: instructor.id } },
+      },
+    });
+
+    if (alreadyImported) {
+      return res.status(409).json({ error: 'Course already imported' });
+    }
+
+    const titleParts = [
+      typeof externalCourse.code === 'string' ? externalCourse.code.trim() : null,
+      typeof externalCourse.name === 'string' ? externalCourse.name.trim() : null,
+    ].filter(Boolean);
+
+    const derivedTitle =
+      titleParts.join(' - ') ||
+      (typeof externalCourse.name === 'string' ? externalCourse.name : null) ||
+      (typeof externalCourse.code === 'string' ? externalCourse.code : null) ||
+      'Imported Course';
+
+    const derivedDescription =
+      typeof externalCourse.description === 'string' && externalCourse.description.trim()
+        ? externalCourse.description
+        : [externalCourse.term, externalCourse.year].filter(Boolean).join(' ') || null;
+
+    const created = await prisma.$transaction(async (tx) => {
+      const offering = await tx.courseOffering.create({
+        data: {
+          title: derivedTitle,
+          description: derivedDescription,
+          externalId: externalCourse.id,
+          externalSource: 'EDUAI',
+          externalMetadata: externalCourse,
+        },
+      });
+
+      await tx.courseInstructor.create({
+        data: {
+          courseOfferingId: offering.id,
+          userId: instructor.id,
+          role: 'LEAD',
+        },
+      });
+
+      return offering;
+    });
+
+    res.status(201).json(mapCourseOffering(created));
+  } catch (error) {
+    console.error('[eduai] Failed to import course', error);
+    const status = Number.isInteger(error?.status) ? error.status : 500;
+    res.status(status).json({ error: error.message || 'Unable to import course' });
   }
 });
 

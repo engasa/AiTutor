@@ -15,6 +15,20 @@ export type Progress = {
 
 export type CompletionStatus = 'correct' | 'incorrect' | 'not_attempted';
 
+export type ExternalCourseMetadata = {
+  id: string;
+  code?: string | null;
+  name?: string | null;
+  description?: string | null;
+  term?: string | null;
+  year?: number | null;
+  isActive?: boolean | null;
+  aiInstructions?: string | null;
+  [key: string]: unknown;
+};
+
+export type EduAiCourse = ExternalCourseMetadata;
+
 export type Course = {
   id: number;
   title: string;
@@ -23,6 +37,9 @@ export type Course = {
   startDate?: string | null;
   endDate?: string | null;
   progress?: Progress;
+  externalId?: string | null;
+  externalSource?: string | null;
+  externalMetadata?: ExternalCourseMetadata | null;
 };
 
 export type Module = {

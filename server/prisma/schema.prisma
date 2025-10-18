@@ -52,6 +52,9 @@ model CourseOffering {
   startDate   DateTime?
   endDate     DateTime?
   isPublished Boolean    @default(false)
+  externalId  String?
+  externalSource String?
+  externalMetadata Json?
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
@@ -59,6 +62,8 @@ model CourseOffering {
   instructors  CourseInstructor[]
   enrollments  CourseEnrollment[]
   topics       Topic[]
+
+  @@index([externalId])
 }
 
 model Topic {

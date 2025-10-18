@@ -1,3 +1,5 @@
+import type { EduAiCourse } from './types';
+
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
 async function http(path: string, init?: RequestInit) {
@@ -34,6 +36,7 @@ export const api = {
       body: JSON.stringify({ email, password }),
     }),
   listCourses: () => http('/api/courses'),
+  listEduAiCourses: () => http('/api/eduai/courses') as Promise<EduAiCourse[]>,
   courseById: (courseId: number) => http(`/api/courses/${courseId}`),
   createCourse: (payload: {
     title: string;
@@ -77,6 +80,11 @@ export const api = {
     }
   ) =>
     http(`/api/courses/${courseId}/import`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  importEduAiCourse: (payload: { externalCourseId: string }) =>
+    http('/api/courses/import-external', {
       method: 'POST',
       body: JSON.stringify(payload),
     }),

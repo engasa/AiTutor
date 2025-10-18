@@ -1,4 +1,5 @@
 import { prisma } from '../config/database.js';
+import { getEduAiChatUrl } from './eduaiClient.js';
 
 /**
  * Replace placeholders in a prompt template with actual values
@@ -140,7 +141,7 @@ function constructShortTextMessage(question, config, studentAnswer) {
 async function callEduAI(systemPrompt, userMessage) {
   const apiKey = process.env.EDUAI_API_KEY;
   const googleApiKey = process.env.EDUAI_GOOGLE_API_KEY;
-  const endpoint = process.env.EDUAI_ENDPOINT || 'https://eduai.ok.ubc.ca/api/chat';
+  const endpoint = getEduAiChatUrl();
   const model = process.env.EDUAI_MODEL || 'google:gemini-2.5-flash';
 
   if (!apiKey || !googleApiKey) {

@@ -12,6 +12,9 @@ export function mapCourseOffering(offering) {
     isPublished: offering.isPublished,
     startDate: offering.startDate,
     endDate: offering.endDate,
+    externalId: offering.externalId ?? null,
+    externalSource: offering.externalSource ?? null,
+    externalMetadata: offering.externalMetadata ?? null,
   };
 }
 
