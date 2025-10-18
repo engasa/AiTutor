@@ -44,7 +44,7 @@ function SyncTopicsButton({
               if (!syncing) onSync();
             }}
             disabled={syncing}
-            className="px-3 py-2 rounded-xl border border-indigo-300 dark:border-indigo-800 bg-indigo-50/70 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-200 text-xs font-semibold disabled:opacity-60"
+            className="w-full px-3 py-2 rounded-xl bg-gradient-to-r from-indigo-500 to-sky-500 text-white text-sm font-semibold shadow-sm hover:shadow-md transition disabled:opacity-50"
           >
             {label}
           </button>
@@ -664,31 +664,36 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
                 </div>
                 {topicsError && <p className="text-xs text-rose-500">{topicsError}</p>}
                 <div className="flex items-center gap-2">
-                  <AddCourseTopicsButton
-                    disabled={!lesson?.courseOfferingId || !!course?.externalId || course?.externalSource === 'EDUAI'}
-                  />
-                  {!!course?.externalId && lesson?.courseOfferingId && (
-                    <SyncTopicsButton
-                      courseId={lesson.courseOfferingId}
-                      syncing={syncingTopics}
-                      onSync={async () => {
-                        if (!lesson?.courseOfferingId) return;
-                        setSyncingTopics(true);
-                        try {
-                          const result = await api.syncCourseTopics(lesson.courseOfferingId);
-                          // Refresh topics first so the dialog options reflect latest topics
-                          await courseTopics.refresh();
-                          if (result && Array.isArray(result.missingTopics) && result.missingTopics.length > 0) {
-                            setMissingTopics(result.missingTopics.map((t: any) => ({ id: t.id, name: t.name })));
-                            setShowMapping(true);
+                  {!!course?.externalId || course?.externalSource === 'EDUAI' ? (
+                    // EduAI course: Show only sync button
+                    lesson?.courseOfferingId && (
+                      <SyncTopicsButton
+                        courseId={lesson.courseOfferingId}
+                        syncing={syncingTopics}
+                        onSync={async () => {
+                          if (!lesson?.courseOfferingId) return;
+                          setSyncingTopics(true);
+                          try {
+                            const result = await api.syncCourseTopics(lesson.courseOfferingId);
+                            // Refresh topics first so the dialog options reflect latest topics
+                            await courseTopics.refresh();
+                            if (result && Array.isArray(result.missingTopics) && result.missingTopics.length > 0) {
+                              setMissingTopics(result.missingTopics.map((t: any) => ({ id: t.id, name: t.name })));
+                              setShowMapping(true);
+                            }
+                          } catch (e) {
+                            console.error('Failed to sync topics', e);
+                            alert('Failed to sync topics from EduAI. Please try again.');
+                          } finally {
+                            setSyncingTopics(false);
                           }
-                        } catch (e) {
-                          console.error('Failed to sync topics', e);
-                          alert('Failed to sync topics from EduAI. Please try again.');
-                        } finally {
-                          setSyncingTopics(false);
-                        }
-                      }}
+                        }}
+                      />
+                    )
+                  ) : (
+                    // Regular course: Show add topics button
+                    <AddCourseTopicsButton
+                      disabled={!lesson?.courseOfferingId}
                     />
                   )}
                 </div>
