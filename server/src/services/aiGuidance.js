@@ -35,7 +35,7 @@ function replacePlaceholders(template, context) {
  * @param {Object} context - Context with { topic, knowledgeLevel, codeSnippet }
  * @returns {Promise<string>} - Combined system prompt with placeholders replaced
  */
-async function composeSystemPrompt(activity, context = {}) {
+async function composeSystemPrompt(activity, context = {}, mode = 'guide') {
   // Fetch base system prompt
   const basePrompt = await prisma.systemPrompt.findUnique({
     where: { slug: 'global-activity-base' },
@@ -51,6 +51,11 @@ async function composeSystemPrompt(activity, context = {}) {
     systemPrompt += '\n\n' + processedTemplate;
   }
 
+  // Mode-specific nudge
+  if (mode === 'teach') {
+    systemPrompt += '\n\nFocus on teaching the selected topic with step-by-step scaffolding and Socratic hints. Do not give full answers to assessment questions; emphasize understanding.';
+  }
+
   return systemPrompt;
 }
 
@@ -60,15 +65,32 @@ async function composeSystemPrompt(activity, context = {}) {
  * @param {string|number|null} studentAnswer - Student's current/previous answer
  * @returns {string} - Formatted user message for AI
  */
-function constructUserMessage(activity, studentAnswer = null) {
+function constructUserMessage(activity, studentAnswer = null, userMessage = null, mode = 'guide', topicName = null) {
   const config = activity.config || {};
   const questionType = config.questionType || 'MCQ';
   const question = config.question || activity.instructionsMd || 'No question text provided.';
 
+  if (mode === 'teach') {
+    let msg = `Teach me about: ${topicName || activity.mainTopic?.name || 'the subject'}.`;
+    if (userMessage && String(userMessage).trim() !== '') {
+      msg += `\n\nAdditional context: ${userMessage}`;
+    }
+    msg += '\n\nPlease explain concepts clearly, use examples, and ask probing questions to check understanding.';
+    return msg;
+  }
+
   if (questionType === 'MCQ') {
-    return constructMCQMessage(question, config, studentAnswer);
+    let m = constructMCQMessage(question, config, studentAnswer);
+    if (userMessage && String(userMessage).trim() !== '') {
+      m += `\n\nStudent: ${userMessage}`;
+    }
+    return m;
   } else if (questionType === 'SHORT_TEXT') {
-    return constructShortTextMessage(question, config, studentAnswer);
+    let m = constructShortTextMessage(question, config, studentAnswer);
+    if (userMessage && String(userMessage).trim() !== '') {
+      m += `\n\nStudent: ${userMessage}`;
+    }
+    return m;
   }
 
   // Fallback for unknown types
@@ -208,20 +230,21 @@ async function callEduAI(systemPrompt, userMessage) {
  * @param {string|null} codeSnippet - Optional code snippet for Exercise Prompt
  * @returns {Promise<string>} - AI-generated guidance message
  */
-export async function generateGuidance(activity, studentAnswer = null, knowledgeLevel = null, codeSnippet = null) {
+export async function generateGuidance(activity, studentAnswer = null, knowledgeLevel = null, codeSnippet = null, opts = {}) {
   try {
+    const { mode = 'guide', topicName = null, userMessage = null } = opts || {};
     // Build context object for placeholder replacement
     const context = {
-      topic: activity.mainTopic?.name || 'the subject',
+      topic: (mode === 'teach' && topicName) ? topicName : (activity.mainTopic?.name || 'the subject'),
       knowledgeLevel: knowledgeLevel || 'a university student',
       codeSnippet: codeSnippet || '',
     };
 
     // Compose system prompt with placeholder replacement
-    const systemPrompt = await composeSystemPrompt(activity, context);
+    const systemPrompt = await composeSystemPrompt(activity, context, mode);
 
     // Construct user message
-    const userMessage = constructUserMessage(activity, studentAnswer);
+    const composedUserMessage = constructUserMessage(activity, studentAnswer, userMessage, mode, context.topic);
 
     console.log('[aiGuidance] Requesting guidance for activity', activity.id, 'with context:', {
       topic: context.topic,
@@ -230,7 +253,7 @@ export async function generateGuidance(activity, studentAnswer = null, knowledge
     });
 
     // Call AI API
-    const aiResponse = await callEduAI(systemPrompt, userMessage);
+    const aiResponse = await callEduAI(systemPrompt, composedUserMessage);
 
     return aiResponse;
   } catch (error) {

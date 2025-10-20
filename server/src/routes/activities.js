@@ -485,7 +485,7 @@ router.post('/activities/:activityId/guidance', async (req, res) => {
     return res.status(401).json({ error: 'Authentication required' });
   }
 
-  const { studentAnswer, knowledgeLevel, codeSnippet } = req.body || {};
+  const { studentAnswer, knowledgeLevel, codeSnippet, mode, topicName, userMessage } = req.body || {};
 
   try {
     // Load activity with course offering context for authorization
@@ -529,8 +529,12 @@ router.post('/activities/:activityId/guidance', async (req, res) => {
       return res.status(403).json({ error: 'Not authorized for this activity' });
     }
 
-    // Generate AI guidance with knowledge level and code snippet context
-    const aiMessage = await generateGuidance(activity, studentAnswer, knowledgeLevel, codeSnippet);
+    // Generate AI guidance with knowledge level and optional topicName/userMessage
+    const aiMessage = await generateGuidance(activity, studentAnswer, knowledgeLevel, codeSnippet, {
+      mode: typeof mode === 'string' ? mode : 'guide',
+      topicName: typeof topicName === 'string' ? topicName : null,
+      userMessage: typeof userMessage === 'string' ? userMessage : null,
+    });
 
     res.json({
       ok: true,

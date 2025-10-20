@@ -36,7 +36,7 @@ export default function TopicSyncMappingDialog({
   // Keep mappings in sync when missing changes
   const missingIds = useMemo(() => new Set(missing.map((m) => m.id)), [missing]);
   const mappingByFrom = useMemo(() => {
-    const map = new Map<number, number | ''>();
+    const map = new Map<number, string>();
     for (const m of mappings) map.set(m.fromTopicId, m.toTopicId);
     return map;
   }, [mappings]);
