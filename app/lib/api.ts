@@ -207,11 +207,6 @@ export const api = {
     params: {
       studentAnswer?: string | number;
       knowledgeLevel: string;
-      // New fields to support dual-tab chat and topic-by-name teaching
-      mode?: 'teach' | 'guide';
-      topicName?: string;
-      userMessage?: string;
-      // Backwards-compatible: no longer required, but accepted if provided
       codeSnippet?: string;
     }
   ) =>
