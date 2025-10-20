@@ -6,6 +6,11 @@ import {
   useState,
 } from 'react';
 import type { KeyboardEvent } from 'react';
+import {
+  Conversation,
+  ConversationContent,
+  ConversationScrollButton,
+} from '~/components/ai-elements/conversation';
 import api from '../lib/api';
 import type { Activity } from '../lib/types';
 
@@ -239,7 +244,7 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
   );
 
   return (
-    <aside className="flex h-[720px] flex-col rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
+    <aside className="flex h-[800px] flex-col rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
       <div className="flex items-center gap-3 p-5 border-b border-gray-200 dark:border-gray-800">
         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-fuchsia-500 via-pink-500 to-rose-500" />
         <div>
@@ -294,13 +299,14 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
         </div>
       )}
 
-      <div className="flex-1 px-5 py-4">
-        <div className="h-full overflow-y-auto pr-3">
+      <Conversation className="flex-1">
+        <ConversationContent className="px-5 py-4 space-y-3">
           {renderMessages(activeTab)}
           {chatState[activeTab].loading && <div className="mt-2 text-xs text-gray-400">Thinking…</div>}
           {!activity && <div className="text-sm text-gray-500">Select an activity to begin.</div>}
-        </div>
-      </div>
+        </ConversationContent>
+        <ConversationScrollButton />
+      </Conversation>
 
       <div className="border-t border-gray-200 dark:border-gray-800 p-5 space-y-2">
         <textarea
