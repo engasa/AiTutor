@@ -202,15 +202,27 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
-  getActivityGuidance: (
+  sendTeachMessage: (
     activityId: number,
     params: {
-      studentAnswer?: string | number;
       knowledgeLevel: string;
-      codeSnippet?: string;
-    }
+      topicId?: number;
+      message: string;
+    },
   ) =>
-    http(`/api/activities/${activityId}/guidance`, {
+    http(`/api/activities/${activityId}/teach`, {
+      method: 'POST',
+      body: JSON.stringify(params),
+    }),
+  sendGuideMessage: (
+    activityId: number,
+    params: {
+      knowledgeLevel: string;
+      message: string;
+      studentAnswer?: string | number | null;
+    },
+  ) =>
+    http(`/api/activities/${activityId}/guide`, {
       method: 'POST',
       body: JSON.stringify(params),
     }),

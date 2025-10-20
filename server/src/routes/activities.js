@@ -4,7 +4,11 @@ import { requireRole } from '../middleware/auth.js';
 import { mapActivity } from '../utils/mappers.js';
 import { evaluateQuestion } from '../services/activityEvaluation.js';
 import { getActivityCompletionStatuses } from '../services/progressCalculation.js';
-import { generateGuidance } from '../services/aiGuidance.js';
+import {
+  generateGuideResponse,
+  generateTeachResponse,
+} from '../services/aiGuidance.js';
+import { GuideRequestSchema, TeachRequestSchema } from '../../../shared/schemas/aiGuidance.js';
 import { CreateActivitySchema, UpdateActivitySchema } from '../../../shared/schemas/activity.js';
 
 const router = express.Router();
@@ -473,7 +477,7 @@ router.post('/questions/:id/answer', async (req, res) => {
   }
 });
 
-router.post('/activities/:activityId/guidance', async (req, res) => {
+router.post('/activities/:activityId/teach', async (req, res) => {
   const authUser = req.user;
   const activityId = Number(req.params.activityId);
 
@@ -485,14 +489,110 @@ router.post('/activities/:activityId/guidance', async (req, res) => {
     return res.status(401).json({ error: 'Authentication required' });
   }
 
-  const { studentAnswer, knowledgeLevel, codeSnippet } = req.body || {};
+  let payload;
+  try {
+    payload = TeachRequestSchema.parse(req.body || {});
+  } catch (error) {
+    return res.status(400).json({ error: 'Invalid payload', details: error?.errors || String(error) });
+  }
 
   try {
     // Load activity with course offering context for authorization
     const activity = await prisma.activity.findUnique({
       where: { id: activityId },
       include: {
-        promptTemplate: { select: { id: true, systemPrompt: true } },
+        mainTopic: true,
+        secondaryTopics: { include: { topic: true } },
+        lesson: {
+          include: {
+            module: {
+              include: {
+                courseOffering: {
+                  select: {
+                    id: true,
+                    instructors: { select: { userId: true } },
+                    enrollments: { select: { userId: true } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!activity) {
+      return res.status(404).json({ error: 'Activity not found' });
+    }
+
+    // Authorization: user must be enrolled (student) or an instructor of the course
+    const course = activity.lesson?.module?.courseOffering;
+    if (!course) {
+      return res.status(500).json({ error: 'Activity course context missing' });
+    }
+
+    const isInstructorForCourse = course.instructors.some((i) => i.userId === authUser.id);
+    const isEnrolledStudent = course.enrollments.some((e) => e.userId === authUser.id);
+
+    if (!(isInstructorForCourse || isEnrolledStudent)) {
+      return res.status(403).json({ error: 'Not authorized for this activity' });
+    }
+
+    const topicName = (() => {
+      if (!payload.topicId) {
+        return activity.mainTopic?.name;
+      }
+      const match = activity.secondaryTopics.find((sec) => sec.topicId === payload.topicId);
+      if (match) {
+        return match.topic.name;
+      }
+      if (activity.mainTopic && activity.mainTopic.id === payload.topicId) {
+        return activity.mainTopic.name;
+      }
+      return activity.mainTopic?.name;
+    })();
+
+    const aiMessage = await generateTeachResponse({
+      activity,
+      topicName,
+      knowledgeLevel: payload.knowledgeLevel,
+      message: payload.message,
+    });
+
+    res.json({
+      ok: true,
+      message: aiMessage,
+    });
+  } catch (e) {
+    console.error('Error generating guidance:', e);
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+router.post('/activities/:activityId/guide', async (req, res) => {
+  const authUser = req.user;
+  const activityId = Number(req.params.activityId);
+
+  if (!Number.isFinite(activityId)) {
+    return res.status(400).json({ error: 'Invalid activity id' });
+  }
+
+  if (!authUser) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  let payload;
+  try {
+    payload = GuideRequestSchema.parse(req.body || {});
+  } catch (error) {
+    return res.status(400).json({ error: 'Invalid payload', details: error?.errors || String(error) });
+  }
+
+  try {
+    // Load activity with course offering context for authorization
+    const activity = await prisma.activity.findUnique({
+      where: { id: activityId },
+      include: {
         mainTopic: true,
         lesson: {
           include: {
@@ -529,8 +629,12 @@ router.post('/activities/:activityId/guidance', async (req, res) => {
       return res.status(403).json({ error: 'Not authorized for this activity' });
     }
 
-    // Generate AI guidance with knowledge level and code snippet context
-    const aiMessage = await generateGuidance(activity, studentAnswer, knowledgeLevel, codeSnippet);
+    const aiMessage = await generateGuideResponse({
+      activity,
+      knowledgeLevel: payload.knowledgeLevel,
+      message: payload.message,
+      studentAnswer: payload.studentAnswer,
+    });
 
     res.json({
       ok: true,

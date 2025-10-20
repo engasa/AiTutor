@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router';
 import Nav from '../components/Nav';
 import { ProgressBar } from '../components/ProgressBar';
 import {
@@ -41,27 +41,26 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 }
 
 export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps) {
-  const navigate = useNavigate();
   const { user } = useLocalUser();
   const { course, module, lesson, activities } = loaderData;
   const [orderedActivities, setOrderedActivities] = useState<Activity[]>(activities ?? []);
   const [idx, setIdx] = useState(0);
   const [mcq, setMcq] = useState<number | null>(null);
   const [text, setText] = useState('');
-  const [assistant, setAssistant] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
-  const [loadingGuidance, setLoadingGuidance] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [wasCorrect, setWasCorrect] = useState(false);
 
   // Pre-chat context for AI guidance
-  const [showPreChatModal, setShowPreChatModal] = useState(false);
-  const [chatContext, setChatContext] = useState<{
-    knowledgeLevel: string;
-    codeSnippet: string;
-  } | null>(null);
+  const [showKnowledgeModal, setShowKnowledgeModal] = useState(false);
   const [tempKnowledgeLevel, setTempKnowledgeLevel] = useState('');
-  const [tempCodeSnippet, setTempCodeSnippet] = useState('');
+  const [knowledgeLevels, setKnowledgeLevels] = useState<Record<number, string>>({});
+  const [activeTab, setActiveTab] = useState<ChatTab>('teach');
+  const [topicSelection, setTopicSelection] = useState<Record<number, number>>({});
+  const [chatState, setChatState] = useState<ChatState>({
+    teach: { messages: [], input: '', loading: false },
+    guide: { messages: [], input: '', loading: false },
+  });
 
   // Adjust state during render when loader data changes
   const [prevActivities, setPrevActivities] = useState(activities);
@@ -78,6 +77,34 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
     () => (activity?.question || '').split(/\n/),
     [activity?.question],
   );
+
+  const currentKnowledgeLevel = activity ? knowledgeLevels[activity.id] ?? null : null;
+  const currentTopicId = activity
+    ? topicSelection[activity.id] ?? activity.mainTopic?.id ?? null
+    : null;
+
+  useEffect(() => {
+    if (!activity) {
+      return;
+    }
+
+    setChatState({
+      teach: { messages: [], input: '', loading: false },
+      guide: { messages: [], input: '', loading: false },
+    });
+    setActiveTab('teach');
+    setWasCorrect(false);
+    setResult(null);
+    setTempKnowledgeLevel('');
+    setShowKnowledgeModal(false);
+
+    setMcq(null);
+    setText('');
+
+    if (activity.mainTopic?.id && !(activity.id in topicSelection)) {
+      setTopicSelection((prev) => ({ ...prev, [activity.id]: activity.mainTopic!.id }));
+    }
+  }, [activity?.id]);
 
   const submit = async () => {
     if (!activity || !user) return;
@@ -98,7 +125,19 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
 
       if (res.isCorrect) {
         setWasCorrect(true);
-        setAssistant([res.message || 'Great job! Proceed when you are ready for the next question.']);
+        setChatState((prev) => ({
+          ...prev,
+          guide: {
+            ...prev.guide,
+            messages: [
+              {
+                id: generateMessageId(),
+                role: 'assistant',
+                content: res.message || 'Great job! Proceed when you are ready for the next question.',
+              },
+            ],
+          },
+        }));
       } else {
         setWasCorrect(false);
       }
@@ -110,63 +149,137 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
     }
   };
 
-  const nudge = async () => {
-    if (!activity || wasCorrect || loadingGuidance) return;
+  const resetForNavigation = useCallback(() => {
+    setMcq(null);
+    setText('');
+    setChatState({
+      teach: { messages: [], input: '', loading: false },
+      guide: { messages: [], input: '', loading: false },
+    });
+    setResult(null);
+    setWasCorrect(false);
+    setTempKnowledgeLevel('');
+  }, []);
 
-    // Check if we need to collect chat context first
-    if (!chatContext) {
-      setShowPreChatModal(true);
-      return;
+  const ensureKnowledgeLevel = useCallback(() => {
+    if (!activity?.id) return false;
+    if (knowledgeLevels[activity.id]) {
+      return true;
     }
+    setTempKnowledgeLevel('');
+    setShowKnowledgeModal(true);
+    return false;
+  }, [activity?.id, knowledgeLevels]);
 
-    setLoadingGuidance(true);
-    try {
-      // Determine student's current answer (convert null to undefined for API)
+  const appendMessage = useCallback(
+    (tab: ChatTab, role: ChatMessage['role'], content: string) => {
+      setChatState((prev) => ({
+        ...prev,
+        [tab]: {
+          ...prev[tab],
+          messages: [...prev[tab].messages, { id: generateMessageId(), role, content }],
+        },
+      }));
+    },
+    [],
+  );
+
+  const sendChat = useCallback(
+    async (tab: ChatTab, overrideMessage?: string) => {
+      if (!activity || !user) return;
+
+      const message = (overrideMessage ?? chatState[tab].input).trim();
+      if (!message) return;
+
+      if (!ensureKnowledgeLevel()) {
+        return;
+      }
+
+      const knowledgeLevel = knowledgeLevels[activity.id]!;
       const studentAnswer = activity.type === 'MCQ' ? mcq : text;
 
-      // Call AI guidance API with knowledge level and code snippet
-      const response = await api.getActivityGuidance(activity.id, {
-        studentAnswer: studentAnswer ?? undefined,
-        knowledgeLevel: chatContext.knowledgeLevel,
-        codeSnippet: chatContext.codeSnippet || undefined,
-      });
-
-      // Append AI response to assistant conversation
-      setAssistant((prev) => [...prev, response.message]);
-    } catch (error) {
-      console.error('AI guidance failed:', error);
-      setAssistant((prev) => [
+      setChatState((prev) => ({
         ...prev,
-        'AI study buddy not available right now. Please try again later.',
-      ]);
-    } finally {
-      setLoadingGuidance(false);
+        [tab]: {
+          ...prev[tab],
+          input: overrideMessage ? prev[tab].input : '',
+          loading: true,
+        },
+      }));
+
+      appendMessage(tab, 'user', message);
+
+      try {
+        let response;
+        if (tab === 'teach') {
+          response = await api.sendTeachMessage(activity.id, {
+            knowledgeLevel,
+            topicId: currentTopicId ?? undefined,
+            message,
+          });
+        } else {
+          response = await api.sendGuideMessage(activity.id, {
+            knowledgeLevel,
+            message,
+            studentAnswer: studentAnswer ?? undefined,
+          });
+        }
+        appendMessage(tab, 'assistant', response.message);
+      } catch (error) {
+        console.error('AI chat failed:', error);
+        appendMessage(tab, 'assistant', 'AI study buddy not available right now. Please try again later.');
+      } finally {
+        setChatState((prev) => ({
+          ...prev,
+          [tab]: { ...prev[tab], loading: false },
+        }));
+      }
+    },
+    [activity, user, chatState, ensureKnowledgeLevel, knowledgeLevels, appendMessage, mcq, text, currentTopicId],
+  );
+
+  const handleGuideMe = useCallback(() => {
+    if (!activity || wasCorrect) return;
+    const defaultMessage = chatState.guide.input.trim() || 'I would like guidance on this question.';
+    setActiveTab('guide');
+    void sendChat('guide', defaultMessage);
+  }, [activity, wasCorrect, chatState.guide.input, sendChat]);
+
+  const handleConfirmKnowledge = () => {
+    if (!activity || !tempKnowledgeLevel) {
+      return;
     }
+    setKnowledgeLevels((prev) => ({ ...prev, [activity.id]: tempKnowledgeLevel }));
+    setShowKnowledgeModal(false);
   };
 
-  const handleStartGuidance = () => {
-    if (!tempKnowledgeLevel) {
-      return; // Validation - knowledge level is required
-    }
-
-    // Check if code snippet is required for Exercise Prompt
-    const needsCodeSnippet = activity?.promptTemplate?.name === 'Exercise Prompt';
-    if (needsCodeSnippet && !tempCodeSnippet.trim()) {
-      return; // Validation - code snippet required for Exercise Prompt
-    }
-
-    // Save context and close modal
-    setChatContext({
-      knowledgeLevel: tempKnowledgeLevel,
-      codeSnippet: tempCodeSnippet,
-    });
-    setShowPreChatModal(false);
-
-    // Automatically trigger guidance after context is saved
-    setTimeout(() => {
-      nudge();
-    }, 0);
+  const handleCancelKnowledge = () => {
+    setShowKnowledgeModal(false);
   };
+
+  const renderMessages = (tab: ChatTab) => (
+    <div className="space-y-2">
+      {chatState[tab].messages.map((msg) => (
+        <div
+          key={msg.id}
+          className={`w-fit max-w-full rounded-2xl px-4 py-2 text-sm ${
+            msg.role === 'user'
+              ? 'ml-auto bg-amber-500 text-white shadow'
+              : 'bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-800'
+          }`}
+        >
+          {msg.content}
+        </div>
+      ))}
+    </div>
+  );
+
+  const topicOptions = activity
+    ? [
+        ...(activity.mainTopic ? [{ label: activity.mainTopic.name, value: activity.mainTopic.id }] : []),
+        ...activity.secondaryTopics.map((topic) => ({ label: topic.name, value: topic.id })),
+      ]
+    : [];
 
   return (
     <div className="min-h-dvh bg-gradient-to-br from-rose-50 via-orange-50 to-amber-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-900">
@@ -217,8 +330,8 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
           </div>
         )}
 
-        <div className="grid lg:grid-cols-4 gap-6">
-          <div className="lg:col-span-3 space-y-4">
+        <div className="grid gap-6 lg:grid-cols-[3fr_2fr]">
+          <div className="space-y-4">
             <div className="p-5 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 space-y-3">
               <div>
                 <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
@@ -297,27 +410,18 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
                   {submitting ? 'Submitting…' : 'Submit'}
                 </button>
                 <button
-                  onClick={nudge}
-                  disabled={wasCorrect || loadingGuidance}
+                  onClick={handleGuideMe}
+                  disabled={wasCorrect || !currentKnowledgeLevel}
                   className="px-4 py-2 rounded-xl font-semibold bg-gray-100 dark:bg-gray-800 disabled:opacity-50"
                 >
-                  {loadingGuidance ? 'Thinking...' : 'Guide me'}
+                  Guide me
                 </button>
                 <div className="ml-auto flex items-center gap-2">
                   <button
                     disabled={!canPrev}
                     onClick={() => {
                       setIdx((i) => Math.max(0, i - 1));
-                      // Reset form state when navigating
-                      setMcq(null);
-                      setText('');
-                      setAssistant([]);
-                      setResult(null);
-                      setWasCorrect(false);
-                      setLoadingGuidance(false);
-                      setChatContext(null); // Reset chat context for new activity
-                      setTempKnowledgeLevel('');
-                      setTempCodeSnippet('');
+                      resetForNavigation();
                     }}
                     className="px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 disabled:opacity-50"
                   >
@@ -327,16 +431,7 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
                     disabled={!canNext}
                     onClick={() => {
                       setIdx((i) => Math.min(orderedActivities.length - 1, i + 1));
-                      // Reset form state when navigating
-                      setMcq(null);
-                      setText('');
-                      setAssistant([]);
-                      setResult(null);
-                      setWasCorrect(false);
-                      setLoadingGuidance(false);
-                      setChatContext(null); // Reset chat context for new activity
-                      setTempKnowledgeLevel('');
-                      setTempCodeSnippet('');
+                      resetForNavigation();
                     }}
                     className="px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 disabled:opacity-50"
                   >
@@ -349,34 +444,126 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
             </div>
           </div>
 
-          <aside className="lg:col-span-1">
-            <div className="p-5 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-fuchsia-500 via-pink-500 to-rose-500" />
-                <div>
-                  <div className="font-bold">AI Study Buddy</div>
-                  <div className="text-xs text-gray-500">Hints, not answers</div>
-                </div>
+          <aside className="flex flex-col rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
+            <div className="flex items-center gap-3 p-5 border-b border-gray-200 dark:border-gray-800">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-fuchsia-500 via-pink-500 to-rose-500" />
+              <div>
+                <div className="font-bold">AI Study Buddy</div>
+                <div className="text-xs text-gray-500">Hints, not answers</div>
               </div>
-              {assistant.length === 0 ? (
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Ask for guidance to get a gentle nudge. Try thinking aloud: What is being asked? What is given? What do you need to find?
-                </p>
-              ) : (
-                <ul className="space-y-2">
-                  {assistant.map((hint, i) => (
-                    <li key={i} className="text-sm bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-3">
-                      {hint}
-                    </li>
+            </div>
+
+            <div className="flex items-center gap-2 px-5 pt-4">
+              <div className="flex rounded-full bg-gray-100 dark:bg-gray-900 p-1">
+                {tabs.map((tab) => (
+                  <button
+                    key={tab.value}
+                    onClick={() => setActiveTab(tab.value)}
+                    className={`px-3 py-1 text-xs font-semibold rounded-full transition ${
+                      activeTab === tab.value
+                        ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow'
+                        : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+              <div className="text-[10px] uppercase tracking-wide text-gray-400">
+                {currentKnowledgeLevel ? `Level: ${titleCase(currentKnowledgeLevel)}` : 'Set your level'}
+              </div>
+            </div>
+
+            {activeTab === 'teach' && (
+              <div className="px-5 pt-3">
+                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">
+                  Focus topic
+                </label>
+                <select
+                  value={currentTopicId ?? ''}
+                  onChange={(e) => {
+                    if (!activity) return;
+                    const value = Number(e.target.value);
+                    if (Number.isFinite(value)) {
+                      setTopicSelection((prev) => ({ ...prev, [activity.id]: value }));
+                    }
+                  }}
+                  disabled={topicOptions.length <= 1}
+                  className="w-full rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3 py-2 text-sm disabled:opacity-50"
+                >
+                  {topicOptions.map((topic) => (
+                    <option key={topic.value} value={topic.value}>
+                      {topic.label}
+                    </option>
                   ))}
-                </ul>
+                </select>
+              </div>
+            )}
+
+            <div className="flex-1 overflow-hidden px-5 py-4">
+              <div className="h-full overflow-y-auto pr-2">
+                {renderMessages(activeTab)}
+                {chatState[activeTab].loading && (
+                  <div className="mt-2 text-xs text-gray-400">Thinking…</div>
+                )}
+                {!activity && (
+                  <div className="text-sm text-gray-500">Select an activity to begin.</div>
+                )}
+              </div>
+            </div>
+
+            <div className="border-t border-gray-200 dark:border-gray-800 p-5 space-y-2">
+              <textarea
+                value={chatState[activeTab].input}
+                onChange={(e) =>
+                  setChatState((prev) => ({
+                    ...prev,
+                    [activeTab]: { ...prev[activeTab], input: e.target.value },
+                  }))
+                }
+                placeholder={
+                  activeTab === 'teach'
+                    ? 'Ask about the topic…'
+                    : 'Describe where you need guidance…'
+                }
+                rows={3}
+                disabled={!currentKnowledgeLevel}
+                className="w-full resize-none rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400 dark:disabled:bg-gray-800 dark:disabled:text-gray-500"
+              />
+              {!currentKnowledgeLevel && (
+                <div className="text-xs text-gray-500 dark:text-gray-400">
+                  Set your knowledge level to start chatting with your study buddy.
+                </div>
               )}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => void sendChat(activeTab)}
+                  disabled={
+                    chatState[activeTab].loading ||
+                    !currentKnowledgeLevel ||
+                    !chatState[activeTab].input.trim()
+                  }
+                  className="px-4 py-2 rounded-xl font-semibold text-white bg-gradient-to-r from-amber-600 to-orange-600 disabled:opacity-50 shadow"
+                >
+                  Send
+                </button>
+                <button
+                  onClick={() => {
+                    if (!activity) return;
+                    setTempKnowledgeLevel(currentKnowledgeLevel ?? '');
+                    setShowKnowledgeModal(true);
+                  }}
+                  className="ml-auto text-xs font-semibold text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
+                >
+                  {currentKnowledgeLevel ? 'Adjust level' : 'Set level'}
+                </button>
+              </div>
             </div>
           </aside>
         </div>
 
         {/* Pre-Chat Modal */}
-        {showPreChatModal && (
+        {showKnowledgeModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
             <div className="max-w-lg w-full bg-white dark:bg-gray-900 rounded-2xl shadow-2xl p-6 space-y-4">
               <div>
@@ -388,7 +575,7 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
                 </p>
               </div>
 
-              {/* Knowledge Level (Always Required) */}
+              {/* Knowledge Level */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                   What's your knowledge level on this topic? *
@@ -405,36 +592,17 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
                 </select>
               </div>
 
-              {/* Code Snippet (Only for Exercise Prompt) */}
-              {activity?.promptTemplate?.name === 'Exercise Prompt' && (
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                    Paste your code snippet here *
-                  </label>
-                  <textarea
-                    value={tempCodeSnippet}
-                    onChange={(e) => setTempCodeSnippet(e.target.value)}
-                    placeholder="Paste the code you'd like help with..."
-                    rows={8}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-mono text-sm"
-                  />
-                </div>
-              )}
-
               {/* Action Buttons */}
               <div className="flex gap-3 pt-2">
                 <button
-                  onClick={() => setShowPreChatModal(false)}
+                  onClick={handleCancelKnowledge}
                   className="flex-1 px-4 py-2 rounded-xl font-semibold bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
                 >
                   Cancel
                 </button>
                 <button
-                  onClick={handleStartGuidance}
-                  disabled={
-                    !tempKnowledgeLevel ||
-                    (activity?.promptTemplate?.name === 'Exercise Prompt' && !tempCodeSnippet.trim())
-                  }
+                  onClick={handleConfirmKnowledge}
+                  disabled={!tempKnowledgeLevel}
                   className="flex-1 px-4 py-2 rounded-xl font-semibold text-white bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed shadow"
                 >
                   Start Guidance
@@ -446,4 +614,27 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
       </div>
     </div>
   );
+}
+
+type ChatTab = 'teach' | 'guide';
+
+type ChatMessage = {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+};
+
+type ChatState = Record<ChatTab, { messages: ChatMessage[]; input: string; loading: boolean }>;
+
+const tabs: { value: ChatTab; label: string }[] = [
+  { value: 'teach', label: 'Teach me' },
+  { value: 'guide', label: 'Guide me' },
+];
+
+function generateMessageId() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function titleCase(value: string) {
+  return value.charAt(0).toUpperCase() + value.slice(1);
 }
