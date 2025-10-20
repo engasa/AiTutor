@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import Nav from '../components/Nav';
+// Minimal shadcn-style AI chat building blocks (local wrappers)
+import { Conversation, ConversationContent, ConversationScrollButton } from '~/components/ai/conversation';
+import { Message, MessageAvatar, MessageContent } from '~/components/ai/message';
+import { PromptInput, PromptInputSubmit, PromptInputTextarea, PromptInputToolbar } from '~/components/ai/prompt-input';
 import { ProgressBar } from '../components/ProgressBar';
 import {
   Breadcrumb,
@@ -218,53 +222,37 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
     }
   };
 
-  function ChatInterface({ messages, onSend, placeholder, scrollRef }: { messages: ChatMsg[]; onSend: (t: string) => void; placeholder: string; scrollRef: React.RefObject<HTMLDivElement>; }) {
+  function ChatInterface({ messages, onSend, placeholder }: { messages: ChatMsg[]; onSend: (t: string) => void; placeholder: string; }) {
     const [input, setInput] = useState('');
+    const submit = () => {
+      const val = input.trim();
+      if (!val) return;
+      onSend(val);
+      setInput('');
+    };
     return (
       <div className="flex h-full w-full flex-col">
-        <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-2 pr-1">
-          {messages.length === 0 ? (
-            <div className="text-sm text-gray-500 dark:text-gray-400">Start the conversation by asking a question.</div>
-          ) : (
-            messages.map((m) => (
-              <div key={m.id} className={m.role === 'user' ? 'text-sm bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-lg p-3 ml-8' : 'text-sm bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-3 mr-8'}>
-                {m.content}
-              </div>
-            ))
-          )}
-        </div>
-        <div className="mt-3">
-          <div className="flex gap-2">
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder={placeholder}
-              rows={2}
-              className="flex-1 px-3 py-2 rounded-xl border border-gray-300 dark:border-gray-700 bg-transparent"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  const val = input.trim();
-                  if (!val) return;
-                  onSend(val);
-                  setInput('');
-                }
-              }}
-            />
-            <button
-              onClick={() => {
-                const val = input.trim();
-                if (!val) return;
-                onSend(val);
-                setInput('');
-              }}
-              className="px-4 py-2 rounded-xl font-semibold text-white bg-gradient-to-r from-amber-600 to-orange-600 disabled:opacity-50 shadow"
-              disabled={!input.trim()}
-            >
-              Send
-            </button>
-          </div>
-        </div>
+        <Conversation className="flex-1">
+          <ConversationContent>
+            {messages.length === 0 ? (
+              <div className="text-sm text-gray-500 dark:text-gray-400">Start the conversation by asking a question.</div>
+            ) : (
+              messages.map((m) => (
+                <Message key={m.id} from={m.role}>
+                  <MessageContent>{m.content}</MessageContent>
+                  <MessageAvatar name={m.role === 'assistant' ? 'AI' : 'You'} />
+                </Message>
+              ))
+            )}
+          </ConversationContent>
+          <ConversationScrollButton />
+        </Conversation>
+        <PromptInput onSubmit={submit}>
+          <PromptInputTextarea value={input} onChange={(e) => setInput(e.target.value)} placeholder={placeholder} onEnter={submit} />
+          <PromptInputToolbar>
+            <PromptInputSubmit disabled={!input.trim()} onClick={submit} />
+          </PromptInputToolbar>
+        </PromptInput>
       </div>
     );
   }
@@ -495,12 +483,7 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
                     </select>
                   </div>
                   <div className="flex-1 min-h-0">
-                    <ChatInterface
-                      messages={teachMessages}
-                      onSend={sendTeach}
-                      placeholder="Ask to learn about this topic..."
-                      scrollRef={teachScrollRef}
-                    />
+                    <ChatInterface messages={teachMessages} onSend={sendTeach} placeholder="Ask to learn about this topic..." />
                   </div>
                 </div>
               ) : (
@@ -515,12 +498,7 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
                     </button>
                   </div>
                   <div className="flex-1 min-h-0">
-                    <ChatInterface
-                      messages={guideMessages}
-                      onSend={sendGuide}
-                      placeholder="Ask for a hint or clarification..."
-                      scrollRef={guideScrollRef}
-                    />
+                    <ChatInterface messages={guideMessages} onSend={sendGuide} placeholder="Ask for a hint or clarification..." />
                   </div>
                 </div>
               )}
