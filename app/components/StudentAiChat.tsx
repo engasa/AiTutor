@@ -62,6 +62,8 @@ const tabs: { value: ChatTab; label: string }[] = [
   { value: 'guide', label: 'Guide me' },
 ];
 
+const DEFAULT_MODEL_ID = 'google:gemini-2.5-flash';
+
 function getInitialChatState(): ChatState {
   return {
     teach: { messages: [], input: '', loading: false },
@@ -86,7 +88,7 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
   const [activeTab, setActiveTab] = useState<ChatTab>('teach');
   const [chatState, setChatState] = useState<ChatState>(() => getInitialChatState());
   const [availableModels, setAvailableModels] = useState<AiModel[]>([]);
-  const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
+  const [selectedModelId, setSelectedModelId] = useState<string>(DEFAULT_MODEL_ID);
   const [modelsFetched, setModelsFetched] = useState(false);
   const [modelLoadError, setModelLoadError] = useState(false);
   useEffect(() => {
@@ -102,9 +104,11 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
         if (!isMounted) return;
         setAvailableModels(models);
         setSelectedModelId((current) => {
-          if (current) return current;
+          if (models.some((m) => m.modelId === current)) {
+            return current;
+          }
           const geminiModel = models.find((m) => m.modelId.includes('gemini-2.5-flash'));
-          return geminiModel?.modelId ?? models[0]?.modelId ?? null;
+          return geminiModel?.modelId ?? models[0]?.modelId ?? DEFAULT_MODEL_ID;
         });
         setModelLoadError(false);
       } catch (error) {
@@ -184,7 +188,7 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
 
       try {
         let response;
-        const modelId = selectedModelId || null;
+        const modelId = selectedModelId || DEFAULT_MODEL_ID;
         if (tab === 'teach') {
           response = await api.sendTeachMessage(activity.id, {
             knowledgeLevel: level,
@@ -402,7 +406,7 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
       <PromptInputFooter className="flex-col gap-3 border-t border-gray-100 px-4 pb-4 pt-3 sm:flex-row sm:items-center sm:justify-between dark:border-gray-800">
         <PromptInputTools className="flex items-center gap-2">
           <PromptInputModelSelect
-            value={selectedModelId ?? ''}
+            value={selectedModelId}
             onValueChange={(value: string) => setSelectedModelId(value)}
             disabled={!availableModels.length}
           >

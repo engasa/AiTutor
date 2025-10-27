@@ -208,7 +208,7 @@ export const api = {
       knowledgeLevel: string;
       topicId?: number;
       message: string;
-      modelId?: string | null;
+      modelId: string;
     },
   ) =>
     http(`/api/activities/${activityId}/teach`, {
@@ -221,7 +221,7 @@ export const api = {
       knowledgeLevel: string;
       message: string;
       studentAnswer?: string | number | null;
-      modelId?: string | null;
+      modelId: string;
     },
   ) =>
     http(`/api/activities/${activityId}/guide`, {
