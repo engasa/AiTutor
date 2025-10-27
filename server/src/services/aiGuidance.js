@@ -124,13 +124,13 @@ function buildGuideUserMessage(activity, { message, studentAnswer }) {
   return base;
 }
 
-async function getPromptTemplateById(templateId) {
-  return prisma.promptTemplate.findUnique({ where: { id: templateId } });
+async function getPromptTemplateBySlug(slug) {
+  return prisma.promptTemplate.findUnique({ where: { slug } });
 }
 
 export async function generateTeachResponse({ activity, topicName, knowledgeLevel, message }) {
   try {
-    const template = await getPromptTemplateById(35);
+    const template = await getPromptTemplateBySlug('learning-prompt');
     if (!template) {
       throw new Error('Learning prompt template missing');
     }
@@ -151,7 +151,7 @@ export async function generateTeachResponse({ activity, topicName, knowledgeLeve
 
 export async function generateGuideResponse({ activity, knowledgeLevel, message, studentAnswer }) {
   try {
-    const template = await getPromptTemplateById(36);
+    const template = await getPromptTemplateBySlug('exercise-prompt');
     if (!template) {
       throw new Error('Exercise prompt template missing');
     }
