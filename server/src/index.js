@@ -12,6 +12,7 @@ import lessonRoutes from './routes/lessons.js';
 import activityRoutes from './routes/activities.js';
 import promptRoutes from './routes/prompts.js';
 import topicRoutes from './routes/topics.js';
+import aiModelRoutes from './routes/ai-models.js';
 const app = express();
 
 app.use(cors({ origin: true, credentials: true }));
@@ -43,6 +44,7 @@ app.use('/api', lessonRoutes);
 app.use('/api', activityRoutes);
 app.use('/api', promptRoutes);
 app.use('/api', topicRoutes);
+app.use('/api', aiModelRoutes);
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => console.log(`API listening on :${PORT}`));

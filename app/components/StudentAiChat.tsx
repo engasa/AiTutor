@@ -5,14 +5,28 @@ import {
   useImperativeHandle,
   useState,
 } from 'react';
-import type { KeyboardEvent } from 'react';
+import type { ChangeEvent, FormEvent, KeyboardEvent } from 'react';
 import {
   Conversation,
   ConversationContent,
   ConversationScrollButton,
 } from '~/components/ai-elements/conversation';
+import {
+  PromptInput,
+  PromptInputBody,
+  PromptInputFooter,
+  PromptInputModelSelect,
+  PromptInputModelSelectContent,
+  PromptInputModelSelectItem,
+  PromptInputModelSelectTrigger,
+  PromptInputModelSelectValue,
+  PromptInputSubmit,
+  PromptInputTextarea,
+  PromptInputTools,
+  type PromptInputMessage,
+} from '~/components/ai-elements/prompt-input';
 import api from '../lib/api';
-import type { Activity } from '../lib/types';
+import type { Activity, AiModel } from '../lib/types';
 
 type ChatTab = 'teach' | 'guide';
 
@@ -71,10 +85,38 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
 ) {
   const [activeTab, setActiveTab] = useState<ChatTab>('teach');
   const [chatState, setChatState] = useState<ChatState>(() => getInitialChatState());
+  const [availableModels, setAvailableModels] = useState<AiModel[]>([]);
+  const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
+  const [modelsFetched, setModelsFetched] = useState(false);
+  const [modelLoadError, setModelLoadError] = useState(false);
   useEffect(() => {
     setChatState(getInitialChatState());
     setActiveTab('teach');
   }, [activity?.id]);
+
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      try {
+        const models = await api.listAiModels();
+        if (!isMounted) return;
+        setAvailableModels(models);
+        setSelectedModelId((current) => current ?? models[0]?.modelId ?? null);
+        setModelLoadError(false);
+      } catch (error) {
+        if (!isMounted) return;
+        console.error('Failed to load AI models:', error);
+        setModelLoadError(true);
+      } finally {
+        if (isMounted) {
+          setModelsFetched(true);
+        }
+      }
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const ensureKnowledgeLevel = useCallback(() => {
     if (!activity) {
@@ -209,6 +251,28 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
     !textAreaDisabled &&
     Boolean(activeChat.input.trim());
 
+  const handlePromptInputChange = useCallback(
+    (event: ChangeEvent<HTMLTextAreaElement>) => {
+      const { value } = event.target;
+      setChatState((prev) => ({
+        ...prev,
+        [activeTab]: { ...prev[activeTab], input: value },
+      }));
+    },
+    [activeTab],
+  );
+
+  const handlePromptSubmit = useCallback(
+    (message: PromptInputMessage, event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      if (!canSend || !message?.text?.trim()) {
+        return;
+      }
+      void sendChat(activeTab);
+    },
+    [activeTab, canSend, sendChat],
+  );
+
   const handleTextareaKeyDown = useCallback(
     (event: KeyboardEvent<HTMLTextAreaElement>) => {
       if (event.key !== 'Enter') {
@@ -308,44 +372,74 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
         <ConversationScrollButton />
       </Conversation>
 
-      <div className="border-t border-gray-200 dark:border-gray-800 p-5 space-y-2">
-        <textarea
+  <div className="border-t border-gray-200 dark:border-gray-800 p-5 space-y-3">
+    <PromptInput
+      onSubmit={handlePromptSubmit}
+      className="shadow-none [&_[data-slot=input-group]]:rounded-2xl [&_[data-slot=input-group]]:border [&_[data-slot=input-group]]:border-gray-200 dark:[&_[data-slot=input-group]]:border-gray-800 [&_[data-slot=input-group]]:bg-white dark:[&_[data-slot=input-group]]:bg-gray-900 [&_[data-slot=input-group]]:px-0 [&_[data-slot=input-group]]:py-0"
+    >
+      <PromptInputBody>
+        <PromptInputTextarea
           value={chatState[activeTab].input}
-          onChange={(e) =>
-            setChatState((prev) => ({
-              ...prev,
-              [activeTab]: { ...prev[activeTab], input: e.target.value },
-            }))
-          }
+          onChange={handlePromptInputChange}
           onKeyDown={handleTextareaKeyDown}
           placeholder={
-            activeTab === 'teach' ? 'Ask about the topic…' : 'Describe where you need guidance…'
+            activeTab === 'teach'
+              ? 'Ask about the topic…'
+              : 'Describe where you need guidance…'
           }
-          rows={3}
           disabled={textAreaDisabled}
-          className="w-full resize-none rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-4 py-3 text-sm disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400 dark:disabled:bg-gray-800 dark:disabled:text-gray-500"
+          className="px-4 pb-4 pt-5 text-sm"
         />
-        {activity && !knowledgeLevel && (
-          <div className="text-sm text-gray-500 dark:text-gray-400">
-            Set your knowledge level to start chatting with your study buddy.
-          </div>
-        )}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => void sendChat(activeTab)}
-            disabled={!canSend}
-            className="px-4 py-2 rounded-xl font-semibold text-white bg-gradient-to-r from-amber-600 to-orange-600 disabled:opacity-50 shadow"
+      </PromptInputBody>
+      <PromptInputFooter className="flex-col gap-3 border-t border-gray-100 px-4 pb-4 pt-3 sm:flex-row sm:items-center sm:justify-between dark:border-gray-800">
+        <PromptInputTools className="flex items-center gap-2">
+          <PromptInputModelSelect
+            value={selectedModelId ?? ''}
+            onValueChange={(value: string) => setSelectedModelId(value)}
+            disabled={!availableModels.length}
           >
-            Send
-          </button>
-          <button
-            onClick={onAdjustKnowledgeLevel}
-            className="ml-auto text-xs font-semibold text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
-          >
-            {knowledgeLevel ? 'Adjust level' : 'Set level'}
-          </button>
-        </div>
+            <PromptInputModelSelectTrigger className="min-w-[160px]">
+              <PromptInputModelSelectValue placeholder="Select model" />
+            </PromptInputModelSelectTrigger>
+            <PromptInputModelSelectContent>
+              {availableModels.map((model) => (
+                <PromptInputModelSelectItem key={model.id} value={model.modelId}>
+                  {model.modelName}
+                </PromptInputModelSelectItem>
+              ))}
+            </PromptInputModelSelectContent>
+          </PromptInputModelSelect>
+        </PromptInputTools>
+        <PromptInputSubmit
+          disabled={!canSend}
+          status={activeChat.loading ? 'streaming' : 'ready'}
+        />
+      </PromptInputFooter>
+    </PromptInput>
+    {modelsFetched && modelLoadError && (
+      <div className="px-1 text-xs text-red-500 dark:text-red-400">
+        Unable to load AI models. Please try again.
       </div>
+    )}
+    {modelsFetched && !modelLoadError && !availableModels.length && (
+      <div className="px-1 text-xs text-gray-500 dark:text-gray-400">
+        No AI models are configured yet.
+      </div>
+    )}
+    {activity && !knowledgeLevel && (
+      <div className="text-sm text-gray-500 dark:text-gray-400">
+        Set your knowledge level to start chatting with your study buddy.
+      </div>
+    )}
+    <div className="flex justify-end">
+      <button
+        onClick={onAdjustKnowledgeLevel}
+        className="text-xs font-semibold text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
+      >
+        {knowledgeLevel ? 'Adjust level' : 'Set level'}
+      </button>
+    </div>
+  </div>
     </aside>
   );
 });

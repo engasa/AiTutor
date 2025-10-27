@@ -96,3 +96,9 @@ export type Topic = {
   id: number;
   name: string;
 };
+
+export type AiModel = {
+  id: string;
+  modelId: string;
+  modelName: string;
+};
