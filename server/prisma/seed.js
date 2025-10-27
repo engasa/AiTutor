@@ -41,12 +41,12 @@ async function seedAiModels() {
   const models = [
     {
       id: 'cmgn04mc4000e9kvze3bknyqr',
-      modelId: 'gemini-2.5-flash',
+      modelId: 'google:gemini-2.5-flash',
       modelName: 'Gemini 2.5 Flash',
     },
     {
       id: 'cmgn04mc4000e9kvze3bknyqs',
-      modelId: 'gpt-4o-mini',
+      modelId: 'openai:gpt-4o-mini',
       modelName: 'GPT-4o Mini',
     },
   ];
