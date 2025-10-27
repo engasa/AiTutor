@@ -101,7 +101,11 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
         const models = await api.listAiModels();
         if (!isMounted) return;
         setAvailableModels(models);
-        setSelectedModelId((current) => current ?? models[0]?.modelId ?? null);
+        setSelectedModelId((current) => {
+          if (current) return current;
+          const geminiModel = models.find((m) => m.modelId.includes('gemini-2.5-flash'));
+          return geminiModel?.modelId ?? models[0]?.modelId ?? null;
+        });
         setModelLoadError(false);
       } catch (error) {
         if (!isMounted) return;
@@ -180,17 +184,20 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
 
       try {
         let response;
+        const modelId = selectedModelId || null;
         if (tab === 'teach') {
           response = await api.sendTeachMessage(activity.id, {
             knowledgeLevel: level,
             topicId,
             message,
+            modelId,
           });
         } else {
           response = await api.sendGuideMessage(activity.id, {
             knowledgeLevel: level,
             message,
             studentAnswer: normalizedStudentAnswer,
+            modelId,
           });
         }
         appendMessage(tab, 'assistant', response.message);
@@ -216,6 +223,7 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
       ensureKnowledgeLevel,
       isUserReady,
       knowledgeLevel,
+      selectedModelId,
       studentAnswer,
     ],
   );

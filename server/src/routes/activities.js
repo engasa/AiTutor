@@ -557,6 +557,7 @@ router.post('/activities/:activityId/teach', async (req, res) => {
       topicName,
       knowledgeLevel: payload.knowledgeLevel,
       message: payload.message,
+      modelId: payload.modelId,
     });
 
     res.json({
@@ -634,6 +635,7 @@ router.post('/activities/:activityId/guide', async (req, res) => {
       knowledgeLevel: payload.knowledgeLevel,
       message: payload.message,
       studentAnswer: payload.studentAnswer,
+      modelId: payload.modelId,
     });
 
     res.json({

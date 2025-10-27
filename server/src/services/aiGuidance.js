@@ -5,13 +5,14 @@ import { getEduAiChatUrl } from './eduaiClient.js';
  * Call UBC eduAI API to generate guidance
  * @param {string} systemPrompt - Composed system prompt
  * @param {string} userMessage - Constructed user message
+ * @param {string|null} modelId - Optional model ID override
  * @returns {Promise<string>} - AI-generated guidance text
  */
-async function callEduAI(systemPrompt, userMessage) {
+async function callEduAI(systemPrompt, userMessage, modelId = null) {
   const apiKey = process.env.EDUAI_API_KEY;
   const googleApiKey = process.env.EDUAI_GOOGLE_API_KEY;
   const endpoint = getEduAiChatUrl();
-  const model = process.env.EDUAI_MODEL || 'google:gemini-2.5-flash';
+  const model = modelId || process.env.EDUAI_MODEL || 'google:gemini-2.5-flash';
 
   if (!apiKey || !googleApiKey) {
     console.error('[aiGuidance] Missing API keys in environment variables');
@@ -128,7 +129,7 @@ async function getPromptTemplateBySlug(slug) {
   return prisma.promptTemplate.findUnique({ where: { slug } });
 }
 
-export async function generateTeachResponse({ activity, topicName, knowledgeLevel, message }) {
+export async function generateTeachResponse({ activity, topicName, knowledgeLevel, message, modelId = null }) {
   try {
     const template = await getPromptTemplateBySlug('learning-prompt');
     if (!template) {
@@ -142,14 +143,14 @@ export async function generateTeachResponse({ activity, topicName, knowledgeLeve
 
     const userMessage = buildTeachUserMessage({ topicName: topicName || activity.mainTopic?.name, message });
 
-    return await callEduAI(systemPrompt, userMessage);
+    return await callEduAI(systemPrompt, userMessage, modelId);
   } catch (error) {
     console.error('[aiGuidance] Failed to generate teach response:', error);
     return 'AI study buddy not available right now. Please try again later.';
   }
 }
 
-export async function generateGuideResponse({ activity, knowledgeLevel, message, studentAnswer }) {
+export async function generateGuideResponse({ activity, knowledgeLevel, message, studentAnswer, modelId = null }) {
   try {
     const template = await getPromptTemplateBySlug('exercise-prompt');
     if (!template) {
@@ -163,7 +164,7 @@ export async function generateGuideResponse({ activity, knowledgeLevel, message,
 
     const userMessage = buildGuideUserMessage(activity, { message, studentAnswer });
 
-    return await callEduAI(systemPrompt, userMessage);
+    return await callEduAI(systemPrompt, userMessage, modelId);
   } catch (error) {
     console.error('[aiGuidance] Failed to generate guide response:', error);
     return 'AI study buddy not available right now. Please try again later.';
