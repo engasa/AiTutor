@@ -25,6 +25,7 @@ import {
   PromptInputTools,
   type PromptInputMessage,
 } from '~/components/ai-elements/prompt-input';
+import { useMemo } from 'react';
 import api from '../lib/api';
 import type { Activity, AiModel } from '../lib/types';
 
@@ -57,11 +58,6 @@ type StudentAiChatProps = {
   studentAnswer: number | string | null;
 };
 
-const tabs: { value: ChatTab; label: string }[] = [
-  { value: 'teach', label: 'Teach me' },
-  { value: 'guide', label: 'Guide me' },
-];
-
 const DEFAULT_MODEL_ID = 'google:gemini-2.5-flash';
 
 function getInitialChatState(): ChatState {
@@ -91,10 +87,45 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
   const [selectedModelId, setSelectedModelId] = useState<string>(DEFAULT_MODEL_ID);
   const [modelsFetched, setModelsFetched] = useState(false);
   const [modelLoadError, setModelLoadError] = useState(false);
+
+  const availableTabs = useMemo<{ value: ChatTab; label: string }[]>(() => {
+    if (!activity) return [];
+    const tabs = [];
+    if (activity.enableTeachMode) {
+      tabs.push({ value: 'teach' as ChatTab, label: 'Teach me' });
+    }
+    if (activity.enableGuideMode) {
+      tabs.push({ value: 'guide' as ChatTab, label: 'Guide me' });
+    }
+    return tabs;
+  }, [activity]);
+
+  const showTabToggle = availableTabs.length > 1;
+
   useEffect(() => {
     setChatState(getInitialChatState());
     setActiveTab('teach');
   }, [activity?.id]);
+
+  // Separate effect to handle mode changes and ensure valid tab selection
+  useEffect(() => {
+    if (!activity) {
+      setActiveTab('teach');
+      return;
+    }
+    
+    const currentTabEnabled = 
+      (activeTab === 'teach' && activity.enableTeachMode) ||
+      (activeTab === 'guide' && activity.enableGuideMode);
+    
+    if (!currentTabEnabled) {
+      if (activity.enableTeachMode) {
+        setActiveTab('teach');
+      } else if (activity.enableGuideMode) {
+        setActiveTab('guide');
+      }
+    }
+  }, [activity?.enableTeachMode, activity?.enableGuideMode, activeTab, activity]);
 
   useEffect(() => {
     let isMounted = true;
@@ -150,6 +181,16 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
   const sendChat = useCallback(
     async (tab: ChatTab, overrideMessage?: string) => {
       if (!activity || !isUserReady) {
+        return;
+      }
+
+      // Guard: Prevent sending if mode is disabled
+      const modeEnabled = 
+        (tab === 'teach' && activity.enableTeachMode) ||
+        (tab === 'guide' && activity.enableGuideMode);
+      
+      if (!modeEnabled) {
+        console.warn(`Cannot use disabled ${tab} mode for activity ${activity.id}`);
         return;
       }
 
@@ -241,12 +282,22 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
         if (!activity) {
           return;
         }
+        // Guard: only proceed if guide mode is enabled
+        if (!activity.enableGuideMode) {
+          console.warn('Cannot use sendGuidePrompt when guide mode is disabled');
+          return;
+        }
         const fallback = guideInput.trim() || 'I would like guidance on this question.';
         setActiveTab('guide');
         void sendChat('guide', fallback);
       },
       pushGuideMessage: (content: string) => {
         if (!activity || !content) {
+          return;
+        }
+        // Guard: only push if guide mode is enabled
+        if (!activity.enableGuideMode) {
+          console.warn('Cannot push guide message when guide mode is disabled');
           return;
         }
         appendMessage('guide', 'assistant', content);
@@ -330,21 +381,27 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
       </div>
 
       <div className="flex items-center gap-2 px-5 pt-4">
-        <div className="flex rounded-full bg-gray-100 dark:bg-gray-900 p-1">
-          {tabs.map((tab) => (
-            <button
-              key={tab.value}
-              onClick={() => setActiveTab(tab.value)}
-              className={`px-3 py-1 text-xs font-semibold rounded-full transition ${
-                activeTab === tab.value
-                  ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow'
-                  : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        {showTabToggle ? (
+          <div className="flex rounded-full bg-gray-100 dark:bg-gray-900 p-1">
+            {availableTabs.map((tab) => (
+              <button
+                key={tab.value}
+                onClick={() => setActiveTab(tab.value)}
+                className={`px-3 py-1 text-xs font-semibold rounded-full transition ${
+                  activeTab === tab.value
+                    ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow'
+                    : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        ) : availableTabs.length === 1 ? (
+          <div className="px-3 py-1 text-xs font-semibold rounded-full bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400 cursor-not-allowed">
+            {availableTabs[0].label}
+          </div>
+        ) : null}
         <button
           type="button"
           onClick={onAdjustKnowledgeLevel}

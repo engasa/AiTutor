@@ -138,6 +138,8 @@ export const api = {
       promptTemplateId?: number | null;
       mainTopicId: number;
       secondaryTopicIds?: number[];
+      enableTeachMode?: boolean;
+      enableGuideMode?: boolean;
     }
   ) =>
     http(`/api/lessons/${lessonId}/activities`, {
@@ -157,6 +159,8 @@ export const api = {
       promptTemplateId?: number | null;
       mainTopicId?: number;
       secondaryTopicIds?: number[];
+      enableTeachMode?: boolean;
+      enableGuideMode?: boolean;
     }
   ) => {
     const body: Record<string, unknown> = { ...payload };

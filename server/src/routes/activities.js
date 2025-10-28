@@ -68,6 +68,11 @@ router.post('/lessons/:lessonId/activities', requireRole('INSTRUCTOR'), async (r
     return res.status(400).json({ error: 'Invalid payload', details: e?.errors || String(e) });
   }
 
+  // Validate at least one AI mode is enabled
+  if (!payload.enableTeachMode && !payload.enableGuideMode) {
+    return res.status(400).json({ error: 'At least one AI mode (enableTeachMode or enableGuideMode) must be enabled' });
+  }
+
   try {
     const lesson = await prisma.lesson.findUnique({
       where: { id: lessonId },
@@ -114,6 +119,8 @@ router.post('/lessons/:lessonId/activities', requireRole('INSTRUCTOR'), async (r
         lessonId,
         promptTemplateId: payload.promptTemplateId ?? null,
         mainTopicId: payload.mainTopicId,
+        enableTeachMode: payload.enableTeachMode,
+        enableGuideMode: payload.enableGuideMode,
         config: {
           question: payload.question,
           questionType: payload.type ?? 'MCQ',
@@ -168,7 +175,9 @@ router.patch('/activities/:activityId', requireRole('INSTRUCTOR'), async (req, r
     typeof payload.type === 'undefined' &&
     typeof payload.options === 'undefined' &&
     typeof payload.answer === 'undefined' &&
-    typeof payload.hints === 'undefined';
+    typeof payload.hints === 'undefined' &&
+    typeof payload.enableTeachMode === 'undefined' &&
+    typeof payload.enableGuideMode === 'undefined';
 
   if (noUpdatableFields) {
     return res.status(400).json({ error: 'Nothing to update' });
@@ -325,6 +334,28 @@ router.patch('/activities/:activityId', requireRole('INSTRUCTOR'), async (req, r
           topic: { connect: { id: topicId } },
         })),
       };
+    }
+
+    // Handle AI mode updates with validation
+    if (typeof payload.enableTeachMode !== 'undefined' || typeof payload.enableGuideMode !== 'undefined') {
+      const newTeachMode = typeof payload.enableTeachMode !== 'undefined' 
+        ? payload.enableTeachMode 
+        : activity.enableTeachMode;
+      const newGuideMode = typeof payload.enableGuideMode !== 'undefined' 
+        ? payload.enableGuideMode 
+        : activity.enableGuideMode;
+      
+      // Validate at least one mode is enabled
+      if (!newTeachMode && !newGuideMode) {
+        return res.status(400).json({ error: 'At least one AI mode (enableTeachMode or enableGuideMode) must be enabled' });
+      }
+      
+      if (typeof payload.enableTeachMode !== 'undefined') {
+        updateData.enableTeachMode = payload.enableTeachMode;
+      }
+      if (typeof payload.enableGuideMode !== 'undefined') {
+        updateData.enableGuideMode = payload.enableGuideMode;
+      }
     }
 
     const updated = await prisma.activity.update({

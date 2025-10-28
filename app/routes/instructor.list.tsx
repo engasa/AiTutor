@@ -14,7 +14,7 @@ import {
   BreadcrumbSeparator,
 } from '../components/ui/breadcrumb';
 import api from '../lib/api';
-import type { Activity, Course, Lesson, ModuleDetail, PromptTemplate } from '../lib/types';
+import type { Activity, Course, Lesson, ModuleDetail } from '../lib/types';
 import { CourseTopicsProvider, useCourseTopics } from '../hooks/useCourseTopics';
 import type { Route } from './+types/instructor.list';
 import { fetchJson, requireUserFromRequest } from '~/lib/server-api';
@@ -86,10 +86,7 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
   const [activities, setActivities] = useState<Activity[]>(initialActivities);
 
   const [updatingTopicsFor, setUpdatingTopicsFor] = useState<number | null>(null);
-
-  const [prompts, setPrompts] = useState<PromptTemplate[]>([]);
-  const [loadingPrompts, setLoadingPrompts] = useState(true);
-  const [updatingPromptFor, setUpdatingPromptFor] = useState<number | null>(null);
+  const [updatingModesFor, setUpdatingModesFor] = useState<number | null>(null);
 
   const [showAddPanel, setShowAddPanel] = useState(false);
 
@@ -107,6 +104,9 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
 
   const [showTopicSaving, setShowTopicSaving] = useState(false);
   const topicSavingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  const [showModeSaving, setShowModeSaving] = useState(false);
+  const modeSavingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const beginTopicUpdate = (activityId: number) => {
     setUpdatingTopicsFor(activityId);
@@ -132,6 +132,33 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
         topicSavingTimeoutRef.current = null;
       }
       setShowTopicSaving(false);
+    }
+  };
+
+  const beginModeUpdate = (activityId: number) => {
+    setUpdatingModesFor(activityId);
+    setShowModeSaving(false);
+    if (modeSavingTimeoutRef.current) {
+      clearTimeout(modeSavingTimeoutRef.current);
+    }
+    modeSavingTimeoutRef.current = setTimeout(() => setShowModeSaving(true), 300);
+  };
+
+  const endModeUpdate = (activityId: number) => {
+    let shouldClear = false;
+    setUpdatingModesFor((current) => {
+      if (current !== activityId) {
+        return current;
+      }
+      shouldClear = true;
+      return null;
+    });
+    if (shouldClear) {
+      if (modeSavingTimeoutRef.current) {
+        clearTimeout(modeSavingTimeoutRef.current);
+        modeSavingTimeoutRef.current = null;
+      }
+      setShowModeSaving(false);
     }
   };
 
@@ -190,28 +217,20 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
     }
   };
 
-  const loadPrompts = () => {
-    setLoadingPrompts(true);
-    api
-      .listPrompts()
-      .then((data) => setPrompts(data))
-      .catch((error) => console.error('Failed to load prompts', error))
-      .finally(() => setLoadingPrompts(false));
-  };
-
   useEffect(() => {
-    loadPrompts();
     return () => {
       if (topicSavingTimeoutRef.current) {
         clearTimeout(topicSavingTimeoutRef.current);
         topicSavingTimeoutRef.current = null;
       }
+      if (modeSavingTimeoutRef.current) {
+        clearTimeout(modeSavingTimeoutRef.current);
+        modeSavingTimeoutRef.current = null;
+      }
     };
   }, []);
 
-  const handlePromptCreated = (created: PromptTemplate) => {
-    setPrompts((prev) => [created, ...prev.filter((prompt) => prompt.id !== created.id)]);
-  };
+
 
   const handleDeleteActivity = async (activityId: number) => {
     if (typeof window === 'undefined') {
@@ -237,58 +256,47 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
     }
   };
 
-  const handleActivityPromptChange = async (activityId: number, value: string) => {
-    const promptId = value ? Number(value) : null;
-    const nextPrompt = promptId ? prompts.find((prompt) => prompt.id === promptId) : null;
-    const previous = activities.find((activity) => activity.id === activityId);
-    const previousPromptId = previous?.promptTemplateId ?? null;
-    const previousPrompt = previous?.promptTemplate ?? null;
+  const handleActivityModeChange = async (
+    activityId: number,
+    mode: 'teach' | 'guide',
+    enabled: boolean
+  ) => {
+    const activity = activities.find(a => a.id === activityId);
+    if (!activity) return;
 
-    setActivities((prev) =>
-      prev.map((activity) =>
-        activity.id === activityId
-          ? {
-              ...activity,
-              promptTemplateId: promptId,
-              promptTemplate: nextPrompt ? { id: nextPrompt.id, name: nextPrompt.name } : null,
-            }
-          : activity,
-      ),
-    );
+    const newTeach = mode === 'teach' ? enabled : activity.enableTeachMode;
+    const newGuide = mode === 'guide' ? enabled : activity.enableGuideMode;
 
-    setUpdatingPromptFor(activityId);
+    if (!newTeach && !newGuide) {
+      alert('At least one AI mode must be enabled');
+      return;
+    }
+
+    const previousTeach = activity.enableTeachMode;
+    const previousGuide = activity.enableGuideMode;
+
+    setActivities(prev => prev.map(a =>
+      a.id === activityId
+        ? { ...a, enableTeachMode: newTeach, enableGuideMode: newGuide }
+        : a
+    ));
+
+    beginModeUpdate(activityId);
     try {
       const updated = await api.updateActivity(activityId, {
-        promptTemplateId: promptId,
+        enableTeachMode: newTeach,
+        enableGuideMode: newGuide,
       });
-      setActivities((prev) =>
-        prev.map((activity) =>
-          activity.id === activityId
-            ? {
-                ...activity,
-                promptTemplateId: updated.promptTemplateId ?? null,
-                promptTemplate: updated.promptTemplate ?? null,
-                mainTopic: updated.mainTopic,
-                secondaryTopics: updated.secondaryTopics,
-              }
-            : activity,
-        ),
-      );
+      setActivities(prev => prev.map(a => a.id === activityId ? updated : a));
     } catch (error) {
-      console.error('Failed to update activity prompt', error);
-      setActivities((prev) =>
-        prev.map((activity) =>
-          activity.id === activityId
-            ? {
-                ...activity,
-                promptTemplateId: previousPromptId,
-                promptTemplate: previousPrompt,
-              }
-            : activity,
-        ),
-      );
+      console.error('Failed to update AI modes', error);
+      setActivities(prev => prev.map(a =>
+        a.id === activityId
+          ? { ...a, enableTeachMode: previousTeach, enableGuideMode: previousGuide }
+          : a
+      ));
     } finally {
-      setUpdatingPromptFor((current) => (current === activityId ? null : current));
+      endModeUpdate(activityId);
     }
   };
 
@@ -458,8 +466,8 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
                 ) : (
                   <ul className="space-y-2">
                     {activities.map((activity, i) => {
-                      const isUpdatingPrompt = updatingPromptFor === activity.id;
                       const isUpdatingTopics = updatingTopicsFor === activity.id;
+                      const isUpdatingModes = updatingModesFor === activity.id;
                       const mainTopicId = activity.mainTopic?.id ?? '';
                       const secondaryIds = new Set(activity.secondaryTopics.map((item) => item.id));
                       const isEditing = editingActivityId === activity.id;
@@ -600,30 +608,34 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
                             )}
                           </div>
 
-                          <div className="rounded-xl border border-dashed border-purple-200/70 dark:border-purple-900/60 bg-purple-50/50 dark:bg-purple-950/20 p-3">
+                          <div className="rounded-xl border border-dashed border-purple-200/70 dark:border-purple-900/60 bg-purple-50/50 dark:bg-purple-950/20 p-3 space-y-2">
                             <div className="text-xs font-semibold text-purple-700 dark:text-purple-300">
-                              Prompt
+                              AI Study Buddy Modes
                             </div>
-                            <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
-                              <select
-                                value={activity.promptTemplateId ?? ''}
-                                onChange={(event) => handleActivityPromptChange(activity.id, event.target.value)}
-                                disabled={loadingPrompts || isUpdatingPrompt}
-                                className="flex-1 min-w-[160px] px-3 py-2 rounded-lg border border-purple-200 dark:border-purple-900 bg-white dark:bg-gray-950 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent disabled:opacity-60"
-                              >
-                                <option value="">No prompt</option>
-                                {prompts.map((prompt) => (
-                                  <option key={prompt.id} value={prompt.id}>
-                                    {prompt.name}
-                                  </option>
-                                ))}
-                              </select>
-                              {isUpdatingPrompt && (
-                                <span className="text-xs text-purple-600 dark:text-purple-200">Saving…</span>
-                              )}
+                            <div className="space-y-2">
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={activity.enableTeachMode}
+                                  onChange={(e) => handleActivityModeChange(activity.id, 'teach', e.target.checked)}
+                                  disabled={isUpdatingModes}
+                                  className="rounded border-purple-300 text-purple-600 focus:ring-purple-500"
+                                />
+                                <span className="text-sm">Teach me</span>
+                              </label>
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={activity.enableGuideMode}
+                                  onChange={(e) => handleActivityModeChange(activity.id, 'guide', e.target.checked)}
+                                  disabled={isUpdatingModes}
+                                  className="rounded border-purple-300 text-purple-600 focus:ring-purple-500"
+                                />
+                                <span className="text-sm">Guide me</span>
+                              </label>
                             </div>
-                            {loadingPrompts && (
-                              <p className="mt-2 text-[0.7rem] text-purple-500">Loading prompts…</p>
+                            {showModeSaving && isUpdatingModes && (
+                              <span className="text-[0.7rem] text-purple-500">Saving…</span>
                             )}
                           </div>
                         </li>
@@ -646,9 +658,6 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
               {showAddPanel && numericLessonId !== null && (
                 <AddActivityPanel
                   lessonId={numericLessonId}
-                  prompts={prompts}
-                  loadingPrompts={loadingPrompts}
-                  onPromptCreated={handlePromptCreated}
                   onActivityCreated={refreshActivities}
                 />
               )}

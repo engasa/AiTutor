@@ -78,6 +78,8 @@ export function mapActivity(activity) {
           )
           .filter(Boolean)
       : [],
+    enableTeachMode: activity.enableTeachMode ?? true,
+    enableGuideMode: activity.enableGuideMode ?? true,
     completionStatus: activity.completionStatus ?? undefined,
   };
 }

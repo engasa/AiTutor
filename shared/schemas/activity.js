@@ -15,6 +15,8 @@ export const CreateActivitySchema = z.object({
   promptTemplateId: z.number().int().nullable().optional(),
   mainTopicId: z.number().int(),
   secondaryTopicIds: z.array(z.number().int()).default([]),
+  enableTeachMode: z.boolean().default(true),
+  enableGuideMode: z.boolean().default(true),
 });
 
 export const UpdateActivitySchema = z.object({
@@ -28,6 +30,8 @@ export const UpdateActivitySchema = z.object({
   promptTemplateId: z.number().int().nullable().optional(),
   mainTopicId: z.number().int().optional(),
   secondaryTopicIds: z.array(z.number().int()).optional(),
+  enableTeachMode: z.boolean().optional(),
+  enableGuideMode: z.boolean().optional(),
 });
 
 export default {

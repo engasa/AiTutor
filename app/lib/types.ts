@@ -80,6 +80,8 @@ export type Activity = {
   promptTemplate?: { id: number; name: string } | null;
   mainTopic: Topic | null;
   secondaryTopics: Topic[];
+  enableTeachMode: boolean;
+  enableGuideMode: boolean;
   completionStatus?: CompletionStatus;
 };
 

@@ -147,6 +147,9 @@ model Activity {
   mainTopicId     Int
   secondaryTopics ActivitySecondaryTopic[]
 
+  enableTeachMode Boolean        @default(true)
+  enableGuideMode Boolean        @default(true)
+
   submissions Submission[]
 }
 

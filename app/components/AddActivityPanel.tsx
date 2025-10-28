@@ -2,28 +2,13 @@ import type { FormEvent } from 'react';
 import { useMemo, useState } from 'react';
 import api from '../lib/api';
 import { useCourseTopicsContext } from '../hooks/useCourseTopics';
-import type { PromptTemplate } from '../lib/types';
-
-interface PromptFormState {
-  name: string;
-  systemPrompt: string;
-  temperature: string;
-  topP: string;
-}
-
 interface AddActivityPanelProps {
   lessonId: number;
-  prompts: PromptTemplate[];
-  loadingPrompts: boolean;
-  onPromptCreated: (prompt: PromptTemplate) => void;
   onActivityCreated: () => void;
 }
 
 export default function AddActivityPanel({
   lessonId,
-  prompts,
-  loadingPrompts,
-  onPromptCreated,
   onActivityCreated,
 }: AddActivityPanelProps) {
   const { topics, loading: loadingTopics, error: topicsError } = useCourseTopicsContext();
@@ -40,16 +25,8 @@ export default function AddActivityPanel({
   const [selectedSecondaryTopicIds, setSelectedSecondaryTopicIds] = useState<number[]>([]);
   const [topicSelectionError, setTopicSelectionError] = useState<string | null>(null);
 
-  const [selectedPromptId, setSelectedPromptId] = useState<number | ''>('');
-  const [showPromptForm, setShowPromptForm] = useState(false);
-  const [promptForm, setPromptForm] = useState<PromptFormState>({
-    name: '',
-    systemPrompt: '',
-    temperature: '',
-    topP: '',
-  });
-  const [creatingPrompt, setCreatingPrompt] = useState(false);
-  const [promptError, setPromptError] = useState<string | null>(null);
+  const [enableTeachMode, setEnableTeachMode] = useState(true);
+  const [enableGuideMode, setEnableGuideMode] = useState(true);
 
   // Adjust main topic selection during render when topics change
   const [prevTopics, setPrevTopics] = useState(topics);
@@ -75,74 +52,7 @@ export default function AddActivityPanel({
     [topics, selectedMainTopicId],
   );
 
-  const resetPromptForm = () => {
-    setPromptForm({
-      name: '',
-      systemPrompt: '',
-      temperature: '',
-      topP: '',
-    });
-  };
 
-  const togglePromptForm = () => {
-    setPromptError(null);
-    setShowPromptForm((open) => {
-      const next = !open;
-      if (!next) {
-        resetPromptForm();
-      }
-      return next;
-    });
-  };
-
-  const handleCreatePrompt = async () => {
-    if (creatingPrompt) return;
-    const name = promptForm.name.trim();
-    const systemPrompt = promptForm.systemPrompt.trim();
-
-    if (!name || !systemPrompt) {
-      setPromptError('Please provide a name and system prompt.');
-      return;
-    }
-
-    const payload: Parameters<typeof api.createPrompt>[0] = {
-      name,
-      systemPrompt,
-    };
-
-    if (promptForm.temperature.trim()) {
-      const value = Number(promptForm.temperature);
-      if (!Number.isFinite(value)) {
-        setPromptError('Temperature must be a number.');
-        return;
-      }
-      payload.temperature = value;
-    }
-
-    if (promptForm.topP.trim()) {
-      const value = Number(promptForm.topP);
-      if (!Number.isFinite(value)) {
-        setPromptError('Top P must be a number.');
-        return;
-      }
-      payload.topP = value;
-    }
-
-    setCreatingPrompt(true);
-    setPromptError(null);
-    try {
-      const created = await api.createPrompt(payload);
-      onPromptCreated(created);
-      setSelectedPromptId(created.id);
-      setShowPromptForm(false);
-      resetPromptForm();
-    } catch (error) {
-      console.error('Failed to create prompt', error);
-      setPromptError('Could not create prompt. Please try again.');
-    } finally {
-      setCreatingPrompt(false);
-    }
-  };
 
   const toggleSecondaryForNew = (topicId: number) => {
     setSelectedSecondaryTopicIds((prev) => {
@@ -161,10 +71,14 @@ export default function AddActivityPanel({
       return;
     }
 
+    if (!enableTeachMode && !enableGuideMode) {
+      alert('At least one AI mode must be enabled');
+      return;
+    }
+
     setBusy(true);
     setTopicSelectionError(null);
 
-    const promptTemplateId = selectedPromptId === '' ? null : selectedPromptId;
     const mainTopicId = Number(selectedMainTopicId);
     const secondaryIds = selectedSecondaryTopicIds.filter((id) => id !== mainTopicId);
 
@@ -176,9 +90,10 @@ export default function AddActivityPanel({
           options: { choices },
           answer: { correctIndex: correct },
           hints: hint.trim() ? [hint.trim()] : [],
-          promptTemplateId,
           mainTopicId,
           secondaryTopicIds: secondaryIds,
+          enableTeachMode,
+          enableGuideMode,
         });
       } else {
         await api.createActivity(lessonId, {
@@ -186,9 +101,10 @@ export default function AddActivityPanel({
           type,
           answer: { text: textAnswer.trim() },
           hints: hint.trim() ? [hint.trim()] : [],
-          promptTemplateId,
           mainTopicId,
           secondaryTopicIds: secondaryIds,
+          enableTeachMode,
+          enableGuideMode,
         });
       }
 
@@ -199,6 +115,8 @@ export default function AddActivityPanel({
       setTextAnswer('');
       setHint('');
       setSelectedSecondaryTopicIds([]);
+      setEnableTeachMode(true);
+      setEnableGuideMode(true);
       onActivityCreated();
     } catch (error) {
       console.error('Failed to add activity', error);
@@ -375,104 +293,44 @@ export default function AddActivityPanel({
       </div>
 
       <div className="space-y-2 pt-1">
-        <div className="flex items-center justify-between text-sm font-semibold">
-          <span>Prompt</span>
-          <button
-            type="button"
-            onClick={togglePromptForm}
-            className="text-xs font-medium text-purple-600 hover:text-purple-500 dark:text-purple-300"
-          >
-            {showPromptForm ? 'Cancel' : 'New prompt'}
-          </button>
+        <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 block">
+          AI Study Buddy Modes
+        </span>
+        <p className="text-xs text-gray-500">
+          Choose which AI assistance modes students can use for this activity.
+        </p>
+        <div className="space-y-2">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={enableTeachMode}
+              onChange={(e) => {
+                if (!e.target.checked && !enableGuideMode) {
+                  alert('At least one AI mode must be enabled');
+                  return;
+                }
+                setEnableTeachMode(e.target.checked);
+              }}
+              className="rounded border-purple-300 text-purple-600 focus:ring-purple-500"
+            />
+            <span className="text-sm">Teach me - Conceptual learning about topics</span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={enableGuideMode}
+              onChange={(e) => {
+                if (!e.target.checked && !enableTeachMode) {
+                  alert('At least one AI mode must be enabled');
+                  return;
+                }
+                setEnableGuideMode(e.target.checked);
+              }}
+              className="rounded border-purple-300 text-purple-600 focus:ring-purple-500"
+            />
+            <span className="text-sm">Guide me - Step-by-step guidance on this question</span>
+          </label>
         </div>
-        <select
-          value={selectedPromptId === '' ? '' : selectedPromptId}
-          onChange={(event) =>
-            setSelectedPromptId(event.target.value ? Number(event.target.value) : '')
-          }
-          disabled={loadingPrompts || creatingPrompt}
-          className="w-full px-3 py-2 rounded-xl border border-purple-200 dark:border-purple-900 bg-white dark:bg-gray-950 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent disabled:opacity-60"
-        >
-          <option value="">No prompt</option>
-          {prompts.map((prompt) => (
-            <option key={prompt.id} value={prompt.id}>
-              {prompt.name}
-            </option>
-          ))}
-        </select>
-        {!loadingPrompts && prompts.length === 0 && (
-          <p className="text-xs text-gray-500">
-            Create a reusable prompt to guide AI feedback for this activity.
-          </p>
-        )}
-        {showPromptForm && (
-          <div className="rounded-xl border border-purple-200/70 dark:border-purple-900/60 bg-purple-50/60 dark:bg-purple-950/30 p-4 space-y-3">
-            <div>
-              <label className="block text-xs font-semibold text-purple-700 dark:text-purple-200 mb-1">
-                Name
-              </label>
-              <input
-                value={promptForm.name}
-                onChange={(event) =>
-                  setPromptForm((prev) => ({ ...prev, name: event.target.value }))
-                }
-                placeholder="Friendly reminder prompt"
-                className="w-full px-3 py-2 rounded-lg border border-purple-200 dark:border-purple-900 bg-white dark:bg-gray-950 text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-purple-700 dark:text-purple-200 mb-1">
-                System prompt
-              </label>
-              <textarea
-                value={promptForm.systemPrompt}
-                onChange={(event) =>
-                  setPromptForm((prev) => ({ ...prev, systemPrompt: event.target.value }))
-                }
-                rows={3}
-                placeholder="You are a helpful TA who offers hints without giving away the answer."
-                className="w-full px-3 py-2 rounded-lg border border-purple-200 dark:border-purple-900 bg-white dark:bg-gray-950 text-sm"
-              />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-purple-700 dark:text-purple-200 mb-1">
-                  Temperature (optional)
-                </label>
-                <input
-                  value={promptForm.temperature}
-                  onChange={(event) =>
-                    setPromptForm((prev) => ({ ...prev, temperature: event.target.value }))
-                  }
-                  placeholder="0.2"
-                  className="w-full px-3 py-2 rounded-lg border border-purple-200 dark:border-purple-900 bg-white dark:bg-gray-950 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-purple-700 dark:text-purple-200 mb-1">
-                  Top P (optional)
-                </label>
-                <input
-                  value={promptForm.topP}
-                  onChange={(event) =>
-                    setPromptForm((prev) => ({ ...prev, topP: event.target.value }))
-                  }
-                  placeholder="0.9"
-                  className="w-full px-3 py-2 rounded-lg border border-purple-200 dark:border-purple-900 bg-white dark:bg-gray-950 text-sm"
-                />
-              </div>
-            </div>
-            {promptError && <p className="text-xs text-rose-500">{promptError}</p>}
-            <button
-              type="button"
-              onClick={handleCreatePrompt}
-              disabled={creatingPrompt}
-              className="w-full px-4 py-2 rounded-lg text-white font-semibold bg-gradient-to-r from-purple-600 to-pink-600 disabled:opacity-60"
-            >
-              {creatingPrompt ? 'Saving…' : 'Create prompt'}
-            </button>
-          </div>
-        )}
       </div>
 
       <input
