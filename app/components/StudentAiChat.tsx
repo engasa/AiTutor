@@ -345,9 +345,18 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
             </button>
           ))}
         </div>
-        <div className="text-[10px] uppercase tracking-wide text-gray-400">
+        <button
+          type="button"
+          onClick={onAdjustKnowledgeLevel}
+          className={`ml-auto inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-wide transition
+            ${knowledgeLevel
+              ? 'border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
+              : 'border-amber-300 dark:border-amber-800 bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-900'}
+          `}
+          aria-label={knowledgeLevel ? 'Adjust knowledge level' : 'Set your knowledge level'}
+        >
           {knowledgeLevel ? `Level: ${titleCase(knowledgeLevel)}` : 'Set your level'}
-        </div>
+        </button>
       </div>
 
       {activeTab === 'teach' && (
@@ -443,14 +452,7 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
         Set your knowledge level to start chatting with your study buddy.
       </div>
     )}
-    <div className="flex justify-end">
-      <button
-        onClick={onAdjustKnowledgeLevel}
-        className="text-xs font-semibold text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
-      >
-        {knowledgeLevel ? 'Adjust level' : 'Set level'}
-      </button>
-    </div>
+    
   </div>
     </aside>
   );
