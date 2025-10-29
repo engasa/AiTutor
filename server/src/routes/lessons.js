@@ -2,7 +2,7 @@ import express from 'express';
 import { prisma } from '../config/database.js';
 import { requireRole } from '../middleware/auth.js';
 import { mapLesson, mapProgressData } from '../utils/mappers.js';
-import { calculateLessonProgress } from '../services/progressCalculation.js';
+import { calculateLessonProgress, calculateMultiLessonProgress } from '../services/progressCalculation.js';
 
 const router = express.Router();
 
@@ -25,17 +25,18 @@ router.get('/modules/:moduleId/lessons', async (req, res) => {
       orderBy: { position: 'asc' },
     });
 
-    // For students, add progress to each lesson
+    // For students, add progress to each lesson using batch calculation (N+1 fix)
     if (authUser && authUser.role === 'STUDENT') {
-      const lessonsWithProgress = await Promise.all(
-        lessons.map(async (lesson) => {
-          const progress = await calculateLessonProgress(lesson.id, authUser.id);
-          return {
-            ...mapLesson(lesson),
-            progress: mapProgressData(progress),
-          };
-        }),
-      );
+      const lessonIds = lessons.map((l) => l.id);
+      const progressMap = await calculateMultiLessonProgress(lessonIds, authUser.id);
+
+      const lessonsWithProgress = lessons.map((lesson) => {
+        const progress = progressMap.get(lesson.id) || { completed: 0, total: 0, percentage: 0 };
+        return {
+          ...mapLesson(lesson),
+          progress: mapProgressData(progress),
+        };
+      });
       res.json(lessonsWithProgress);
     } else {
       res.json(lessons.map(mapLesson));

@@ -2,7 +2,7 @@ import express from 'express';
 import { prisma } from '../config/database.js';
 import { requireRole } from '../middleware/auth.js';
 import { mapModule, mapProgressData } from '../utils/mappers.js';
-import { calculateModuleProgress } from '../services/progressCalculation.js';
+import { calculateModuleProgress, calculateMultiModuleProgress } from '../services/progressCalculation.js';
 
 const router = express.Router();
 
@@ -25,17 +25,18 @@ router.get('/courses/:courseId/modules', async (req, res) => {
       orderBy: { position: 'asc' },
     });
 
-    // For students, add progress to each module
+    // For students, add progress to each module using batch calculation (N+1 fix)
     if (authUser && authUser.role === 'STUDENT') {
-      const modulesWithProgress = await Promise.all(
-        modules.map(async (module) => {
-          const progress = await calculateModuleProgress(module.id, authUser.id);
-          return {
-            ...mapModule(module),
-            progress: mapProgressData(progress),
-          };
-        }),
-      );
+      const moduleIds = modules.map((m) => m.id);
+      const progressMap = await calculateMultiModuleProgress(moduleIds, authUser.id);
+
+      const modulesWithProgress = modules.map((module) => {
+        const progress = progressMap.get(module.id) || { completed: 0, total: 0, percentage: 0 };
+        return {
+          ...mapModule(module),
+          progress: mapProgressData(progress),
+        };
+      });
       res.json(modulesWithProgress);
     } else {
       res.json(modules.map(mapModule));

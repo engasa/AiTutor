@@ -1,6 +1,82 @@
 import { prisma } from '../config/database.js';
 
 /**
+ * Calculate progress for multiple courses in a single batch query
+ * This is much more efficient than calling calculateCourseProgress repeatedly
+ */
+export async function calculateMultiCourseProgress(courseIds, userId) {
+  if (!courseIds || courseIds.length === 0 || !userId) {
+    return new Map();
+  }
+
+  try {
+    // Get all published activities grouped by course
+    const activities = await prisma.activity.findMany({
+      where: {
+        lesson: {
+          isPublished: true,
+          module: {
+            isPublished: true,
+            courseOfferingId: { in: courseIds },
+          },
+        },
+      },
+      select: {
+        id: true,
+        lesson: {
+          select: {
+            module: {
+              select: { courseOfferingId: true },
+            },
+          },
+        },
+      },
+    });
+
+    // Group activities by course
+    const activitiesByCourse = new Map();
+    for (const activity of activities) {
+      const courseId = activity.lesson.module.courseOfferingId;
+      if (!activitiesByCourse.has(courseId)) {
+        activitiesByCourse.set(courseId, []);
+      }
+      activitiesByCourse.get(courseId).push(activity.id);
+    }
+
+    // Get all activity IDs
+    const allActivityIds = activities.map((a) => a.id);
+
+    // Batch fetch completion statuses for all activities
+    const completionMap = await getCompletionCountsByActivity(allActivityIds, userId);
+
+    // Calculate progress for each course
+    const progressByCourse = new Map();
+    for (const courseId of courseIds) {
+      const activityIds = activitiesByCourse.get(courseId) || [];
+      const totalActivities = activityIds.length;
+
+      if (totalActivities === 0) {
+        progressByCourse.set(courseId, { completed: 0, total: 0, percentage: 0 });
+        continue;
+      }
+
+      const completedCount = activityIds.filter((actId) => completionMap.get(actId) === true).length;
+
+      progressByCourse.set(courseId, {
+        completed: completedCount,
+        total: totalActivities,
+        percentage: Math.round((completedCount / totalActivities) * 100),
+      });
+    }
+
+    return progressByCourse;
+  } catch (error) {
+    console.error('Error calculating multi-course progress:', error);
+    return new Map();
+  }
+}
+
+/**
  * Calculate progress for a course based on correct submissions
  * Progress = (# activities with correct latest submission) / (# published activities)
  * Only counts activities in published lessons in published modules
@@ -10,39 +86,76 @@ export async function calculateCourseProgress(courseId, userId) {
     return { completed: 0, total: 0, percentage: 0 };
   }
 
+  const progressMap = await calculateMultiCourseProgress([courseId], userId);
+  return progressMap.get(courseId) || { completed: 0, total: 0, percentage: 0 };
+}
+
+/**
+ * Calculate progress for multiple modules in a single batch query
+ * This is much more efficient than calling calculateModuleProgress repeatedly
+ */
+export async function calculateMultiModuleProgress(moduleIds, userId) {
+  if (!moduleIds || moduleIds.length === 0 || !userId) {
+    return new Map();
+  }
+
   try {
-    // Find all published activity IDs in this course
+    // Get all published activities grouped by module
     const activities = await prisma.activity.findMany({
       where: {
         lesson: {
           isPublished: true,
-          module: {
-            isPublished: true,
-            courseOfferingId: courseId,
-          },
+          moduleId: { in: moduleIds },
         },
       },
-      select: { id: true },
+      select: {
+        id: true,
+        lesson: {
+          select: { moduleId: true },
+        },
+      },
     });
 
-    const activityIds = activities.map((a) => a.id);
-    const totalActivities = activityIds.length;
-
-    if (totalActivities === 0) {
-      return { completed: 0, total: 0, percentage: 0 };
+    // Group activities by module
+    const activitiesByModule = new Map();
+    for (const activity of activities) {
+      const moduleId = activity.lesson.moduleId;
+      if (!activitiesByModule.has(moduleId)) {
+        activitiesByModule.set(moduleId, []);
+      }
+      activitiesByModule.get(moduleId).push(activity.id);
     }
 
-    // Get completion count
-    const completedCount = await countCompletedActivities(activityIds, userId);
+    // Get all activity IDs
+    const allActivityIds = activities.map((a) => a.id);
 
-    return {
-      completed: completedCount,
-      total: totalActivities,
-      percentage: Math.round((completedCount / totalActivities) * 100),
-    };
+    // Batch fetch completion statuses for all activities
+    const completionMap = await getCompletionCountsByActivity(allActivityIds, userId);
+
+    // Calculate progress for each module
+    const progressByModule = new Map();
+    for (const moduleId of moduleIds) {
+      const activityIds = activitiesByModule.get(moduleId) || [];
+      const totalActivities = activityIds.length;
+
+      if (totalActivities === 0) {
+        progressByModule.set(moduleId, { completed: 0, total: 0, percentage: 0 });
+        continue;
+      }
+
+      const completedCount = activityIds.filter((actId) => completionMap.get(actId) === true).length;
+
+      progressByModule.set(moduleId, {
+        completed: completedCount,
+        total: totalActivities,
+        percentage: Math.round((completedCount / totalActivities) * 100),
+      });
+    }
+
+    return progressByModule;
   } catch (error) {
-    console.error('Error calculating course progress:', error);
-    return { completed: 0, total: 0, percentage: 0 };
+    console.error('Error calculating multi-module progress:', error);
+    return new Map();
   }
 }
 
@@ -55,36 +168,71 @@ export async function calculateModuleProgress(moduleId, userId) {
     return { completed: 0, total: 0, percentage: 0 };
   }
 
+  const progressMap = await calculateMultiModuleProgress([moduleId], userId);
+  return progressMap.get(moduleId) || { completed: 0, total: 0, percentage: 0 };
+}
+
+/**
+ * Calculate progress for multiple lessons in a single batch query
+ * This is much more efficient than calling calculateLessonProgress repeatedly
+ */
+export async function calculateMultiLessonProgress(lessonIds, userId) {
+  if (!lessonIds || lessonIds.length === 0 || !userId) {
+    return new Map();
+  }
+
   try {
-    // Find all published activity IDs in this module
+    // Get all activities grouped by lesson
     const activities = await prisma.activity.findMany({
       where: {
-        lesson: {
-          isPublished: true,
-          moduleId,
-        },
+        lessonId: { in: lessonIds },
       },
-      select: { id: true },
+      select: {
+        id: true,
+        lessonId: true,
+      },
     });
 
-    const activityIds = activities.map((a) => a.id);
-    const totalActivities = activityIds.length;
-
-    if (totalActivities === 0) {
-      return { completed: 0, total: 0, percentage: 0 };
+    // Group activities by lesson
+    const activitiesByLesson = new Map();
+    for (const activity of activities) {
+      const lessonId = activity.lessonId;
+      if (!activitiesByLesson.has(lessonId)) {
+        activitiesByLesson.set(lessonId, []);
+      }
+      activitiesByLesson.get(lessonId).push(activity.id);
     }
 
-    // Get completion count
-    const completedCount = await countCompletedActivities(activityIds, userId);
+    // Get all activity IDs
+    const allActivityIds = activities.map((a) => a.id);
 
-    return {
-      completed: completedCount,
-      total: totalActivities,
-      percentage: Math.round((completedCount / totalActivities) * 100),
-    };
+    // Batch fetch completion statuses for all activities
+    const completionMap = await getCompletionCountsByActivity(allActivityIds, userId);
+
+    // Calculate progress for each lesson
+    const progressByLesson = new Map();
+    for (const lessonId of lessonIds) {
+      const activityIds = activitiesByLesson.get(lessonId) || [];
+      const totalActivities = activityIds.length;
+
+      if (totalActivities === 0) {
+        progressByLesson.set(lessonId, { completed: 0, total: 0, percentage: 0 });
+        continue;
+      }
+
+      const completedCount = activityIds.filter((actId) => completionMap.get(actId) === true).length;
+
+      progressByLesson.set(lessonId, {
+        completed: completedCount,
+        total: totalActivities,
+        percentage: Math.round((completedCount / totalActivities) * 100),
+      });
+    }
+
+    return progressByLesson;
   } catch (error) {
-    console.error('Error calculating module progress:', error);
-    return { completed: 0, total: 0, percentage: 0 };
+    console.error('Error calculating multi-lesson progress:', error);
+    return new Map();
   }
 }
 
@@ -97,31 +245,42 @@ export async function calculateLessonProgress(lessonId, userId) {
     return { completed: 0, total: 0, percentage: 0 };
   }
 
+  const progressMap = await calculateMultiLessonProgress([lessonId], userId);
+  return progressMap.get(lessonId) || { completed: 0, total: 0, percentage: 0 };
+}
+
+/**
+ * Get completion status for each activity (optimized batch version)
+ * Returns map of activityId => true (completed) or false (not completed)
+ * Uses a more efficient query with window functions to find latest submissions
+ */
+async function getCompletionCountsByActivity(activityIds, userId) {
+  if (!activityIds || activityIds.length === 0 || !userId) {
+    return new Map();
+  }
+
   try {
-    // Find all activity IDs in this lesson
-    const activities = await prisma.activity.findMany({
-      where: { lessonId },
-      select: { id: true },
-    });
+    // Use raw SQL with window function to efficiently get latest submission per activity
+    // This is much faster than fetching all submissions and filtering in JS
+    const latestSubmissions = await prisma.$queryRaw`
+      SELECT DISTINCT ON (activity_id) 
+        activity_id as "activityId",
+        is_correct as "isCorrect"
+      FROM "Submission"
+      WHERE user_id = ${userId}
+        AND activity_id = ANY(${activityIds}::int[])
+      ORDER BY activity_id, attempt_number DESC
+    `;
 
-    const activityIds = activities.map((a) => a.id);
-    const totalActivities = activityIds.length;
-
-    if (totalActivities === 0) {
-      return { completed: 0, total: 0, percentage: 0 };
+    const completionMap = new Map();
+    for (const sub of latestSubmissions) {
+      completionMap.set(sub.activityId, sub.isCorrect === true);
     }
 
-    // Get completion count
-    const completedCount = await countCompletedActivities(activityIds, userId);
-
-    return {
-      completed: completedCount,
-      total: totalActivities,
-      percentage: Math.round((completedCount / totalActivities) * 100),
-    };
+    return completionMap;
   } catch (error) {
-    console.error('Error calculating lesson progress:', error);
-    return { completed: 0, total: 0, percentage: 0 };
+    console.error('Error getting completion counts by activity:', error);
+    return new Map();
   }
 }
 
@@ -135,33 +294,26 @@ export async function getActivityCompletionStatuses(activityIds, userId) {
   }
 
   try {
-    // Fetch all submissions for these activities by this user
-    // Order by attemptNumber descending to get latest first
-    const submissions = await prisma.submission.findMany({
-      where: {
-        userId,
-        activityId: { in: activityIds },
-      },
-      orderBy: [{ activityId: 'asc' }, { attemptNumber: 'desc' }],
-      select: {
-        activityId: true,
-        isCorrect: true,
-        attemptNumber: true,
-      },
-    });
+    // Use raw SQL with window function for better performance
+    const latestSubmissions = await prisma.$queryRaw`
+      SELECT DISTINCT ON (activity_id) 
+        activity_id as "activityId",
+        is_correct as "isCorrect"
+      FROM "Submission"
+      WHERE user_id = ${userId}
+        AND activity_id = ANY(${activityIds}::int[])
+      ORDER BY activity_id, attempt_number DESC
+    `;
 
-    // Group by activityId and take first (latest due to ordering)
-    const latestByActivity = new Map();
-    for (const sub of submissions) {
-      if (!latestByActivity.has(sub.activityId)) {
-        latestByActivity.set(sub.activityId, sub);
-      }
+    const submissionMap = new Map();
+    for (const sub of latestSubmissions) {
+      submissionMap.set(sub.activityId, sub);
     }
 
     // Build status map
     const statusMap = new Map();
     for (const activityId of activityIds) {
-      const latestSubmission = latestByActivity.get(activityId);
+      const latestSubmission = submissionMap.get(activityId);
       if (!latestSubmission) {
         statusMap.set(activityId, 'not_attempted');
       } else if (latestSubmission.isCorrect === true) {
@@ -175,48 +327,5 @@ export async function getActivityCompletionStatuses(activityIds, userId) {
   } catch (error) {
     console.error('Error getting activity completion statuses:', error);
     return new Map();
-  }
-}
-
-/**
- * Helper: Count how many activities have correct latest submissions
- * @private
- */
-async function countCompletedActivities(activityIds, userId) {
-  if (!activityIds || activityIds.length === 0) {
-    return 0;
-  }
-
-  try {
-    // Fetch all submissions for these activities by this user
-    const submissions = await prisma.submission.findMany({
-      where: {
-        userId,
-        activityId: { in: activityIds },
-      },
-      orderBy: [{ activityId: 'asc' }, { attemptNumber: 'desc' }],
-      select: {
-        activityId: true,
-        isCorrect: true,
-      },
-    });
-
-    // Group by activityId and take first (latest due to ordering)
-    const latestByActivity = new Map();
-    for (const sub of submissions) {
-      if (!latestByActivity.has(sub.activityId)) {
-        latestByActivity.set(sub.activityId, sub);
-      }
-    }
-
-    // Count correct ones
-    const completedCount = Array.from(latestByActivity.values()).filter(
-      (sub) => sub.isCorrect === true,
-    ).length;
-
-    return completedCount;
-  } catch (error) {
-    console.error('Error counting completed activities:', error);
-    return 0;
   }
 }

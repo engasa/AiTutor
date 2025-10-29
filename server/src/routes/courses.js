@@ -3,7 +3,7 @@ import { prisma } from '../config/database.js';
 import { requireRole } from '../middleware/auth.js';
 import { mapCourseOffering, mapProgressData } from '../utils/mappers.js';
 import { cloneCourseContent, cloneLessonsFromOffering } from '../services/courseCloning.js';
-import { calculateCourseProgress } from '../services/progressCalculation.js';
+import { calculateCourseProgress, calculateMultiCourseProgress } from '../services/progressCalculation.js';
 import { findEduAiCourseById, listEduAiCourses } from '../services/eduaiClient.js';
 import { syncExternalCourseTopics } from '../services/topicSync.js';
 
@@ -61,16 +61,17 @@ router.get('/courses', async (req, res) => {
         orderBy: { createdAt: 'desc' },
       });
 
-      // Calculate progress for each course
-      const coursesWithProgress = await Promise.all(
-        courses.map(async (course) => {
-          const progress = await calculateCourseProgress(course.id, authUser.id);
-          return {
-            ...mapCourseOffering(course),
-            progress: mapProgressData(progress),
-          };
-        }),
-      );
+      // Calculate progress for all courses in a single batch query (N+1 fix)
+      const courseIds = courses.map((c) => c.id);
+      const progressMap = await calculateMultiCourseProgress(courseIds, authUser.id);
+
+      const coursesWithProgress = courses.map((course) => {
+        const progress = progressMap.get(course.id) || { completed: 0, total: 0, percentage: 0 };
+        return {
+          ...mapCourseOffering(course),
+          progress: mapProgressData(progress),
+        };
+      });
 
       res.json(coursesWithProgress);
     }

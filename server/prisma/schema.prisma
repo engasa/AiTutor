@@ -79,6 +79,7 @@ model Topic {
   secondaryActivities ActivitySecondaryTopic[]
 
   @@unique([courseOfferingId, name])
+  @@index([courseOfferingId])
 }
 
 model CourseInstructor {
@@ -90,6 +91,7 @@ model CourseInstructor {
   assignedAt       DateTime        @default(now())
 
   @@id([courseOfferingId, userId])
+  @@index([userId])
 }
 
 model CourseEnrollment {
@@ -100,6 +102,7 @@ model CourseEnrollment {
   enrolledAt       DateTime       @default(now())
 
   @@id([courseOfferingId, userId])
+  @@index([userId])
 }
 
 model Module {
@@ -114,6 +117,9 @@ model Module {
   courseOfferingId Int
 
   lessons Lesson[]
+
+  @@index([courseOfferingId])
+  @@index([courseOfferingId, isPublished])
 }
 
 model Lesson {
@@ -128,6 +134,9 @@ model Lesson {
   moduleId    Int
 
   activities Activity[]
+
+  @@index([moduleId])
+  @@index([moduleId, isPublished])
 }
 
 model Activity {
@@ -151,6 +160,8 @@ model Activity {
   enableGuideMode Boolean        @default(true)
 
   submissions Submission[]
+
+  @@index([lessonId])
 }
 
 model Submission {
@@ -165,6 +176,9 @@ model Submission {
   userId       Int
   activity     Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
   activityId   Int
+
+  @@index([userId, activityId])
+  @@index([activityId, attemptNumber(sort: Desc)])
 }
 
 model ActivitySecondaryTopic {
