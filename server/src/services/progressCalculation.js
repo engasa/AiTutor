@@ -250,6 +250,41 @@ export async function calculateLessonProgress(lessonId, userId) {
 }
 
 /**
+ * Fetch latest submissions for given activities using optimized SQL
+ * @private
+ */
+async function fetchLatestSubmissions(activityIds, userId) {
+  // Validate inputs to prevent SQL injection
+  if (!Array.isArray(activityIds) || activityIds.length === 0) {
+    return [];
+  }
+  
+  if (!Number.isInteger(userId) || userId <= 0) {
+    return [];
+  }
+
+  // Ensure all activityIds are integers
+  const validActivityIds = activityIds.filter((id) => Number.isInteger(id) && id > 0);
+  if (validActivityIds.length === 0) {
+    return [];
+  }
+
+  // Use raw SQL with window function to efficiently get latest submission per activity
+  // This is much faster than fetching all submissions and filtering in JS
+  const latestSubmissions = await prisma.$queryRaw`
+    SELECT DISTINCT ON (activity_id) 
+      activity_id as "activityId",
+      is_correct as "isCorrect"
+    FROM "Submission"
+    WHERE user_id = ${userId}
+      AND activity_id = ANY(${validActivityIds}::int[])
+    ORDER BY activity_id, attempt_number DESC
+  `;
+
+  return latestSubmissions;
+}
+
+/**
  * Get completion status for each activity (optimized batch version)
  * Returns map of activityId => true (completed) or false (not completed)
  * Uses a more efficient query with window functions to find latest submissions
@@ -260,17 +295,7 @@ async function getCompletionCountsByActivity(activityIds, userId) {
   }
 
   try {
-    // Use raw SQL with window function to efficiently get latest submission per activity
-    // This is much faster than fetching all submissions and filtering in JS
-    const latestSubmissions = await prisma.$queryRaw`
-      SELECT DISTINCT ON (activity_id) 
-        activity_id as "activityId",
-        is_correct as "isCorrect"
-      FROM "Submission"
-      WHERE user_id = ${userId}
-        AND activity_id = ANY(${activityIds}::int[])
-      ORDER BY activity_id, attempt_number DESC
-    `;
+    const latestSubmissions = await fetchLatestSubmissions(activityIds, userId);
 
     const completionMap = new Map();
     for (const sub of latestSubmissions) {
@@ -294,16 +319,7 @@ export async function getActivityCompletionStatuses(activityIds, userId) {
   }
 
   try {
-    // Use raw SQL with window function for better performance
-    const latestSubmissions = await prisma.$queryRaw`
-      SELECT DISTINCT ON (activity_id) 
-        activity_id as "activityId",
-        is_correct as "isCorrect"
-      FROM "Submission"
-      WHERE user_id = ${userId}
-        AND activity_id = ANY(${activityIds}::int[])
-      ORDER BY activity_id, attempt_number DESC
-    `;
+    const latestSubmissions = await fetchLatestSubmissions(activityIds, userId);
 
     const submissionMap = new Map();
     for (const sub of latestSubmissions) {
