@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react';
-import { useState } from 'react';
+import { useOptimistic, useState } from 'react';
 import { useNavigate } from 'react-router';
 import Nav from '../components/Nav';
 import { PublishStatusButton } from '../components/PublishStatusButton';
@@ -29,6 +29,11 @@ export default function InstructorHome({ loaderData }: Route.ComponentProps) {
   const [loadingEduAiCourses, setLoadingEduAiCourses] = useState(false);
   const [importingExternalId, setImportingExternalId] = useState<string | null>(null);
   const [eduAiError, setEduAiError] = useState<string | null>(null);
+
+  const [oCourses, addCourseOpt] = useOptimistic(
+    courses,
+    (state, patch: (items: Course[]) => Course[]) => patch(state),
+  );
 
   const parseErrorMessage = (error: unknown) => {
     if (error instanceof Error) {
@@ -93,11 +98,11 @@ export default function InstructorHome({ loaderData }: Route.ComponentProps) {
   };
 
   const togglePublish = async (courseId: number, currentlyPublished: boolean) => {
-    // Optimistic update
-    setCourses((prev) =>
-      prev.map((course) =>
-        course.id === courseId ? { ...course, isPublished: !currentlyPublished } : course
-      )
+    // Optimistic update via useOptimistic
+    addCourseOpt((items) =>
+      items.map((course) =>
+        course.id === courseId ? { ...course, isPublished: !currentlyPublished } : course,
+      ),
     );
     setPublishingId(courseId);
 
@@ -111,11 +116,11 @@ export default function InstructorHome({ loaderData }: Route.ComponentProps) {
       );
     } catch (error) {
       console.error('Failed to toggle publish status', error);
-      // Rollback on error
+      // Rollback on error to clear optimistic change
       setCourses((prev) =>
         prev.map((course) =>
-          course.id === courseId ? { ...course, isPublished: currentlyPublished } : course
-        )
+          course.id === courseId ? { ...course, isPublished: currentlyPublished } : course,
+        ),
       );
     } finally {
       setPublishingId((current) => (current === courseId ? null : current));
@@ -324,11 +329,11 @@ export default function InstructorHome({ loaderData }: Route.ComponentProps) {
 
           {loading ? (
             <div className="text-gray-500">Loading…</div>
-          ) : courses.length === 0 ? (
+          ) : oCourses.length === 0 ? (
             <div className="text-gray-500">No courses yet. Create one to get started.</div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {courses.map((c) => (
+              {oCourses.map((c) => (
                 <div
                   key={c.id}
                   role="button"
