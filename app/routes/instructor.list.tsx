@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useOptimistic, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import AddActivityPanel from '../components/AddActivityPanel';
 import ActivityDetailsCard from '../components/ActivityDetailsCard';
@@ -84,6 +84,10 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
   const numericLessonId = lessonId ? Number(lessonId) : null;
   const { course, module, lesson, activities: initialActivities } = loaderData;
   const [activities, setActivities] = useState<Activity[]>(initialActivities);
+  const [oActivities, addActivityOpt] = useOptimistic(
+    activities,
+    (state, patch: (items: Activity[]) => Activity[]) => patch(state),
+  );
 
   const [updatingTopicsFor, setUpdatingTopicsFor] = useState<number | null>(null);
   const [updatingModesFor, setUpdatingModesFor] = useState<number | null>(null);
@@ -261,7 +265,7 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
     mode: 'teach' | 'guide',
     enabled: boolean
   ) => {
-    const activity = activities.find(a => a.id === activityId);
+    const activity = oActivities.find(a => a.id === activityId);
     if (!activity) return;
 
     const newTeach = mode === 'teach' ? enabled : activity.enableTeachMode;
@@ -272,14 +276,15 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
       return;
     }
 
-    const previousTeach = activity.enableTeachMode;
-    const previousGuide = activity.enableGuideMode;
-
-    setActivities(prev => prev.map(a =>
-      a.id === activityId
-        ? { ...a, enableTeachMode: newTeach, enableGuideMode: newGuide }
-        : a
-    ));
+    // previous state is kept in base; optimistic view handles immediate UI
+    // Optimistic UI via useOptimistic
+    addActivityOpt(items =>
+      items.map(a =>
+        a.id === activityId
+          ? { ...a, enableTeachMode: newTeach, enableGuideMode: newGuide }
+          : a,
+      ),
+    );
 
     beginModeUpdate(activityId);
     try {
@@ -290,11 +295,7 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
       setActivities(prev => prev.map(a => a.id === activityId ? updated : a));
     } catch (error) {
       console.error('Failed to update AI modes', error);
-      setActivities(prev => prev.map(a =>
-        a.id === activityId
-          ? { ...a, enableTeachMode: previousTeach, enableGuideMode: previousGuide }
-          : a
-      ));
+      // Base state remains unchanged; optimistic view will clear on next render
     } finally {
       endModeUpdate(activityId);
     }
@@ -308,13 +309,11 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
     const topic = topics.find((entry) => entry.id === newTopicId);
     if (!topic) return;
 
-    const targetActivity = activities.find((activity) => activity.id === activityId);
+    const targetActivity = oActivities.find((activity) => activity.id === activityId);
     if (!targetActivity) return;
-    const previousMain = targetActivity.mainTopic;
-    const previousSecondary = targetActivity.secondaryTopics;
-
-    setActivities((prev) =>
-      prev.map((activity) =>
+    // Optimistic UI via useOptimistic
+    addActivityOpt((items) =>
+      items.map((activity) =>
         activity.id === activityId
           ? {
               ...activity,
@@ -341,17 +340,7 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
       );
     } catch (error) {
       console.error('Failed to update main topic', error);
-      setActivities((prev) =>
-        prev.map((activity) =>
-          activity.id === activityId
-            ? {
-                ...activity,
-                mainTopic: previousMain,
-                secondaryTopics: previousSecondary,
-              }
-            : activity,
-        ),
-      );
+      // Base state remains unchanged; optimistic view will clear on next render
     } finally {
       endTopicUpdate(activityId);
     }
@@ -365,16 +354,16 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
     const topic = topics.find((entry) => entry.id === topicId);
     if (!topic) return;
 
-    const targetActivity = activities.find((activity) => activity.id === activityId);
+    const targetActivity = oActivities.find((activity) => activity.id === activityId);
     if (!targetActivity) return;
-    const previousSecondary = targetActivity.secondaryTopics;
 
     const nextSecondary = checked
-      ? [...previousSecondary.filter((item) => item.id !== topicId), topic]
-      : previousSecondary.filter((item) => item.id !== topicId);
+      ? [...targetActivity.secondaryTopics.filter((item) => item.id !== topicId), topic]
+      : targetActivity.secondaryTopics.filter((item) => item.id !== topicId);
 
-    setActivities((prev) =>
-      prev.map((activity) =>
+    // Optimistic UI via useOptimistic
+    addActivityOpt((items) =>
+      items.map((activity) =>
         activity.id === activityId
           ? {
               ...activity,
@@ -402,16 +391,7 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
       );
     } catch (error) {
       console.error('Failed to update secondary topics', error);
-      setActivities((prev) =>
-        prev.map((activity) =>
-          activity.id === activityId
-            ? {
-                ...activity,
-                secondaryTopics: previousSecondary,
-              }
-            : activity,
-        ),
-      );
+      // Base state remains unchanged; optimistic view will clear on next render
     } finally {
       endTopicUpdate(activityId);
     }
@@ -461,11 +441,11 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
               <div className="lg:col-span-2 space-y-4">
               <div className="p-5 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
                 <div className="font-semibold mb-2">Activities</div>
-                {activities.length === 0 ? (
+                {oActivities.length === 0 ? (
                   <div className="text-gray-500">No activities yet.</div>
                 ) : (
                   <ul className="space-y-2">
-                    {activities.map((activity, i) => {
+                    {oActivities.map((activity, i) => {
                       const isUpdatingTopics = updatingTopicsFor === activity.id;
                       const isUpdatingModes = updatingModesFor === activity.id;
                       const mainTopicId = activity.mainTopic?.id ?? '';
