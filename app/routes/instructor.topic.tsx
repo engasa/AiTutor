@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react';
-import { useRef, useState } from 'react';
+import { useOptimistic, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import Nav from '../components/Nav';
 import {
@@ -55,6 +55,11 @@ export default function InstructorModuleLessons({ loaderData }: Route.ComponentP
   const [publishingId, setPublishingId] = useState<number | null>(null);
   const sourceModulesRequestIdRef = useRef(0);
   const sourceLessonsRequestIdRef = useRef(0);
+
+  const [oLessons, addLessonOpt] = useOptimistic(
+    lessons,
+    (state, patch: (items: Lesson[]) => Lesson[]) => patch(state),
+  );
 
   // Adjust state during render when loader data changes
   const [prevInitialLessons, setPrevInitialLessons] = useState(initialLessons);
@@ -196,9 +201,9 @@ export default function InstructorModuleLessons({ loaderData }: Route.ComponentP
   };
 
   const togglePublish = async (lessonId: number, currentlyPublished: boolean) => {
-    // Optimistic update
-    setLessons((prev) =>
-      prev.map((l) => (l.id === lessonId ? { ...l, isPublished: !currentlyPublished } : l))
+    // Optimistic update via useOptimistic
+    addLessonOpt((items) =>
+      items.map((l) => (l.id === lessonId ? { ...l, isPublished: !currentlyPublished } : l)),
     );
     setPublishingId(lessonId);
 
@@ -210,9 +215,9 @@ export default function InstructorModuleLessons({ loaderData }: Route.ComponentP
       setLessons((prev) => prev.map((l) => (l.id === lessonId ? updated : l)));
     } catch (error) {
       console.error('Failed to toggle publish status', error);
-      // Rollback on error
+      // Rollback on error to clear optimistic change
       setLessons((prev) =>
-        prev.map((l) => (l.id === lessonId ? { ...l, isPublished: currentlyPublished } : l))
+        prev.map((l) => (l.id === lessonId ? { ...l, isPublished: currentlyPublished } : l)),
       );
     } finally {
       setPublishingId((current) => (current === lessonId ? null : current));
@@ -383,11 +388,11 @@ export default function InstructorModuleLessons({ loaderData }: Route.ComponentP
             </button>
           </form>
 
-          {lessons.length === 0 ? (
+          {oLessons.length === 0 ? (
             <div className="text-gray-500">No lessons yet.</div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {lessons.map((lesson) => {
+              {oLessons.map((lesson) => {
                 const canPublish = course?.isPublished && module?.isPublished;
                 const blocked = !lesson.isPublished && !canPublish;
                 const parentName = !course?.isPublished

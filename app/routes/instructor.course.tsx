@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react';
-import { useRef, useState } from 'react';
+import { useOptimistic, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import Nav from '../components/Nav';
 import {
@@ -49,6 +49,11 @@ export default function InstructorCourseModules({ loaderData }: Route.ComponentP
   const [importing, setImporting] = useState(false);
   const [publishingId, setPublishingId] = useState<number | null>(null);
   const modulesRequestIdRef = useRef(0);
+
+  const [oModules, addModuleOpt] = useOptimistic(
+    modules,
+    (state, patch: (items: Module[]) => Module[]) => patch(state),
+  );
 
   // Adjust state during render when loader data changes
   const [prevInitialModules, setPrevInitialModules] = useState(initialModules);
@@ -155,9 +160,9 @@ export default function InstructorCourseModules({ loaderData }: Route.ComponentP
 
 
   const togglePublish = async (moduleId: number, currentlyPublished: boolean) => {
-    // Optimistic update
-    setModules((prev) =>
-      prev.map((m) => (m.id === moduleId ? { ...m, isPublished: !currentlyPublished } : m))
+    // Optimistic update via useOptimistic
+    addModuleOpt((items) =>
+      items.map((m) => (m.id === moduleId ? { ...m, isPublished: !currentlyPublished } : m)),
     );
     setPublishingId(moduleId);
 
@@ -169,9 +174,9 @@ export default function InstructorCourseModules({ loaderData }: Route.ComponentP
       setModules((prev) => prev.map((m) => (m.id === moduleId ? updated : m)));
     } catch (error) {
       console.error('Failed to toggle publish status', error);
-      // Rollback on error
+      // Rollback on error to clear optimistic change
       setModules((prev) =>
-        prev.map((m) => (m.id === moduleId ? { ...m, isPublished: currentlyPublished } : m))
+        prev.map((m) => (m.id === moduleId ? { ...m, isPublished: currentlyPublished } : m)),
       );
     } finally {
       setPublishingId((current) => (current === moduleId ? null : current));
@@ -308,11 +313,11 @@ export default function InstructorCourseModules({ loaderData }: Route.ComponentP
             </button>
           </form>
 
-          {modules.length === 0 ? (
+          {oModules.length === 0 ? (
             <div className="text-gray-500">No modules yet.</div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {modules.map((m) => {
+              {oModules.map((m) => {
                 const canPublish = course?.isPublished;
                 const blocked = !m.isPublished && !canPublish;
                 const tooltipMessage = blocked
