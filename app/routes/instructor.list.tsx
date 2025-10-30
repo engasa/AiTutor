@@ -520,6 +520,7 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
 
                           {isEditing ? (
                             <EditActivityPanel
+                              key={activity.id}
                               activity={activity}
                               busy={isSaving}
                               error={editError}

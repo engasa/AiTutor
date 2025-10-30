@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react';
-import { useState, useEffect } from 'react';
+import { useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import Nav from '../components/Nav';
 import {
@@ -53,6 +53,8 @@ export default function InstructorModuleLessons({ loaderData }: Route.ComponentP
   const [selectedLessonIds, setSelectedLessonIds] = useState<Set<number>>(new Set());
   const [importing, setImporting] = useState(false);
   const [publishingId, setPublishingId] = useState<number | null>(null);
+  const sourceModulesRequestIdRef = useRef(0);
+  const sourceLessonsRequestIdRef = useRef(0);
 
   // Adjust state during render when loader data changes
   const [prevInitialLessons, setPrevInitialLessons] = useState(initialLessons);
@@ -86,45 +88,69 @@ export default function InstructorModuleLessons({ loaderData }: Route.ComponentP
       .finally(() => setLoadingSourceCourses(false));
   };
 
-  useEffect(() => {
-    if (selectedSourceCourseId == null) {
-      setSourceModules([]);
-      setSelectedSourceModuleId(null);
-      setSourceLessons([]);
-      setSelectedLessonIds(new Set());
+  const handleSourceCourseSelection = async (nextCourseId: number | null) => {
+    const courseRequestId = ++sourceModulesRequestIdRef.current;
+    ++sourceLessonsRequestIdRef.current;
+
+    setSelectedSourceCourseId(nextCourseId);
+    setSourceModules([]);
+    setSelectedSourceModuleId(null);
+    setSourceLessons([]);
+    setSelectedLessonIds(new Set());
+
+    if (nextCourseId == null) {
+      setLoadingSourceModules(false);
+      setLoadingSourceLessons(false);
       return;
     }
 
     setLoadingSourceModules(true);
-    api
-      .modulesForCourse(selectedSourceCourseId)
-      .then((data: Module[]) => {
-        setSourceModules(data);
-        setSelectedSourceModuleId(null);
-        setSourceLessons([]);
-        setSelectedLessonIds(new Set());
-      })
-      .catch((error) => console.error('Failed to load modules for course', error))
-      .finally(() => setLoadingSourceModules(false));
-  }, [selectedSourceCourseId]);
+    try {
+      const modulesData = await api.modulesForCourse(nextCourseId);
+      if (sourceModulesRequestIdRef.current === courseRequestId) {
+        setSourceModules(modulesData);
+      }
+    } catch (error) {
+      if (sourceModulesRequestIdRef.current === courseRequestId) {
+        console.error('Failed to load modules for course', error);
+        setSourceModules([]);
+      }
+    } finally {
+      if (sourceModulesRequestIdRef.current === courseRequestId) {
+        setLoadingSourceModules(false);
+      }
+    }
+  };
 
-  useEffect(() => {
-    if (selectedSourceModuleId == null) {
-      setSourceLessons([]);
-      setSelectedLessonIds(new Set());
+  const handleSourceModuleSelection = async (nextModuleId: number | null) => {
+    const lessonRequestId = ++sourceLessonsRequestIdRef.current;
+
+    setSelectedSourceModuleId(nextModuleId);
+    setSourceLessons([]);
+    setSelectedLessonIds(new Set());
+
+    if (nextModuleId == null) {
+      setLoadingSourceLessons(false);
       return;
     }
 
     setLoadingSourceLessons(true);
-    api
-      .lessonsForModule(selectedSourceModuleId)
-      .then((data: Lesson[]) => {
-        setSourceLessons(data);
-        setSelectedLessonIds(new Set());
-      })
-      .catch((error) => console.error('Failed to load lessons for module', error))
-      .finally(() => setLoadingSourceLessons(false));
-  }, [selectedSourceModuleId]);
+    try {
+      const lessonData = await api.lessonsForModule(nextModuleId);
+      if (sourceLessonsRequestIdRef.current === lessonRequestId) {
+        setSourceLessons(lessonData);
+      }
+    } catch (error) {
+      if (sourceLessonsRequestIdRef.current === lessonRequestId) {
+        console.error('Failed to load lessons for module', error);
+        setSourceLessons([]);
+      }
+    } finally {
+      if (sourceLessonsRequestIdRef.current === lessonRequestId) {
+        setLoadingSourceLessons(false);
+      }
+    }
+  };
 
   const onCreateLesson = async (event: FormEvent) => {
     event.preventDefault();
@@ -160,10 +186,7 @@ export default function InstructorModuleLessons({ loaderData }: Route.ComponentP
         targetModuleId: numericModuleId,
       });
       setShowImport(false);
-      setSelectedSourceCourseId(null);
-      setSelectedSourceModuleId(null);
-      setSourceLessons([]);
-      setSelectedLessonIds(new Set());
+      await handleSourceCourseSelection(null);
       refreshLessons();
     } catch (error) {
       console.error('Import lessons failed', error);
@@ -232,11 +255,7 @@ export default function InstructorModuleLessons({ loaderData }: Route.ComponentP
                 if (!showImport) {
                   ensureSourceCoursesLoaded();
                 } else {
-                  setSelectedSourceCourseId(null);
-                  setSelectedSourceModuleId(null);
-                  setSourceModules([]);
-                  setSourceLessons([]);
-                  setSelectedLessonIds(new Set());
+                  void handleSourceCourseSelection(null);
                 }
                 setShowImport((prev) => !prev);
               }}
@@ -254,7 +273,7 @@ export default function InstructorModuleLessons({ loaderData }: Route.ComponentP
                   value={selectedSourceCourseId ?? ''}
                   onChange={(e) => {
                     const nextValue = e.target.value ? Number(e.target.value) : null;
-                    setSelectedSourceCourseId(nextValue);
+                    void handleSourceCourseSelection(nextValue);
                   }}
                   className="w-full px-3 py-2 rounded-xl border border-gray-300 dark:border-gray-700 bg-transparent"
                 >
@@ -282,7 +301,7 @@ export default function InstructorModuleLessons({ loaderData }: Route.ComponentP
                     value={selectedSourceModuleId ?? ''}
                     onChange={(e) => {
                       const nextValue = e.target.value ? Number(e.target.value) : null;
-                      setSelectedSourceModuleId(nextValue);
+                    void handleSourceModuleSelection(nextValue);
                     }}
                     className="w-full px-3 py-2 rounded-xl border border-gray-300 dark:border-gray-700 bg-transparent"
                   >

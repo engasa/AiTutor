@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react';
-import { useState, useEffect } from 'react';
+import { useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import Nav from '../components/Nav';
 import {
@@ -48,6 +48,7 @@ export default function InstructorCourseModules({ loaderData }: Route.ComponentP
   const [selectedModuleIds, setSelectedModuleIds] = useState<Set<number>>(new Set());
   const [importing, setImporting] = useState(false);
   const [publishingId, setPublishingId] = useState<number | null>(null);
+  const modulesRequestIdRef = useRef(0);
 
   // Adjust state during render when loader data changes
   const [prevInitialModules, setPrevInitialModules] = useState(initialModules);
@@ -81,23 +82,34 @@ export default function InstructorCourseModules({ loaderData }: Route.ComponentP
       .finally(() => setLoadingSourceCourses(false));
   };
 
-  useEffect(() => {
-    if (selectedSourceCourseId == null) {
-      setSourceModules([]);
-      setSelectedModuleIds(new Set());
+  const handleSourceCourseSelection = async (nextCourseId: number | null) => {
+    const requestId = ++modulesRequestIdRef.current;
+    setSelectedSourceCourseId(nextCourseId);
+    setSourceModules([]);
+    setSelectedModuleIds(new Set());
+
+    if (nextCourseId == null) {
+      setLoadingSourceModules(false);
       return;
     }
 
     setLoadingSourceModules(true);
-    api
-      .modulesForCourse(selectedSourceCourseId)
-      .then((data: Module[]) => {
+    try {
+      const data = await api.modulesForCourse(nextCourseId);
+      if (modulesRequestIdRef.current === requestId) {
         setSourceModules(data);
-        setSelectedModuleIds(new Set());
-      })
-      .catch((error) => console.error('Failed to load modules for course', error))
-      .finally(() => setLoadingSourceModules(false));
-  }, [selectedSourceCourseId]);
+      }
+    } catch (error) {
+      if (modulesRequestIdRef.current === requestId) {
+        console.error('Failed to load modules for course', error);
+        setSourceModules([]);
+      }
+    } finally {
+      if (modulesRequestIdRef.current === requestId) {
+        setLoadingSourceModules(false);
+      }
+    }
+  };
 
   const onCreateModule = async (event: FormEvent) => {
     event.preventDefault();
@@ -132,9 +144,7 @@ export default function InstructorCourseModules({ loaderData }: Route.ComponentP
         moduleIds: Array.from(selectedModuleIds),
       });
       setShowImport(false);
-      setSelectedSourceCourseId(null);
-      setSourceModules([]);
-      setSelectedModuleIds(new Set());
+      await handleSourceCourseSelection(null);
       await refreshModules();
     } catch (error) {
       console.error('Import failed', error);
@@ -193,9 +203,7 @@ export default function InstructorCourseModules({ loaderData }: Route.ComponentP
                   if (!showImport) {
                     ensureSourceCoursesLoaded();
                   } else {
-                    setSelectedSourceCourseId(null);
-                    setSourceModules([]);
-                    setSelectedModuleIds(new Set());
+                    void handleSourceCourseSelection(null);
                   }
                   setShowImport((prev) => !prev);
                 }}
@@ -214,7 +222,7 @@ export default function InstructorCourseModules({ loaderData }: Route.ComponentP
                   value={selectedSourceCourseId ?? ''}
                   onChange={(e) => {
                     const nextValue = e.target.value ? Number(e.target.value) : null;
-                    setSelectedSourceCourseId(nextValue);
+                    void handleSourceCourseSelection(nextValue);
                   }}
                   className="w-full px-3 py-2 rounded-xl border border-gray-300 dark:border-gray-700 bg-transparent"
                 >

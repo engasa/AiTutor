@@ -3,6 +3,7 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useState,
 } from 'react';
 import type { ChangeEvent, FormEvent, KeyboardEvent } from 'react';
@@ -25,7 +26,6 @@ import {
   PromptInputTools,
   type PromptInputMessage,
 } from '~/components/ai-elements/prompt-input';
-import { useMemo } from 'react';
 import api from '../lib/api';
 import type { Activity, AiModel } from '../lib/types';
 
@@ -102,30 +102,20 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
 
   const showTabToggle = availableTabs.length > 1;
 
-  useEffect(() => {
-    setChatState(getInitialChatState());
-    setActiveTab('teach');
-  }, [activity?.id]);
+  const isTeachEnabled = activity?.enableTeachMode ?? false;
+  const isGuideEnabled = activity?.enableGuideMode ?? false;
+  const currentTabEnabled =
+    (activeTab === 'teach' && isTeachEnabled) || (activeTab === 'guide' && isGuideEnabled);
 
-  // Separate effect to handle mode changes and ensure valid tab selection
-  useEffect(() => {
-    if (!activity) {
+  if (!currentTabEnabled) {
+    if (isTeachEnabled) {
       setActiveTab('teach');
-      return;
+    } else if (isGuideEnabled) {
+      setActiveTab('guide');
+    } else if (activeTab !== 'teach') {
+      setActiveTab('teach');
     }
-    
-    const currentTabEnabled = 
-      (activeTab === 'teach' && activity.enableTeachMode) ||
-      (activeTab === 'guide' && activity.enableGuideMode);
-    
-    if (!currentTabEnabled) {
-      if (activity.enableTeachMode) {
-        setActiveTab('teach');
-      } else if (activity.enableGuideMode) {
-        setActiveTab('guide');
-      }
-    }
-  }, [activity?.enableTeachMode, activity?.enableGuideMode, activeTab, activity]);
+  }
 
   useEffect(() => {
     let isMounted = true;

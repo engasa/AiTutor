@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import Nav from '../components/Nav';
 import { ProgressBar } from '../components/ProgressBar';
@@ -51,6 +51,7 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [wasCorrect, setWasCorrect] = useState(false);
+  const [prevActivityId, setPrevActivityId] = useState<number | null>(null);
 
   // Pre-chat context for AI guidance
   const [showKnowledgeModal, setShowKnowledgeModal] = useState(false);
@@ -86,23 +87,16 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
     : null;
   const isUserReady = Boolean(user);
 
-  useEffect(() => {
-    if (!activity) {
-      return;
-    }
-
+  const currentActivityId = activity?.id ?? null;
+  if (currentActivityId !== prevActivityId) {
+    setPrevActivityId(currentActivityId);
     setWasCorrect(false);
     setResult(null);
     setTempKnowledgeLevel('');
     setShowKnowledgeModal(false);
-
     setMcq(null);
     setText('');
-
-    if (activity.mainTopic?.id && !(activity.id in topicSelection)) {
-      setTopicSelection((prev) => ({ ...prev, [activity.id]: activity.mainTopic!.id }));
-    }
-  }, [activity?.id]);
+  }
 
   const submit = async () => {
     if (!activity || !user) return;
@@ -351,6 +345,7 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
           </div>
 
           <StudentAiChat
+            key={activity?.id ?? 'none'}
             ref={chatRef}
             activity={activity}
             isUserReady={isUserReady}

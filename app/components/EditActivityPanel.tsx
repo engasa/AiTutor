@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { Activity } from '../lib/types';
 import {
   activityToFormValues,
@@ -27,11 +27,13 @@ type EditActivityPanelProps = {
 export default function EditActivityPanel({ activity, busy, error, onSubmit, onCancel }: EditActivityPanelProps) {
   const [values, setValues] = useState<ActivityFormValues>(() => activityToFormValues(activity));
   const [formError, setFormError] = useState<string | null>(null);
+  const [prevActivity, setPrevActivity] = useState(activity);
 
-  useEffect(() => {
+  if (prevActivity !== activity) {
+    setPrevActivity(activity);
     setValues(activityToFormValues(activity));
     setFormError(null);
-  }, [activity]);
+  }
 
   const paddedChoices = useMemo(() => ensureChoiceSlots(values.choices), [values.choices]);
   const choiceLabels = useMemo(
