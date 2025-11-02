@@ -1,58 +1,33 @@
-import jwt from 'jsonwebtoken';
+import { auth } from '../auth.js';
+import { fromNodeHeaders } from 'better-auth/node';
 import { prisma } from '../config/database.js';
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-const AUTH_COOKIE_NAME = 'aitutor_auth_token';
 
-function parseCookies(header = '') {
-  return header.split(';').reduce((acc, cookie) => {
-    const [name, ...rest] = cookie.trim().split('=');
-    if (!name) return acc;
-    acc[name] = decodeURIComponent(rest.join('='));
-    return acc;
-  }, {});
-}
-
-function getTokenFromRequest(req) {
-  const authHeader = req.headers['authorization'];
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    return authHeader.split(' ')[1];
-  }
-
-  const cookieHeader = req.headers.cookie || req.headers.Cookie;
-  if (!cookieHeader) return null;
-  const cookies = parseCookies(cookieHeader);
-  return cookies[AUTH_COOKIE_NAME] || null;
-}
-
-export function authenticateToken(req, res, next) {
-  const token = getTokenFromRequest(req);
-
-  if (!token) {
-    return res.status(401).json({ error: 'Access token required' });
-  }
-
-  jwt.verify(token, JWT_SECRET, async (err, decoded) => {
-    if (err) {
-      return res.status(403).json({ error: 'Invalid or expired token' });
-    }
-
-    try {
-      // Verify user still exists
-      const user = await prisma.user.findUnique({
-        where: { id: decoded.userId },
-        select: { id: true, name: true, email: true, role: true }
+// Attach session user from Better Auth to req.user for downstream handlers
+export async function attachSession(req, res, next) {
+  try {
+    const headers = fromNodeHeaders(req.headers);
+    const data = await auth.api.getSession({ headers });
+    if (data && data.user) {
+      const id = typeof data.user.id === 'string' ? parseInt(data.user.id, 10) : data.user.id;
+      // Hydrate full user (including role) from our DB for RBAC
+      const dbUser = await prisma.user.findUnique({
+        where: { id },
       });
-
-      if (!user) {
-        return res.status(403).json({ error: 'User not found' });
-      }
-
-      req.user = user;
-      next();
-    } catch (error) {
-      return res.status(500).json({ error: 'Authentication error' });
+      req.user = dbUser ?? null;
+    } else {
+      req.user = null;
     }
-  });
+  } catch {
+    req.user = null;
+  }
+  next();
+}
+
+export function requireAuth(req, res, next) {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  next();
 }
 
 export function requireRole(role) {

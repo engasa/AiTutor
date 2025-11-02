@@ -1,7 +1,9 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import { authenticateToken } from './middleware/auth.js';
+import { attachSession, requireAuth } from './middleware/auth.js';
+import { toNodeHandler } from 'better-auth/node';
+import { auth } from './auth.js';
 import { prisma } from './config/database.js';
 
 // Route imports
@@ -16,6 +18,12 @@ import aiModelRoutes from './routes/ai-models.js';
 const app = express();
 
 app.use(cors({ origin: true, credentials: true }));
+
+// Mount Better Auth handler BEFORE json parser
+// Express v5 uses path-to-regexp v6: use named wildcard capture
+app.all('/api/auth/{*any}', toNodeHandler(auth));
+
+// JSON parser for our own routes
 app.use(express.json());
 
 // Health check endpoint
@@ -28,12 +36,15 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
-// Authentication middleware for protected routes
+// Attach session to all /api requests
+app.use('/api', attachSession);
+
+// Require auth for all /api routes except health and auth
 app.use('/api', (req, res, next) => {
-  if (req.path === '/health' || req.path === '/login') {
+  if (req.path === '/health' || req.path.startsWith('/auth/')) {
     return next();
   }
-  authenticateToken(req, res, next);
+  return requireAuth(req, res, next);
 });
 
 // Mount route modules

@@ -29,6 +29,8 @@ model User {
   instructorOf CourseInstructor[]
   enrolledIn   CourseEnrollment[]
   submissions  Submission[]
+  sessions     Session[]
+  accounts     Account[]
 }
 
 
@@ -188,4 +190,48 @@ model AiModel {
   id        String   @id
   modelId   String   @unique
   modelName String
+}
+
+// Better Auth tables (minimal)
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId Int
+}
+
+model Account {
+  id                      String   @id @default(cuid())
+  accountId               String
+  providerId              String
+  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId                  Int
+  password                String?
+  accessToken             String?
+  refreshToken            String?
+  idToken                 String?
+  accessTokenExpiresAt    DateTime?
+  refreshTokenExpiresAt   DateTime?
+  scope                   String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@unique([providerId, accountId])
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
 }
