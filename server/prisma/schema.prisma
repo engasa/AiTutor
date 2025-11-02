@@ -1,3 +1,4 @@
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -18,63 +19,66 @@ enum InstructorRole {
 }
 
 model User {
-  id          Int                @id @default(autoincrement())
-  name        String
-  email       String             @unique
-  password    String
-  role        Role
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  password  String
+  role      Role
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  instructorOf CourseInstructor[]
-  enrolledIn   CourseEnrollment[]
-  submissions  Submission[]
-  sessions     Session[]
-  accounts     Account[]
+  instructorOf  CourseInstructor[]
+  enrolledIn    CourseEnrollment[]
+  submissions   Submission[]
+  sessions      Session[]
+  accounts      Account[]
+  emailVerified Boolean            @default(false)
+  image         String?
+
+  @@map("User")
 }
 
-
 model PromptTemplate {
-  id             Int           @id @default(autoincrement())
-  name           String
-  slug           String        @unique
-  systemPrompt   String
-  temperature    Float?
-  topP           Float?
-  isActive       Boolean       @default(true)
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  id           Int      @id @default(autoincrement())
+  name         String
+  slug         String   @unique
+  systemPrompt String
+  temperature  Float?
+  topP         Float?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  activities        Activity[]
+  activities Activity[]
 }
 
 model CourseOffering {
-  id          Int        @id @default(autoincrement())
-  title       String
-  description String?
-  startDate   DateTime?
-  endDate     DateTime?
-  isPublished Boolean    @default(false)
-  externalId  String?
-  externalSource String?
+  id               Int       @id @default(autoincrement())
+  title            String
+  description      String?
+  startDate        DateTime?
+  endDate          DateTime?
+  isPublished      Boolean   @default(false)
+  externalId       String?
+  externalSource   String?
   externalMetadata Json?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
-  modules      Module[]
-  instructors  CourseInstructor[]
-  enrollments  CourseEnrollment[]
-  topics       Topic[]
+  modules     Module[]
+  instructors CourseInstructor[]
+  enrollments CourseEnrollment[]
+  topics      Topic[]
 
   @@index([externalId])
 }
 
 model Topic {
-  id               Int              @id @default(autoincrement())
+  id               Int            @id @default(autoincrement())
   name             String
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
-  courseOffering   CourseOffering   @relation(fields: [courseOfferingId], references: [id], onDelete: Cascade)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  courseOffering   CourseOffering @relation(fields: [courseOfferingId], references: [id], onDelete: Cascade)
   courseOfferingId Int
 
   mainActivities      Activity[]               @relation("ActivityMainTopic")
@@ -84,12 +88,12 @@ model Topic {
 }
 
 model CourseInstructor {
-  courseOffering   CourseOffering  @relation(fields: [courseOfferingId], references: [id], onDelete: Cascade)
+  courseOffering   CourseOffering @relation(fields: [courseOfferingId], references: [id], onDelete: Cascade)
   courseOfferingId Int
-  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId           Int
-  role             InstructorRole  @default(LEAD)
-  assignedAt       DateTime        @default(now())
+  role             InstructorRole @default(LEAD)
+  assignedAt       DateTime       @default(now())
 
   @@id([courseOfferingId, userId])
 }
@@ -105,14 +109,14 @@ model CourseEnrollment {
 }
 
 model Module {
-  id               Int             @id @default(autoincrement())
+  id               Int            @id @default(autoincrement())
   title            String
   description      String?
-  position         Int             @default(0)
-  isPublished      Boolean         @default(false)
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
-  courseOffering   CourseOffering  @relation(fields: [courseOfferingId], references: [id], onDelete: Cascade)
+  position         Int            @default(0)
+  isPublished      Boolean        @default(false)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  courseOffering   CourseOffering @relation(fields: [courseOfferingId], references: [id], onDelete: Cascade)
   courseOfferingId Int
 
   lessons Lesson[]
@@ -133,40 +137,40 @@ model Lesson {
 }
 
 model Activity {
-  id             Int            @id @default(autoincrement())
-  title          String?
-  instructionsMd String
-  config         Json?
-  position       Int            @default(0)
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  lesson         Lesson         @relation(fields: [lessonId], references: [id], onDelete: Cascade)
-  lessonId       Int
-  promptTemplate PromptTemplate? @relation(fields: [promptTemplateId], references: [id])
+  id               Int             @id @default(autoincrement())
+  title            String?
+  instructionsMd   String
+  config           Json?
+  position         Int             @default(0)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  lesson           Lesson          @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  lessonId         Int
+  promptTemplate   PromptTemplate? @relation(fields: [promptTemplateId], references: [id])
   promptTemplateId Int?
 
-  mainTopic       Topic                  @relation("ActivityMainTopic", fields: [mainTopicId], references: [id])
+  mainTopic       Topic                    @relation("ActivityMainTopic", fields: [mainTopicId], references: [id])
   mainTopicId     Int
   secondaryTopics ActivitySecondaryTopic[]
 
-  enableTeachMode Boolean        @default(true)
-  enableGuideMode Boolean        @default(true)
+  enableTeachMode Boolean @default(true)
+  enableGuideMode Boolean @default(true)
 
   submissions Submission[]
 }
 
 model Submission {
-  id           Int      @id @default(autoincrement())
-  attemptNumber Int     @default(1)
-  response     Json?
-  aiFeedback   Json?
-  score        Float?
-  isCorrect    Boolean?
-  createdAt    DateTime @default(now())
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId       Int
-  activity     Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
-  activityId   Int
+  id            Int      @id @default(autoincrement())
+  attemptNumber Int      @default(1)
+  response      Json?
+  aiFeedback    Json?
+  score         Float?
+  isCorrect     Boolean?
+  createdAt     DateTime @default(now())
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId        Int
+  activity      Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  activityId    Int
 }
 
 model ActivitySecondaryTopic {
@@ -187,12 +191,13 @@ model SystemPrompt {
 }
 
 model AiModel {
-  id        String   @id
-  modelId   String   @unique
+  id        String @id
+  modelId   String @unique
   modelName String
 }
 
 // Better Auth tables (minimal)
+
 model Session {
   id        String   @id @default(cuid())
   token     String   @unique
@@ -204,25 +209,28 @@ model Session {
 
   user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId Int
+
+  @@map("Session")
 }
 
 model Account {
-  id                      String   @id @default(cuid())
-  accountId               String
-  providerId              String
-  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId                  Int
-  password                String?
-  accessToken             String?
-  refreshToken            String?
-  idToken                 String?
-  accessTokenExpiresAt    DateTime?
-  refreshTokenExpiresAt   DateTime?
-  scope                   String?
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
+  id                    String    @id @default(cuid())
+  accountId             String
+  providerId            String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId                Int
+  password              String?
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   @@unique([providerId, accountId])
+  @@map("Account")
 }
 
 model Verification {
@@ -234,4 +242,5 @@ model Verification {
   updatedAt  DateTime @updatedAt
 
   @@index([identifier])
+  @@map("Verification")
 }
