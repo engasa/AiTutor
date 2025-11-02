@@ -30,11 +30,20 @@ async function http(path: string, init?: RequestInit) {
 }
 
 export const api = {
-  login: (email: string, password: string) =>
-    http('/api/login', {
+  login: async (email: string, password: string) => {
+    const res = await fetch(`${API_BASE}/api/auth/sign-in/email`, {
       method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
-    }),
+    });
+    if (!res.ok) {
+      const msg = await res.text();
+      throw new Error(msg || 'Invalid credentials');
+    }
+    // After sign-in, load the current user via our stable endpoint
+    return http('/api/me');
+  },
   listCourses: () => http('/api/courses'),
   listEduAiCourses: () => http('/api/eduai/courses') as Promise<EduAiCourse[]>,
   courseById: (courseId: number) => http(`/api/courses/${courseId}`),
@@ -244,10 +253,14 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
-  logout: () =>
-    http('/api/logout', {
+  logout: async () => {
+    // Call Better Auth sign-out endpoint directly without redirect-on-401 behavior
+    await fetch(`${API_BASE}/api/auth/sign-out`, {
       method: 'POST',
-    }),
+      credentials: 'include',
+    });
+    return { ok: true } as const;
+  },
 };
 
 export default api;

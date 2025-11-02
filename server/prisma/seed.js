@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import bcrypt from 'bcryptjs';
+import { hashPassword } from 'better-auth/crypto';
 
 const prisma = new PrismaClient();
 
@@ -65,10 +65,10 @@ async function seedAiModels() {
 
 async function createUsers() {
   const [studentPw, student2Pw, instructorPw, assistantPw] = await Promise.all([
-    bcrypt.hash('student123', 10),
-    bcrypt.hash('student456', 10),
-    bcrypt.hash('instructor123', 10),
-    bcrypt.hash('assistant123', 10),
+    hashPassword('student123'),
+    hashPassword('student456'),
+    hashPassword('instructor123'),
+    hashPassword('assistant123'),
   ]);
 
   const [student, studentTwo, instructor, assistant] = await Promise.all([
@@ -102,6 +102,42 @@ async function createUsers() {
         email: 'assistant@example.com',
         password: assistantPw,
         role: 'INSTRUCTOR',
+      },
+    }),
+  ]);
+
+  // Create Better Auth credential accounts for seeded users
+  await Promise.all([
+    prisma.account.create({
+      data: {
+        providerId: 'credential',
+        accountId: String(student.id),
+        userId: student.id,
+        password: studentPw,
+      },
+    }),
+    prisma.account.create({
+      data: {
+        providerId: 'credential',
+        accountId: String(studentTwo.id),
+        userId: studentTwo.id,
+        password: student2Pw,
+      },
+    }),
+    prisma.account.create({
+      data: {
+        providerId: 'credential',
+        accountId: String(instructor.id),
+        userId: instructor.id,
+        password: instructorPw,
+      },
+    }),
+    prisma.account.create({
+      data: {
+        providerId: 'credential',
+        accountId: String(assistant.id),
+        userId: assistant.id,
+        password: assistantPw,
       },
     }),
   ]);
