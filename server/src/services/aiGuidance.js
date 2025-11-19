@@ -111,7 +111,7 @@ function buildSystemPrompt(templateContent, context = {}) {
 
 function buildTeachUserMessage({ topicName, message }) {
   const topicText = topicName ? `Topic: ${topicName}\n\n` : '';
-  return `${topicText}Student request: ${message}\n\nExplain the concept at the requested knowledge level using clear language, analogies, and progressive depth. Avoid giving code unless asked.`;
+  return `${topicText}Student request: ${message}`;
 }
 
 function buildGuideUserMessage(activity, { message, studentAnswer }) {
@@ -141,7 +141,7 @@ function buildGuideUserMessage(activity, { message, studentAnswer }) {
     base += `\n\nStudent answer: ${answerText}`;
   }
 
-  base += `\n\nStudent request: ${message}\n\nRespond with hints that encourage problem solving. Ask guiding questions, reference relevant concepts, and avoid giving the exact solution.`;
+  base += `\n\nStudent request: ${message}`;
 
   return base;
 }
