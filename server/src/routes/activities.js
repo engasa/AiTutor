@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import express from 'express';
 import { prisma } from '../config/database.js';
 import { requireRole } from '../middleware/auth.js';
@@ -445,6 +446,9 @@ router.post('/questions/:id/answer', async (req, res) => {
                 courseOffering: {
                   select: {
                     id: true,
+                    externalId: true,
+                    externalSource: true,
+                    externalMetadata: true,
                     instructors: { select: { userId: true } },
                     enrollments: { select: { userId: true } },
                   },
@@ -541,6 +545,9 @@ router.post('/activities/:activityId/teach', async (req, res) => {
                 courseOffering: {
                   select: {
                     id: true,
+                    externalId: true,
+                    externalSource: true,
+                    externalMetadata: true,
                     instructors: { select: { userId: true } },
                     enrollments: { select: { userId: true } },
                   },
@@ -569,6 +576,32 @@ router.post('/activities/:activityId/teach', async (req, res) => {
       return res.status(403).json({ error: 'Not authorized for this activity' });
     }
 
+    const existingSession = await prisma.aiChatSession.findUnique({
+      where: {
+        userId_activityId_mode: {
+          userId: authUser.id,
+          activityId,
+          mode: 'teach',
+        },
+      },
+    });
+
+    const courseCode =
+      (course.externalMetadata &&
+        typeof course.externalMetadata === 'object' &&
+        typeof course.externalMetadata.code === 'string' &&
+        course.externalMetadata.code) ||
+      (typeof course.externalId === 'string' ? course.externalId : null);
+
+    const proxyUser = {
+      provider: 'aitutor',
+      id: String(authUser.id),
+      email: authUser.email,
+    };
+
+    const chatId = payload.chatId || existingSession?.chatId || null;
+    const messageId = payload.messageId || randomUUID();
+
     const topicName = (() => {
       if (!payload.topicId) {
         return activity.mainTopic?.name;
@@ -583,17 +616,47 @@ router.post('/activities/:activityId/teach', async (req, res) => {
       return activity.mainTopic?.name;
     })();
 
-    const aiMessage = await generateTeachResponse({
+    const aiResult = await generateTeachResponse({
       activity,
       topicName,
       knowledgeLevel: payload.knowledgeLevel,
       message: payload.message,
       modelId: payload.modelId,
+      chatId,
+      messageId,
+      proxyUser,
+      courseCode,
     });
+
+    const nextChatId = aiResult.chatId || chatId || null;
+
+    if (nextChatId) {
+      await prisma.aiChatSession.upsert({
+        where: {
+          userId_activityId_mode: {
+            userId: authUser.id,
+            activityId,
+            mode: 'teach',
+          },
+        },
+        update: {
+          chatId: nextChatId,
+          modelId: payload.modelId,
+        },
+        create: {
+          userId: authUser.id,
+          activityId,
+          mode: 'teach',
+          chatId: nextChatId,
+          modelId: payload.modelId,
+        },
+      });
+    }
 
     res.json({
       ok: true,
-      message: aiMessage,
+      message: aiResult.message,
+      chatId: nextChatId,
     });
   } catch (e) {
     console.error('Error generating guidance:', e);
@@ -633,6 +696,9 @@ router.post('/activities/:activityId/guide', async (req, res) => {
                 courseOffering: {
                   select: {
                     id: true,
+                    externalId: true,
+                    externalSource: true,
+                    externalMetadata: true,
                     instructors: { select: { userId: true } },
                     enrollments: { select: { userId: true } },
                   },
@@ -661,17 +727,73 @@ router.post('/activities/:activityId/guide', async (req, res) => {
       return res.status(403).json({ error: 'Not authorized for this activity' });
     }
 
-    const aiMessage = await generateGuideResponse({
+    const existingSession = await prisma.aiChatSession.findUnique({
+      where: {
+        userId_activityId_mode: {
+          userId: authUser.id,
+          activityId,
+          mode: 'guide',
+        },
+      },
+    });
+
+    const courseCode =
+      (course.externalMetadata &&
+        typeof course.externalMetadata === 'object' &&
+        typeof course.externalMetadata.code === 'string' &&
+        course.externalMetadata.code) ||
+      (typeof course.externalId === 'string' ? course.externalId : null);
+
+    const proxyUser = {
+      provider: 'aitutor',
+      id: String(authUser.id),
+      email: authUser.email,
+    };
+
+    const chatId = payload.chatId || existingSession?.chatId || null;
+    const messageId = payload.messageId || randomUUID();
+
+    const aiResult = await generateGuideResponse({
       activity,
       knowledgeLevel: payload.knowledgeLevel,
       message: payload.message,
       studentAnswer: payload.studentAnswer,
       modelId: payload.modelId,
+      chatId,
+      messageId,
+      proxyUser,
+      courseCode,
     });
+
+    const nextChatId = aiResult.chatId || chatId || null;
+
+    if (nextChatId) {
+      await prisma.aiChatSession.upsert({
+        where: {
+          userId_activityId_mode: {
+            userId: authUser.id,
+            activityId,
+            mode: 'guide',
+          },
+        },
+        update: {
+          chatId: nextChatId,
+          modelId: payload.modelId,
+        },
+        create: {
+          userId: authUser.id,
+          activityId,
+          mode: 'guide',
+          chatId: nextChatId,
+          modelId: payload.modelId,
+        },
+      });
+    }
 
     res.json({
       ok: true,
-      message: aiMessage,
+      message: aiResult.message,
+      chatId: nextChatId,
     });
   } catch (e) {
     console.error('Error generating guidance:', e);

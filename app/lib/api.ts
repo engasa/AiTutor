@@ -222,6 +222,8 @@ export const api = {
       topicId?: number;
       message: string;
       modelId: string;
+      chatId?: string | null;
+      messageId?: string;
     },
   ) =>
     http(`/api/activities/${activityId}/teach`, {
@@ -235,6 +237,8 @@ export const api = {
       message: string;
       studentAnswer?: string | number | null;
       modelId: string;
+      chatId?: string | null;
+      messageId?: string;
     },
   ) =>
     http(`/api/activities/${activityId}/guide`, {

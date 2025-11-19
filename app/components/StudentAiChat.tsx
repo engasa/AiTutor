@@ -37,7 +37,10 @@ type ChatMessage = {
   content: string;
 };
 
-type ChatState = Record<ChatTab, { messages: ChatMessage[]; input: string; loading: boolean }>;
+type ChatState = Record<
+  ChatTab,
+  { messages: ChatMessage[]; input: string; loading: boolean; chatId: string | null }
+>;
 
 type TopicOption = { label: string; value: number };
 
@@ -62,8 +65,8 @@ const DEFAULT_MODEL_ID = 'google:gemini-2.5-flash';
 
 function getInitialChatState(): ChatState {
   return {
-    teach: { messages: [], input: '', loading: false },
-    guide: { messages: [], input: '', loading: false },
+    teach: { messages: [], input: '', loading: false, chatId: null },
+    guide: { messages: [], input: '', loading: false, chatId: null },
   };
 }
 
@@ -158,15 +161,18 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
     return false;
   }, [activity, knowledgeLevel, onRequestKnowledgeLevel]);
 
-  const appendMessage = useCallback((tab: ChatTab, role: ChatMessage['role'], content: string) => {
-    setChatState((prev) => ({
-      ...prev,
-      [tab]: {
-        ...prev[tab],
-        messages: [...prev[tab].messages, { id: generateMessageId(), role, content }],
-      },
-    }));
-  }, []);
+  const appendMessage = useCallback(
+    (tab: ChatTab, role: ChatMessage['role'], content: string, id?: string) => {
+      setChatState((prev) => ({
+        ...prev,
+        [tab]: {
+          ...prev[tab],
+          messages: [...prev[tab].messages, { id: id ?? generateMessageId(), role, content }],
+        },
+      }));
+    },
+    [],
+  );
 
   const sendChat = useCallback(
     async (tab: ChatTab, overrideMessage?: string) => {
@@ -206,6 +212,8 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
           ? studentAnswer.trim()
           : undefined;
 
+      const messageId = generateMessageId();
+
       setChatState((prev) => ({
         ...prev,
         [tab]: {
@@ -215,7 +223,7 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
         },
       }));
 
-      appendMessage(tab, 'user', message);
+      appendMessage(tab, 'user', message, messageId);
 
       try {
         let response;
@@ -226,6 +234,8 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
             topicId,
             message,
             modelId,
+            chatId: chatState[tab].chatId,
+            messageId,
           });
         } else {
           response = await api.sendGuideMessage(activity.id, {
@@ -233,7 +243,19 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
             message,
             studentAnswer: normalizedStudentAnswer,
             modelId,
+            chatId: chatState[tab].chatId,
+            messageId,
           });
+        }
+        const nextChatId = response.chatId ?? chatState[tab].chatId ?? null;
+        if (nextChatId) {
+          setChatState((prev) => ({
+            ...prev,
+            [tab]: {
+              ...prev[tab],
+              chatId: nextChatId,
+            },
+          }));
         }
         appendMessage(tab, 'assistant', response.message);
       } catch (error) {
@@ -508,7 +530,10 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
 export default StudentAiChat;
 
 function generateMessageId() {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function titleCase(value: string) {

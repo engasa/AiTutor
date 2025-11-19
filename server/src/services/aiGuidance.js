@@ -1,14 +1,29 @@
+import { randomUUID } from 'crypto';
 import { prisma } from '../config/database.js';
 import { getEduAiChatUrl } from './eduaiClient.js';
 
 /**
  * Call UBC eduAI API to generate guidance
- * @param {string} systemPrompt - Composed system prompt
- * @param {string} userMessage - Constructed user message
- * @param {string|null} modelId - Optional model ID override
- * @returns {Promise<string>} - AI-generated guidance text
+ * Calls eduAI's /chat endpoint with non-streaming, chat-aware payload.
+ * @param {object} options
+ * @param {string} options.systemPrompt - Composed system prompt
+ * @param {string} options.userMessage - Constructed user message
+ * @param {string|null} options.modelId - Optional model ID override
+ * @param {string|null} options.chatId - Optional existing chat id for history
+ * @param {string|null} options.messageId - Optional client-generated message id
+ * @param {object|null} options.proxyUser - Optional proxy user envelope for eduAI
+ * @param {string|null} options.courseCode - Optional course code for RAG
+ * @returns {Promise<{ message: string, chatId: string | null }>}
  */
-async function callEduAI(systemPrompt, userMessage, modelId = null) {
+async function callEduAI({
+  systemPrompt,
+  userMessage,
+  modelId = null,
+  chatId = null,
+  messageId = null,
+  proxyUser = null,
+  courseCode = null,
+}) {
   const apiKey = process.env.EDUAI_API_KEY;
   const googleApiKey = process.env.EDUAI_GOOGLE_API_KEY;
   const endpoint = getEduAiChatUrl();
@@ -19,16 +34,17 @@ async function callEduAI(systemPrompt, userMessage, modelId = null) {
     throw new Error('AI API configuration missing');
   }
 
-  // Combine system prompt with user message since eduAI doesn't support separate system role
-  const combinedMessage = `${systemPrompt}\n\n${userMessage}`;
+  const userMessageId = messageId || randomUUID();
 
   const requestBody = {
     messages: [
       {
+        id: userMessageId,
         role: 'user',
-        content: combinedMessage,
+        content: userMessage,
       },
     ],
+    systemPrompt,
     model,
     apiKeys: {
       google: {
@@ -37,6 +53,9 @@ async function callEduAI(systemPrompt, userMessage, modelId = null) {
       },
     },
     streaming: false,
+    ...(chatId ? { chatId } : {}),
+    ...(proxyUser ? { proxyUser } : {}),
+    ...(courseCode ? { courseCode } : {}),
   };
 
   try {
@@ -57,9 +76,11 @@ async function callEduAI(systemPrompt, userMessage, modelId = null) {
 
     const data = await response.json();
 
-    // Extract content from response
     if (data.content && typeof data.content === 'string') {
-      return data.content;
+      return {
+        message: data.content,
+        chatId: data.chatId || chatId || null,
+      };
     }
 
     console.error('[aiGuidance] Unexpected response format:', data);
@@ -129,7 +150,17 @@ async function getPromptTemplateBySlug(slug) {
   return prisma.promptTemplate.findUnique({ where: { slug } });
 }
 
-export async function generateTeachResponse({ activity, topicName, knowledgeLevel, message, modelId = null }) {
+export async function generateTeachResponse({
+  activity,
+  topicName,
+  knowledgeLevel,
+  message,
+  modelId = null,
+  chatId = null,
+  messageId = null,
+  proxyUser = null,
+  courseCode = null,
+}) {
   try {
     const template = await getPromptTemplateBySlug('learning-prompt');
     if (!template) {
@@ -143,14 +174,32 @@ export async function generateTeachResponse({ activity, topicName, knowledgeLeve
 
     const userMessage = buildTeachUserMessage({ topicName: topicName || activity.mainTopic?.name, message });
 
-    return await callEduAI(systemPrompt, userMessage, modelId);
+    return await callEduAI({
+      systemPrompt,
+      userMessage,
+      modelId,
+      chatId,
+      messageId,
+      proxyUser,
+      courseCode,
+    });
   } catch (error) {
     console.error('[aiGuidance] Failed to generate teach response:', error);
-    return 'AI study buddy not available right now. Please try again later.';
+    return { message: 'AI study buddy not available right now. Please try again later.', chatId };
   }
 }
 
-export async function generateGuideResponse({ activity, knowledgeLevel, message, studentAnswer, modelId = null }) {
+export async function generateGuideResponse({
+  activity,
+  knowledgeLevel,
+  message,
+  studentAnswer,
+  modelId = null,
+  chatId = null,
+  messageId = null,
+  proxyUser = null,
+  courseCode = null,
+}) {
   try {
     const template = await getPromptTemplateBySlug('exercise-prompt');
     if (!template) {
@@ -164,9 +213,17 @@ export async function generateGuideResponse({ activity, knowledgeLevel, message,
 
     const userMessage = buildGuideUserMessage(activity, { message, studentAnswer });
 
-    return await callEduAI(systemPrompt, userMessage, modelId);
+    return await callEduAI({
+      systemPrompt,
+      userMessage,
+      modelId,
+      chatId,
+      messageId,
+      proxyUser,
+      courseCode,
+    });
   } catch (error) {
     console.error('[aiGuidance] Failed to generate guide response:', error);
-    return 'AI study buddy not available right now. Please try again later.';
+    return { message: 'AI study buddy not available right now. Please try again later.', chatId };
   }
 }
