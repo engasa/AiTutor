@@ -576,15 +576,18 @@ router.post('/activities/:activityId/teach', async (req, res) => {
       return res.status(403).json({ error: 'Not authorized for this activity' });
     }
 
-    const existingSession = await prisma.aiChatSession.findUnique({
-      where: {
-        userId_activityId_mode: {
-          userId: authUser.id,
-          activityId,
-          mode: 'teach',
-        },
-      },
-    });
+    const existingSession =
+      payload.chatId && payload.chatId.trim().length > 0
+        ? await prisma.aiChatSession.findUnique({
+            where: {
+              userId_activityId_mode: {
+                userId: authUser.id,
+                activityId,
+                mode: 'teach',
+              },
+            },
+          })
+        : null;
 
     const courseCode =
       (course.externalMetadata &&
@@ -727,15 +730,18 @@ router.post('/activities/:activityId/guide', async (req, res) => {
       return res.status(403).json({ error: 'Not authorized for this activity' });
     }
 
-    const existingSession = await prisma.aiChatSession.findUnique({
-      where: {
-        userId_activityId_mode: {
-          userId: authUser.id,
-          activityId,
-          mode: 'guide',
-        },
-      },
-    });
+    const existingSession =
+      payload.chatId && payload.chatId.trim().length > 0
+        ? await prisma.aiChatSession.findUnique({
+            where: {
+              userId_activityId_mode: {
+                userId: authUser.id,
+                activityId,
+                mode: 'guide',
+              },
+            },
+          })
+        : null;
 
     const courseCode =
       (course.externalMetadata &&
