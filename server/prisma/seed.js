@@ -5,7 +5,7 @@ const prisma = new PrismaClient();
 
 async function clearDatabase() {
   await prisma.systemPrompt.deleteMany();
-  await prisma.aiModel.deleteMany();
+
   await prisma.submission.deleteMany();
   await prisma.activity.deleteMany();
   await prisma.lesson.deleteMany();
@@ -37,31 +37,7 @@ Guidelines:
   });
 }
 
-async function seedAiModels() {
-  const models = [
-    {
-      id: 'cmgn04mc4000e9kvze3bknyqr',
-      modelId: 'google:gemini-2.5-flash',
-      modelName: 'Gemini 2.5 Flash',
-    },
-    {
-      id: 'cmgn04mc4000e9kvze3bknyqs',
-      modelId: 'openai:gpt-4o-mini',
-      modelName: 'GPT-4o Mini',
-    },
-  ];
 
-  for (const model of models) {
-    await prisma.aiModel.upsert({
-      where: { id: model.id },
-      update: {
-        modelId: model.modelId,
-        modelName: model.modelName,
-      },
-      create: model,
-    });
-  }
-}
 
 async function createUsers() {
   const [studentPw, student2Pw, instructorPw, assistantPw] = await Promise.all([
@@ -571,7 +547,7 @@ async function main() {
   await clearDatabase();
 
   await createBaseSystemPrompt();
-  await seedAiModels();
+
   const { student, studentTwo, instructor, assistant } = await createUsers();
   const foundation = await createPromptTemplates();
 

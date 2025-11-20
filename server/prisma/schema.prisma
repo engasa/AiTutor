@@ -191,11 +191,7 @@ model SystemPrompt {
   updatedAt DateTime @updatedAt
 }
 
-model AiModel {
-  id        String @id
-  modelId   String @unique
-  modelName String
-}
+
 
 model AiChatSession {
   id         Int      @id @default(autoincrement())

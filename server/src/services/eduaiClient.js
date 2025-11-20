@@ -79,3 +79,11 @@ export async function listEduAiCourseTopics(externalCourseId) {
     throw err;
   }
 }
+
+export async function listEduAiModels() {
+  const data = await requestEduAi('/ai-models');
+  if (!Array.isArray(data)) {
+    throw new Error('Invalid response from EduAI models endpoint');
+  }
+  return data;
+}
