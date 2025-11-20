@@ -26,6 +26,7 @@ import {
   PromptInputTools,
   type PromptInputMessage,
 } from '~/components/ai-elements/prompt-input';
+import { Message, MessageContent, MessageResponse } from '~/components/ai-elements/message';
 import api from '../lib/api';
 import type { Activity, AiModel } from '../lib/types';
 
@@ -368,16 +369,17 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
   const renderMessages = (tab: ChatTab) => (
     <div className="space-y-3">
       {chatState[tab].messages.map((msg) => (
-        <div
-          key={msg.id}
-          className={`w-fit max-w-full rounded-3xl px-5 py-3 text-sm ${
-            msg.role === 'user'
-              ? 'ml-auto bg-amber-500 text-white shadow'
-              : 'bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-800'
-          }`}
-        >
-          {msg.content}
-        </div>
+        <Message from={msg.role} key={msg.id}>
+          <MessageContent
+            className={`max-w-full rounded-3xl px-5 py-3 text-sm ${
+              msg.role === 'user'
+                ? 'ml-auto bg-amber-500 text-white shadow'
+                : 'bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-800'
+            }`}
+          >
+            <MessageResponse>{msg.content}</MessageResponse>
+          </MessageContent>
+        </Message>
       ))}
     </div>
   );
