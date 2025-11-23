@@ -148,6 +148,7 @@ model Activity {
   lessonId         Int
   promptTemplate   PromptTemplate? @relation(fields: [promptTemplateId], references: [id])
   promptTemplateId Int?
+  customPrompt     String?
 
   mainTopic       Topic                    @relation("ActivityMainTopic", fields: [mainTopicId], references: [id])
   mainTopicId     Int
@@ -155,6 +156,7 @@ model Activity {
 
   enableTeachMode Boolean @default(true)
   enableGuideMode Boolean @default(true)
+  enableCustomMode Boolean @default(false)
 
   submissions    Submission[]
   aiChatSessions AiChatSession[]

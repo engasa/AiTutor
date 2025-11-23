@@ -80,6 +80,8 @@ export function mapActivity(activity) {
       : [],
     enableTeachMode: activity.enableTeachMode ?? true,
     enableGuideMode: activity.enableGuideMode ?? true,
+    enableCustomMode: activity.enableCustomMode ?? false,
+    customPrompt: typeof activity.customPrompt === 'string' ? activity.customPrompt : null,
     completionStatus: activity.completionStatus ?? undefined,
   };
 }

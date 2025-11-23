@@ -111,6 +111,9 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
   
   const [showModeSaving, setShowModeSaving] = useState(false);
   const modeSavingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [promptDrafts, setPromptDrafts] = useState<Record<number, string>>({});
+  const [savingPromptId, setSavingPromptId] = useState<number | null>(null);
+  const [promptErrors, setPromptErrors] = useState<Record<number, string>>({});
 
   const beginTopicUpdate = (activityId: number) => {
     setUpdatingTopicsFor(activityId);
@@ -262,42 +265,86 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
 
   const handleActivityModeChange = async (
     activityId: number,
-    mode: 'teach' | 'guide',
+    mode: 'teach' | 'guide' | 'custom',
     enabled: boolean
   ) => {
-    const activity = oActivities.find(a => a.id === activityId);
+    const activity = oActivities.find((a) => a.id === activityId);
     if (!activity) return;
 
     const newTeach = mode === 'teach' ? enabled : activity.enableTeachMode;
     const newGuide = mode === 'guide' ? enabled : activity.enableGuideMode;
+    const newCustom = mode === 'custom' ? enabled : activity.enableCustomMode;
 
-    if (!newTeach && !newGuide) {
+    if (!newTeach && !newGuide && !newCustom) {
       alert('At least one AI mode must be enabled');
       return;
     }
 
-    // previous state is kept in base; optimistic view handles immediate UI
     // Optimistic UI via useOptimistic
-    addActivityOpt(items =>
-      items.map(a =>
+    addActivityOpt((items) =>
+      items.map((a) =>
         a.id === activityId
-          ? { ...a, enableTeachMode: newTeach, enableGuideMode: newGuide }
+          ? {
+              ...a,
+              enableTeachMode: newTeach,
+              enableGuideMode: newGuide,
+              enableCustomMode: newCustom,
+              customPrompt: mode === 'custom' && !enabled ? null : a.customPrompt,
+            }
           : a,
       ),
     );
 
     beginModeUpdate(activityId);
     try {
-      const updated = await api.updateActivity(activityId, {
+      const payload: Record<string, unknown> = {
         enableTeachMode: newTeach,
         enableGuideMode: newGuide,
-      });
-      setActivities(prev => prev.map(a => a.id === activityId ? updated : a));
+        enableCustomMode: newCustom,
+      };
+      if (mode === 'custom' && !enabled) {
+        payload.customPrompt = null;
+      }
+      const updated = await api.updateActivity(activityId, payload);
+      setActivities((prev) => prev.map((a) => (a.id === activityId ? updated : a)));
     } catch (error) {
       console.error('Failed to update AI modes', error);
-      // Base state remains unchanged; optimistic view will clear on next render
     } finally {
       endModeUpdate(activityId);
+    }
+  };
+
+  const handleCustomPromptSave = async (activity: Activity) => {
+    const draft = (promptDrafts[activity.id] ?? activity.customPrompt ?? '').trim();
+    setPromptErrors((prev) => ({ ...prev, [activity.id]: '' }));
+
+    addActivityOpt((items) =>
+      items.map((item) =>
+        item.id === activity.id ? { ...item, customPrompt: draft || null } : item,
+      ),
+    );
+    setSavingPromptId(activity.id);
+    try {
+      const updated = await api.updateActivity(activity.id, { customPrompt: draft || null });
+      setActivities((prev) =>
+        prev.map((item) => (item.id === activity.id ? updated : item)),
+      );
+      if (!draft) {
+        setPromptDrafts((prev) => {
+          const next = { ...prev };
+          delete next[activity.id];
+          return next;
+        });
+      }
+    } catch (error) {
+      console.error('Failed to save custom prompt', error);
+      setPromptErrors((prev) => ({
+        ...prev,
+        [activity.id]: 'Could not save the custom prompt. Please try again.',
+      }));
+      setActivities((prev) => [...prev]);
+    } finally {
+      setSavingPromptId((current) => (current === activity.id ? null : current));
     }
   };
 
@@ -453,6 +500,10 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
                       const isEditing = editingActivityId === activity.id;
                       const isSaving = savingActivityId === activity.id;
                       const isDeleting = deletingActivityId === activity.id;
+                      const isCustomEnabled = activity.enableCustomMode;
+                      const promptDraft = promptDrafts[activity.id] ?? activity.customPrompt ?? '';
+                      const isSavingPrompt = savingPromptId === activity.id;
+                      const promptError = promptErrors[activity.id];
                       return (
                         <li
                           key={activity.id}
@@ -614,9 +665,61 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
                                 />
                                 <span className="text-sm">Guide me</span>
                               </label>
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={activity.enableCustomMode}
+                                  onChange={(e) =>
+                                    handleActivityModeChange(activity.id, 'custom', e.target.checked)
+                                  }
+                                  disabled={isUpdatingModes}
+                                  className="rounded border-purple-300 text-purple-600 focus:ring-purple-500"
+                                />
+                                <span className="text-sm">Custom prompt</span>
+                              </label>
                             </div>
                             {showModeSaving && isUpdatingModes && (
                               <span className="text-[0.7rem] text-purple-500">Saving…</span>
+                            )}
+                            {isCustomEnabled && (
+                              <div className="mt-3 space-y-2">
+                                <label className="text-xs font-semibold text-purple-700 dark:text-purple-300 block">
+                                  Custom AI prompt
+                                </label>
+                                <textarea
+                                  value={promptDraft}
+                                  onChange={(event) =>
+                                    setPromptDrafts((prev) => ({
+                                      ...prev,
+                                      [activity.id]: event.target.value,
+                                    }))
+                                  }
+                                  placeholder="Write a custom prompt the AI should follow for this activity…"
+                                  rows={3}
+                                  className="w-full px-3 py-2 rounded-lg border border-purple-200 dark:border-purple-800 bg-white dark:bg-gray-950 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
+                                  disabled={isSavingPrompt}
+                                />
+                                <div className="flex items-center gap-3">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCustomPromptSave(activity)}
+                                    disabled={isSavingPrompt}
+                                    className="px-3 py-2 rounded-lg bg-purple-600 text-white text-xs font-semibold shadow hover:shadow-md transition disabled:opacity-60 disabled:cursor-not-allowed"
+                                  >
+                                    {isSavingPrompt ? 'Saving…' : 'Save prompt'}
+                                  </button>
+                                  {promptError && (
+                                    <span className="text-[0.75rem] text-rose-600 dark:text-rose-300">
+                                      {promptError}
+                                    </span>
+                                  )}
+                                  {!promptError && isSavingPrompt && (
+                                    <span className="text-[0.75rem] text-purple-600 dark:text-purple-300">
+                                      Saving prompt…
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
                             )}
                           </div>
                         </li>

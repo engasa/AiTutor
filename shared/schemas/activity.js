@@ -13,10 +13,12 @@ export const CreateActivitySchema = z.object({
   hints: z.array(z.string()).default([]),
   instructionsMd: z.string().optional(),
   promptTemplateId: z.number().int().nullable().optional(),
+  customPrompt: z.string().optional().nullable(),
   mainTopicId: z.number().int(),
   secondaryTopicIds: z.array(z.number().int()).default([]),
   enableTeachMode: z.boolean().default(true),
   enableGuideMode: z.boolean().default(true),
+  enableCustomMode: z.boolean().default(false),
 });
 
 export const UpdateActivitySchema = z.object({
@@ -28,10 +30,12 @@ export const UpdateActivitySchema = z.object({
   answer: z.any().optional(),
   hints: z.array(z.string()).optional(),
   promptTemplateId: z.number().int().nullable().optional(),
+  customPrompt: z.string().optional().nullable(),
   mainTopicId: z.number().int().optional(),
   secondaryTopicIds: z.array(z.number().int()).optional(),
   enableTeachMode: z.boolean().optional(),
   enableGuideMode: z.boolean().optional(),
+  enableCustomMode: z.boolean().optional(),
 });
 
 export default {

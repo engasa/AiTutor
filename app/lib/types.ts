@@ -82,6 +82,8 @@ export type Activity = {
   secondaryTopics: Topic[];
   enableTeachMode: boolean;
   enableGuideMode: boolean;
+  enableCustomMode: boolean;
+  customPrompt: string | null;
   completionStatus?: CompletionStatus;
 };
 

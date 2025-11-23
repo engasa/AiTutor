@@ -14,6 +14,12 @@ import { CreateActivitySchema, UpdateActivitySchema } from '../../../shared/sche
 
 const router = express.Router();
 
+const normalizeCustomPrompt = (value) => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+};
+
 router.get('/lessons/:lessonId/activities', async (req, res) => {
   const authUser = req.user;
   const lessonId = Number(req.params.lessonId);
@@ -70,8 +76,8 @@ router.post('/lessons/:lessonId/activities', requireRole('INSTRUCTOR'), async (r
   }
 
   // Validate at least one AI mode is enabled
-  if (!payload.enableTeachMode && !payload.enableGuideMode) {
-    return res.status(400).json({ error: 'At least one AI mode (enableTeachMode or enableGuideMode) must be enabled' });
+  if (!payload.enableTeachMode && !payload.enableGuideMode && !payload.enableCustomMode) {
+    return res.status(400).json({ error: 'At least one AI mode must be enabled' });
   }
 
   try {
@@ -119,9 +125,11 @@ router.post('/lessons/:lessonId/activities', requireRole('INSTRUCTOR'), async (r
         instructionsMd: payload.instructionsMd ?? 'Answer the question.',
         lessonId,
         promptTemplateId: payload.promptTemplateId ?? null,
+        customPrompt: normalizeCustomPrompt(payload.customPrompt),
         mainTopicId: payload.mainTopicId,
         enableTeachMode: payload.enableTeachMode,
         enableGuideMode: payload.enableGuideMode,
+        enableCustomMode: payload.enableCustomMode ?? false,
         config: {
           question: payload.question,
           questionType: payload.type ?? 'MCQ',
@@ -168,6 +176,8 @@ router.patch('/activities/:activityId', requireRole('INSTRUCTOR'), async (req, r
   }
   const noUpdatableFields =
     typeof payload.promptTemplateId === 'undefined' &&
+    typeof payload.customPrompt === 'undefined' &&
+    typeof payload.enableCustomMode === 'undefined' &&
     typeof payload.mainTopicId === 'undefined' &&
     typeof payload.secondaryTopicIds === 'undefined' &&
     typeof payload.title === 'undefined' &&
@@ -296,6 +306,16 @@ router.patch('/activities/:activityId', requireRole('INSTRUCTOR'), async (req, r
       }
     }
 
+    if (typeof payload.customPrompt !== 'undefined') {
+      if (payload.customPrompt === null) {
+        updateData.customPrompt = null;
+      } else if (typeof payload.customPrompt === 'string') {
+        updateData.customPrompt = normalizeCustomPrompt(payload.customPrompt);
+      } else {
+        return res.status(400).json({ error: 'customPrompt must be a string or null' });
+      }
+    }
+
     let resolvedMainTopicId = activity.mainTopicId;
     if (typeof payload.mainTopicId !== 'undefined') {
       if (typeof payload.mainTopicId !== 'number' || !Number.isFinite(payload.mainTopicId)) {
@@ -337,18 +357,26 @@ router.patch('/activities/:activityId', requireRole('INSTRUCTOR'), async (req, r
       };
     }
 
+    const requestedModeUpdate =
+      typeof payload.enableTeachMode !== 'undefined' ||
+      typeof payload.enableGuideMode !== 'undefined' ||
+      typeof payload.enableCustomMode !== 'undefined';
+
     // Handle AI mode updates with validation
-    if (typeof payload.enableTeachMode !== 'undefined' || typeof payload.enableGuideMode !== 'undefined') {
+    if (requestedModeUpdate) {
       const newTeachMode = typeof payload.enableTeachMode !== 'undefined' 
         ? payload.enableTeachMode 
         : activity.enableTeachMode;
       const newGuideMode = typeof payload.enableGuideMode !== 'undefined' 
         ? payload.enableGuideMode 
         : activity.enableGuideMode;
+      const newCustomMode = typeof payload.enableCustomMode !== 'undefined'
+        ? payload.enableCustomMode
+        : activity.enableCustomMode;
       
       // Validate at least one mode is enabled
-      if (!newTeachMode && !newGuideMode) {
-        return res.status(400).json({ error: 'At least one AI mode (enableTeachMode or enableGuideMode) must be enabled' });
+      if (!newTeachMode && !newGuideMode && !newCustomMode) {
+        return res.status(400).json({ error: 'At least one AI mode must be enabled' });
       }
       
       if (typeof payload.enableTeachMode !== 'undefined') {
@@ -356,6 +384,9 @@ router.patch('/activities/:activityId', requireRole('INSTRUCTOR'), async (req, r
       }
       if (typeof payload.enableGuideMode !== 'undefined') {
         updateData.enableGuideMode = payload.enableGuideMode;
+      }
+      if (typeof payload.enableCustomMode !== 'undefined') {
+        updateData.enableCustomMode = payload.enableCustomMode;
       }
     }
 

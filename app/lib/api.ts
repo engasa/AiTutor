@@ -145,10 +145,12 @@ export const api = {
       hints?: string[];
       instructionsMd?: string;
       promptTemplateId?: number | null;
+      customPrompt?: string | null;
       mainTopicId: number;
       secondaryTopicIds?: number[];
       enableTeachMode?: boolean;
       enableGuideMode?: boolean;
+      enableCustomMode?: boolean;
     }
   ) =>
     http(`/api/lessons/${lessonId}/activities`, {
@@ -166,10 +168,12 @@ export const api = {
       answer?: any;
       hints?: string[];
       promptTemplateId?: number | null;
+      customPrompt?: string | null;
       mainTopicId?: number;
       secondaryTopicIds?: number[];
       enableTeachMode?: boolean;
       enableGuideMode?: boolean;
+      enableCustomMode?: boolean;
     }
   ) => {
     const body: Record<string, unknown> = { ...payload };
