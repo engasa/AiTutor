@@ -114,6 +114,7 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
   const [promptDrafts, setPromptDrafts] = useState<Record<number, string>>({});
   const [savingPromptId, setSavingPromptId] = useState<number | null>(null);
   const [promptErrors, setPromptErrors] = useState<Record<number, string>>({});
+  const [promptSaved, setPromptSaved] = useState<Record<number, boolean>>({});
 
   const beginTopicUpdate = (activityId: number) => {
     setUpdatingTopicsFor(activityId);
@@ -294,6 +295,9 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
           : a,
       ),
     );
+    if (mode === 'custom' && !enabled) {
+      setPromptSaved((prev) => ({ ...prev, [activityId]: false }));
+    }
 
     beginModeUpdate(activityId);
     try {
@@ -329,12 +333,14 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
       setActivities((prev) =>
         prev.map((item) => (item.id === activity.id ? updated : item)),
       );
+      setPromptSaved((prev) => ({ ...prev, [activity.id]: true }));
       if (!draft) {
         setPromptDrafts((prev) => {
           const next = { ...prev };
           delete next[activity.id];
           return next;
         });
+        setPromptSaved((prev) => ({ ...prev, [activity.id]: false }));
       }
     } catch (error) {
       console.error('Failed to save custom prompt', error);
@@ -503,6 +509,9 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
                       const isCustomEnabled = activity.enableCustomMode;
                       const promptDraft = promptDrafts[activity.id] ?? activity.customPrompt ?? '';
                       const isSavingPrompt = savingPromptId === activity.id;
+                      const isPromptSaved =
+                        promptSaved[activity.id] ??
+                        Boolean(activity.enableCustomMode && activity.customPrompt);
                       const promptError = promptErrors[activity.id];
                       return (
                         <li
@@ -689,10 +698,13 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
                                 <textarea
                                   value={promptDraft}
                                   onChange={(event) =>
-                                    setPromptDrafts((prev) => ({
-                                      ...prev,
-                                      [activity.id]: event.target.value,
-                                    }))
+                                    setPromptDrafts((prev) => {
+                                      setPromptSaved((saved) => ({ ...saved, [activity.id]: false }));
+                                      return {
+                                        ...prev,
+                                        [activity.id]: event.target.value,
+                                      };
+                                    })
                                   }
                                   placeholder="Write a custom prompt the AI should follow for this activity…"
                                   rows={3}
@@ -704,9 +716,11 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
                                     type="button"
                                     onClick={() => handleCustomPromptSave(activity)}
                                     disabled={isSavingPrompt}
-                                    className="px-3 py-2 rounded-lg bg-purple-600 text-white text-xs font-semibold shadow hover:shadow-md transition disabled:opacity-60 disabled:cursor-not-allowed"
+                                    className={`px-3 py-2 rounded-lg text-white text-xs font-semibold shadow hover:shadow-md transition disabled:opacity-60 disabled:cursor-not-allowed ${
+                                      isPromptSaved ? 'bg-purple-700' : 'bg-purple-600'
+                                    }`}
                                   >
-                                    {isSavingPrompt ? 'Saving…' : 'Save prompt'}
+                                    {isSavingPrompt ? 'Saving…' : isPromptSaved ? 'Saved' : 'Save prompt'}
                                   </button>
                                   {promptError && (
                                     <span className="text-[0.75rem] text-rose-600 dark:text-rose-300">
