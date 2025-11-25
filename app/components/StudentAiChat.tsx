@@ -134,18 +134,25 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
   const [modelsFetched, setModelsFetched] = useState(false);
   const [modelLoadError, setModelLoadError] = useState(false);
 
-  // API key state
-  const [providerApiKeys, setProviderApiKeys] = useState<Record<string, string>>(() =>
-    loadApiKeysFromStorage()
-  );
+  // API key state - initialize empty to avoid hydration mismatch, then load from localStorage
+  const [providerApiKeys, setProviderApiKeys] = useState<Record<string, string>>({});
+  const [apiKeysLoaded, setApiKeysLoaded] = useState(false);
   const [showApiKeyDialog, setShowApiKeyDialog] = useState(false);
   const [tempApiKey, setTempApiKey] = useState('');
   const [setupApiKeyInput, setSetupApiKeyInput] = useState('');
 
+  // Load API keys from localStorage after hydration
+  useEffect(() => {
+    const stored = loadApiKeysFromStorage();
+    setProviderApiKeys(stored);
+    setApiKeysLoaded(true);
+  }, []);
+
   // Derive current provider and its key
   const currentProvider = getProviderFromModelId(selectedModelId);
   const currentApiKey = providerApiKeys[currentProvider] || '';
-  const hasApiKey = Boolean(currentApiKey);
+  // Only consider API key present after we've loaded from localStorage (avoids hydration mismatch)
+  const hasApiKey = apiKeysLoaded && Boolean(currentApiKey);
 
   // Setup complete when both API key and knowledge level are set
   const setupComplete = hasApiKey && Boolean(knowledgeLevel);
