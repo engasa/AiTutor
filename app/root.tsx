@@ -13,30 +13,22 @@ import "./app.css";
 import { AuthProvider } from "~/hooks/useLocalUser";
 import { loadUserFromRequest } from "~/lib/server-api";
 
-const themeScript = `(() => {
-  const doc = document.documentElement;
-  const setTheme = (isDark) => doc.classList.toggle("dark", isDark);
-  let media;
-
+// Theme script runs before React hydration to prevent flash
+// Sets dark class on <html> based on localStorage or system preference
+const themeScript = `(function(){
   try {
-    const stored = localStorage.getItem("theme");
-    if (stored === "dark" || stored === "light") {
-      setTheme(stored === "dark");
+    var stored = localStorage.getItem("theme");
+    if (stored === "dark") {
+      document.documentElement.classList.add("dark");
       return;
     }
-  } catch (error) {
-    // ignore storage access issues
-  }
-
-  if (typeof window.matchMedia === "function") {
-    media = window.matchMedia("(prefers-color-scheme: dark)");
-    setTheme(media.matches);
-    const listener = (event) => setTheme(event.matches);
-    if (typeof media.addEventListener === "function") {
-      media.addEventListener("change", listener);
-    } else if (typeof media.addListener === "function") {
-      media.addListener(listener);
+    if (stored === "light") {
+      document.documentElement.classList.remove("dark");
+      return;
     }
+  } catch (e) {}
+  if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
+    document.documentElement.classList.add("dark");
   }
 })();`;
 
@@ -60,17 +52,18 @@ export async function loader({ request }: Route.LoaderArgs) {
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <Meta />
-        <Links />
+        {/* Theme script MUST run before CSS loads to prevent flash */}
         <script
           dangerouslySetInnerHTML={{
             __html: themeScript,
           }}
         />
+        <Meta />
+        <Links />
       </head>
       <body>
         {children}

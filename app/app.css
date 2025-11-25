@@ -12,10 +12,11 @@
 html,
 body {
   @apply bg-white dark:bg-gray-950;
+}
 
-  @media (prefers-color-scheme: dark) {
-    color-scheme: dark;
-  }
+/* Apply color-scheme based on .dark class, not system preference */
+html.dark {
+  color-scheme: dark;
 }
 
 @theme inline {
