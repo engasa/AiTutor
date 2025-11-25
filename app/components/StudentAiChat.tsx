@@ -27,6 +27,14 @@ import {
   type PromptInputMessage,
 } from '~/components/ai-elements/prompt-input';
 import { Message, MessageContent, MessageResponse } from '~/components/ai-elements/message';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '~/components/ui/dialog';
 import api from '../lib/api';
 import type { Activity, AiModel } from '../lib/types';
 
@@ -64,11 +72,7 @@ type StudentAiChatProps = {
 
 const DEFAULT_MODEL_ID = 'google:gemini-2.5-flash';
 const API_KEYS_STORAGE_KEY = 'ai-provider-keys';
-
-const PROVIDER_LABELS: Record<string, string> = {
-  google: 'Gemini',
-  openai: 'OpenAI',
-};
+const PROVIDER_LABELS: Record<string, string> = { google: 'Gemini', openai: 'OpenAI' };
 
 function getProviderFromModelId(modelId: string): string {
   return modelId.split(':')[0] || 'google';
@@ -134,41 +138,36 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
   const [providerApiKeys, setProviderApiKeys] = useState<Record<string, string>>(() =>
     loadApiKeysFromStorage()
   );
-  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+  const [showApiKeyDialog, setShowApiKeyDialog] = useState(false);
   const [tempApiKey, setTempApiKey] = useState('');
+  const [setupApiKeyInput, setSetupApiKeyInput] = useState('');
 
   // Derive current provider and its key
   const currentProvider = getProviderFromModelId(selectedModelId);
   const currentApiKey = providerApiKeys[currentProvider] || '';
   const hasApiKey = Boolean(currentApiKey);
 
+  // Setup complete when both API key and knowledge level are set
+  const setupComplete = hasApiKey && Boolean(knowledgeLevel);
+
   const availableTabs = useMemo<{ value: ChatTab; label: string }[]>(() => {
     if (!activity) return [];
     const tabs = [];
-    if (activity.enableTeachMode) {
-      tabs.push({ value: 'teach' as ChatTab, label: 'Teach me' });
-    }
-    if (activity.enableGuideMode) {
-      tabs.push({ value: 'guide' as ChatTab, label: 'Guide me' });
-    }
+    if (activity.enableTeachMode) tabs.push({ value: 'teach' as ChatTab, label: 'Teach me' });
+    if (activity.enableGuideMode) tabs.push({ value: 'guide' as ChatTab, label: 'Guide me' });
     return tabs;
   }, [activity]);
 
   const showTabToggle = availableTabs.length > 1;
-
   const isTeachEnabled = activity?.enableTeachMode ?? false;
   const isGuideEnabled = activity?.enableGuideMode ?? false;
   const currentTabEnabled =
     (activeTab === 'teach' && isTeachEnabled) || (activeTab === 'guide' && isGuideEnabled);
 
   if (!currentTabEnabled) {
-    if (isTeachEnabled) {
-      setActiveTab('teach');
-    } else if (isGuideEnabled) {
-      setActiveTab('guide');
-    } else if (activeTab !== 'teach') {
-      setActiveTab('teach');
-    }
+    if (isTeachEnabled) setActiveTab('teach');
+    else if (isGuideEnabled) setActiveTab('guide');
+    else if (activeTab !== 'teach') setActiveTab('teach');
   }
 
   useEffect(() => {
@@ -179,9 +178,7 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
         if (!isMounted) return;
         setAvailableModels(models);
         setSelectedModelId((current) => {
-          if (models.some((m) => m.modelId === current)) {
-            return current;
-          }
+          if (models.some((m) => m.modelId === current)) return current;
           const geminiModel = models.find((m) => m.modelId.includes('gemini-2.5-flash'));
           return geminiModel?.modelId ?? models[0]?.modelId ?? DEFAULT_MODEL_ID;
         });
@@ -191,23 +188,15 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
         console.error('Failed to load AI models:', error);
         setModelLoadError(true);
       } finally {
-        if (isMounted) {
-          setModelsFetched(true);
-        }
+        if (isMounted) setModelsFetched(true);
       }
     })();
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, []);
 
   const ensureKnowledgeLevel = useCallback(() => {
-    if (!activity) {
-      return false;
-    }
-    if (knowledgeLevel) {
-      return true;
-    }
+    if (!activity) return false;
+    if (knowledgeLevel) return true;
     onRequestKnowledgeLevel();
     return false;
   }, [activity, knowledgeLevel, onRequestKnowledgeLevel]);
@@ -227,35 +216,23 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
 
   const sendChat = useCallback(
     async (tab: ChatTab, overrideMessage?: string) => {
-      if (!activity || !isUserReady) {
-        return;
-      }
+      if (!activity || !isUserReady) return;
 
-      // Guard: Prevent sending if mode is disabled
-      const modeEnabled = 
+      const modeEnabled =
         (tab === 'teach' && activity.enableTeachMode) ||
         (tab === 'guide' && activity.enableGuideMode);
-      
       if (!modeEnabled) {
         console.warn(`Cannot use disabled ${tab} mode for activity ${activity.id}`);
         return;
       }
 
       const message = (overrideMessage ?? chatState[tab].input).trim();
-      if (!message) {
-        return;
-      }
-
-      if (!ensureKnowledgeLevel()) {
-        return;
-      }
+      if (!message) return;
+      if (!ensureKnowledgeLevel()) return;
 
       const level = knowledgeLevel;
-      if (!level) {
-        return;
-      }
+      if (!level) return;
 
-      // Check for API key
       const provider = getProviderFromModelId(selectedModelId);
       const apiKey = providerApiKeys[provider];
       if (!apiKey) {
@@ -275,76 +252,36 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
 
       setChatState((prev) => ({
         ...prev,
-        [tab]: {
-          ...prev[tab],
-          input: overrideMessage ? prev[tab].input : '',
-          loading: true,
-        },
+        [tab]: { ...prev[tab], input: overrideMessage ? prev[tab].input : '', loading: true },
       }));
 
       appendMessage(tab, 'user', message, messageId);
 
       try {
-        let response;
         const modelId = selectedModelId || DEFAULT_MODEL_ID;
-        if (tab === 'teach') {
-          response = await api.sendTeachMessage(activity.id, {
-            knowledgeLevel: level,
-            topicId,
-            message,
-            modelId,
-            apiKey,
-            chatId: chatState[tab].chatId,
-            messageId,
-          });
-        } else {
-          response = await api.sendGuideMessage(activity.id, {
-            knowledgeLevel: level,
-            message,
-            studentAnswer: normalizedStudentAnswer,
-            modelId,
-            apiKey,
-            chatId: chatState[tab].chatId,
-            messageId,
-          });
-        }
+        const response = tab === 'teach'
+          ? await api.sendTeachMessage(activity.id, {
+              knowledgeLevel: level, topicId, message, modelId, apiKey,
+              chatId: chatState[tab].chatId, messageId,
+            })
+          : await api.sendGuideMessage(activity.id, {
+              knowledgeLevel: level, message, studentAnswer: normalizedStudentAnswer,
+              modelId, apiKey, chatId: chatState[tab].chatId, messageId,
+            });
+
         const nextChatId = response.chatId ?? chatState[tab].chatId ?? null;
         if (nextChatId) {
-          setChatState((prev) => ({
-            ...prev,
-            [tab]: {
-              ...prev[tab],
-              chatId: nextChatId,
-            },
-          }));
+          setChatState((prev) => ({ ...prev, [tab]: { ...prev[tab], chatId: nextChatId } }));
         }
         appendMessage(tab, 'assistant', response.message);
       } catch (error) {
         console.error('AI chat failed:', error);
-        appendMessage(
-          tab,
-          'assistant',
-          'AI study buddy not available right now. Please try again later.',
-        );
+        appendMessage(tab, 'assistant', 'AI study buddy not available right now. Please try again later.');
       } finally {
-        setChatState((prev) => ({
-          ...prev,
-          [tab]: { ...prev[tab], loading: false },
-        }));
+        setChatState((prev) => ({ ...prev, [tab]: { ...prev[tab], loading: false } }));
       }
     },
-    [
-      activity,
-      appendMessage,
-      chatState,
-      currentTopicId,
-      ensureKnowledgeLevel,
-      isUserReady,
-      knowledgeLevel,
-      providerApiKeys,
-      selectedModelId,
-      studentAnswer,
-    ],
+    [activity, appendMessage, chatState, currentTopicId, ensureKnowledgeLevel, isUserReady, knowledgeLevel, providerApiKeys, selectedModelId, studentAnswer],
   );
 
   const guideInput = chatState.guide.input;
@@ -353,55 +290,28 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
     ref,
     () => ({
       sendGuidePrompt: () => {
-        if (!activity) {
-          return;
-        }
-        // Guard: only proceed if guide mode is enabled
-        if (!activity.enableGuideMode) {
-          console.warn('Cannot use sendGuidePrompt when guide mode is disabled');
-          return;
-        }
-        // Check API key exists for current provider
+        if (!activity || !activity.enableGuideMode) return;
         const provider = getProviderFromModelId(selectedModelId);
-        if (!providerApiKeys[provider]) {
-          console.warn('No API key for provider:', provider);
-          return;
-        }
+        if (!providerApiKeys[provider]) return;
         const fallback = guideInput.trim() || 'I would like guidance on this question.';
         setActiveTab('guide');
         void sendChat('guide', fallback);
       },
       pushGuideMessage: (content: string) => {
-        if (!activity || !content) {
-          return;
-        }
-        // Guard: only push if guide mode is enabled
-        if (!activity.enableGuideMode) {
-          console.warn('Cannot push guide message when guide mode is disabled');
-          return;
-        }
+        if (!activity || !content || !activity.enableGuideMode) return;
         appendMessage('guide', 'assistant', content);
       },
     }),
     [activity, appendMessage, guideInput, providerApiKeys, selectedModelId, sendChat],
   );
 
-  // Chat is disabled if: no activity, no knowledge level, no API key, or user not ready
   const chatDisabled = !activity || !knowledgeLevel || !hasApiKey || !isUserReady;
   const activeChat = chatState[activeTab];
-  const canSend =
-    !!activeChat &&
-    !activeChat.loading &&
-    !chatDisabled &&
-    Boolean(activeChat.input.trim());
+  const canSend = !!activeChat && !activeChat.loading && !chatDisabled && Boolean(activeChat.input.trim());
 
   const handlePromptInputChange = useCallback(
     (event: ChangeEvent<HTMLTextAreaElement>) => {
-      const { value } = event.target;
-      setChatState((prev) => ({
-        ...prev,
-        [activeTab]: { ...prev[activeTab], input: value },
-      }));
+      setChatState((prev) => ({ ...prev, [activeTab]: { ...prev[activeTab], input: event.target.value } }));
     },
     [activeTab],
   );
@@ -409,50 +319,44 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
   const handlePromptSubmit = useCallback(
     (message: PromptInputMessage, event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
-      if (!canSend || !message?.text?.trim()) {
-        return;
-      }
-      void sendChat(activeTab);
+      if (canSend && message?.text?.trim()) void sendChat(activeTab);
     },
     [activeTab, canSend, sendChat],
   );
 
   const handleTextareaKeyDown = useCallback(
     (event: KeyboardEvent<HTMLTextAreaElement>) => {
-      if (event.key !== 'Enter') {
-        return;
+      if (event.key === 'Enter' && !event.metaKey && !event.shiftKey) {
+        event.preventDefault();
+        if (canSend) void sendChat(activeTab);
       }
-      if (event.metaKey || event.shiftKey) {
-        return;
-      }
-      event.preventDefault();
-      if (!canSend) {
-        return;
-      }
-      void sendChat(activeTab);
     },
     [activeTab, canSend, sendChat],
   );
 
-  // API key modal handlers
-  const handleOpenApiKeyModal = useCallback(() => {
+  // Setup card: save API key inline
+  const handleSetupSaveApiKey = useCallback(() => {
+    if (!setupApiKeyInput.trim()) return;
+    const newKeys = { ...providerApiKeys, [currentProvider]: setupApiKeyInput.trim() };
+    setProviderApiKeys(newKeys);
+    saveApiKeysToStorage(newKeys);
+    setSetupApiKeyInput('');
+  }, [currentProvider, providerApiKeys, setupApiKeyInput]);
+
+  // Dialog: edit existing API key
+  const handleOpenApiKeyDialog = useCallback(() => {
     setTempApiKey(currentApiKey);
-    setShowApiKeyModal(true);
+    setShowApiKeyDialog(true);
   }, [currentApiKey]);
 
-  const handleSaveApiKey = useCallback(() => {
+  const handleSaveApiKeyDialog = useCallback(() => {
     if (!tempApiKey.trim()) return;
     const newKeys = { ...providerApiKeys, [currentProvider]: tempApiKey.trim() };
     setProviderApiKeys(newKeys);
     saveApiKeysToStorage(newKeys);
-    setShowApiKeyModal(false);
+    setShowApiKeyDialog(false);
     setTempApiKey('');
   }, [currentProvider, providerApiKeys, tempApiKey]);
-
-  const handleCancelApiKeyModal = useCallback(() => {
-    setShowApiKeyModal(false);
-    setTempApiKey('');
-  }, []);
 
   const renderMessages = (tab: ChatTab) => (
     <div className="space-y-3">
@@ -472,63 +376,152 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
     </div>
   );
 
-  // Determine what message to show in disabled state
-  const getDisabledMessage = () => {
-    if (!activity) return 'Select an activity to begin.';
-    if (!hasApiKey) return `Enter your ${getProviderLabel(currentProvider)} API key to start chatting.`;
-    if (!knowledgeLevel) return 'Set your knowledge level to start chatting.';
-    return null;
-  };
+  // Setup card shown when setup incomplete
+  const renderSetupCard = () => (
+    <div className="mx-auto max-w-sm rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 p-5 space-y-4">
+      <div className="text-center">
+        <div className="w-12 h-12 mx-auto mb-3 rounded-xl bg-gradient-to-br from-fuchsia-500 via-pink-500 to-rose-500" />
+        <h3 className="font-bold text-gray-900 dark:text-gray-100">Set up your AI Study Buddy</h3>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Complete these steps to start chatting</p>
+      </div>
 
-  const disabledMessage = getDisabledMessage();
+      {/* Step 1: Knowledge Level */}
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-2">
+          <span className={`flex items-center justify-center w-5 h-5 rounded-full text-xs font-bold ${
+            knowledgeLevel
+              ? 'bg-green-500 text-white'
+              : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+          }`}>
+            {knowledgeLevel ? '✓' : '1'}
+          </span>
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Knowledge Level</span>
+        </div>
+        {knowledgeLevel ? (
+          <button
+            type="button"
+            onClick={onAdjustKnowledgeLevel}
+            className="w-full flex items-center justify-between px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-left hover:border-gray-300 dark:hover:border-gray-600 transition"
+          >
+            <span className="text-gray-900 dark:text-gray-100">{titleCase(knowledgeLevel)}</span>
+            <span className="text-xs text-gray-400">Change</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onRequestKnowledgeLevel}
+            className="w-full px-3 py-2 rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/30 text-sm font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/50 transition"
+          >
+            Select your level
+          </button>
+        )}
+      </div>
+
+      {/* Step 2: API Key */}
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-2">
+          <span className={`flex items-center justify-center w-5 h-5 rounded-full text-xs font-bold ${
+            hasApiKey
+              ? 'bg-green-500 text-white'
+              : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+          }`}>
+            {hasApiKey ? '✓' : '2'}
+          </span>
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            {getProviderLabel(currentProvider)} API Key
+          </span>
+        </div>
+        {hasApiKey ? (
+          <button
+            type="button"
+            onClick={handleOpenApiKeyDialog}
+            className="w-full flex items-center justify-between px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-left hover:border-gray-300 dark:hover:border-gray-600 transition"
+          >
+            <span className="font-mono text-gray-900 dark:text-gray-100">{maskApiKey(currentApiKey)}</span>
+            <span className="text-xs text-gray-400">Change</span>
+          </button>
+        ) : (
+          <div className="flex gap-2">
+            <input
+              type="password"
+              value={setupApiKeyInput}
+              onChange={(e) => setSetupApiKeyInput(e.target.value)}
+              placeholder="Enter API key"
+              className="flex-1 px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm font-mono"
+            />
+            <button
+              type="button"
+              onClick={handleSetupSaveApiKey}
+              disabled={!setupApiKeyInput.trim()}
+              className="px-3 py-2 rounded-xl bg-amber-500 text-white text-sm font-semibold disabled:opacity-50 hover:bg-amber-600 transition"
+            >
+              Save
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 
   return (
     <aside className="flex h-[800px] flex-col rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
+      {/* Header */}
       <div className="flex items-center gap-3 p-5 border-b border-gray-200 dark:border-gray-800">
         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-fuchsia-500 via-pink-500 to-rose-500" />
-        <div>
+        <div className="flex-1">
           <div className="font-bold">AI Study Buddy</div>
           <div className="text-xs text-gray-500">Hints, not answers</div>
         </div>
+        {/* Show status badges when setup complete */}
+        {setupComplete && (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onAdjustKnowledgeLevel}
+              className="px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-[10px] font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+            >
+              {titleCase(knowledgeLevel!)}
+            </button>
+            <button
+              type="button"
+              onClick={handleOpenApiKeyDialog}
+              className="px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-[10px] font-mono text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+            >
+              {maskApiKey(currentApiKey)}
+            </button>
+          </div>
+        )}
       </div>
 
-      <div className="flex items-center gap-2 px-5 pt-4">
-        {showTabToggle ? (
-          <div className="flex rounded-full bg-gray-100 dark:bg-gray-900 p-1">
-            {availableTabs.map((tab) => (
-              <button
-                key={tab.value}
-                onClick={() => setActiveTab(tab.value)}
-                className={`px-3 py-1 text-xs font-semibold rounded-full transition ${
-                  activeTab === tab.value
-                    ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow'
-                    : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        ) : availableTabs.length === 1 ? (
-          <div className="px-3 py-1 text-xs font-semibold rounded-full bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400 cursor-not-allowed">
-            {availableTabs[0].label}
-          </div>
-        ) : null}
-        <button
-          type="button"
-          onClick={onAdjustKnowledgeLevel}
-          className={`ml-auto inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-wide transition
-            ${knowledgeLevel
-              ? 'border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
-              : 'border-amber-300 dark:border-amber-800 bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-900'}
-          `}
-          aria-label={knowledgeLevel ? 'Adjust knowledge level' : 'Set your knowledge level'}
-        >
-          {knowledgeLevel ? `Level: ${titleCase(knowledgeLevel)}` : 'Set your level'}
-        </button>
-      </div>
+      {/* Tab toggle + topic selector (only when setup complete) */}
+      {setupComplete && (
+        <div className="flex items-center gap-2 px-5 pt-4">
+          {showTabToggle ? (
+            <div className="flex rounded-full bg-gray-100 dark:bg-gray-900 p-1">
+              {availableTabs.map((tab) => (
+                <button
+                  key={tab.value}
+                  onClick={() => setActiveTab(tab.value)}
+                  className={`px-3 py-1 text-xs font-semibold rounded-full transition ${
+                    activeTab === tab.value
+                      ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow'
+                      : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          ) : availableTabs.length === 1 ? (
+            <div className="px-3 py-1 text-xs font-semibold rounded-full bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
+              {availableTabs[0].label}
+            </div>
+          ) : null}
+        </div>
+      )}
 
-      {activeTab === 'teach' && (
+      {/* Topic selector for teach mode */}
+      {setupComplete && activeTab === 'teach' && (
         <div className="px-5 pt-3">
           <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">
             Focus topic
@@ -537,33 +530,41 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
             value={currentTopicId ?? ''}
             onChange={(e) => {
               const value = Number(e.target.value);
-              if (Number.isFinite(value)) {
-                onSelectTopic(value);
-              }
+              if (Number.isFinite(value)) onSelectTopic(value);
             }}
             disabled={topicOptions.length <= 1}
             className="w-full rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3 py-2 text-sm disabled:opacity-50"
           >
             {topicOptions.map((topic) => (
-              <option key={topic.value} value={topic.value}>
-                {topic.label}
-              </option>
+              <option key={topic.value} value={topic.value}>{topic.label}</option>
             ))}
           </select>
         </div>
       )}
 
+      {/* Conversation area */}
       <Conversation className="flex-1">
         <ConversationContent className="px-5 py-4 space-y-3">
-          {renderMessages(activeTab)}
-          {chatState[activeTab].loading && <div className="mt-2 text-xs text-gray-400">Thinking…</div>}
-          {disabledMessage && chatState[activeTab].messages.length === 0 && (
-            <div className="text-sm text-gray-500">{disabledMessage}</div>
+          {!activity ? (
+            <div className="text-sm text-gray-500 text-center py-8">Select an activity to begin.</div>
+          ) : !setupComplete ? (
+            renderSetupCard()
+          ) : (
+            <>
+              {renderMessages(activeTab)}
+              {chatState[activeTab].loading && <div className="mt-2 text-xs text-gray-400">Thinking…</div>}
+              {chatState[activeTab].messages.length === 0 && (
+                <div className="text-sm text-gray-500 text-center py-4">
+                  Ask your study buddy anything about this topic!
+                </div>
+              )}
+            </>
           )}
         </ConversationContent>
         <ConversationScrollButton />
       </Conversation>
 
+      {/* Input area */}
       <div className="border-t border-gray-200 dark:border-gray-800 p-5 space-y-3">
         <PromptInput
           onSubmit={handlePromptSubmit}
@@ -576,7 +577,7 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
               onKeyDown={handleTextareaKeyDown}
               placeholder={
                 chatDisabled
-                  ? disabledMessage || 'Chat disabled'
+                  ? 'Complete setup above to start chatting'
                   : activeTab === 'teach'
                   ? 'Ask about the topic…'
                   : 'Describe where you need guidance…'
@@ -589,7 +590,7 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
             <PromptInputTools className="flex items-center gap-2">
               <PromptInputModelSelect
                 value={selectedModelId}
-                onValueChange={(value: string) => setSelectedModelId(value)}
+                onValueChange={setSelectedModelId}
                 disabled={!availableModels.length}
               >
                 <PromptInputModelSelectTrigger className="min-w-[160px]">
@@ -604,116 +605,56 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
                 </PromptInputModelSelectContent>
               </PromptInputModelSelect>
             </PromptInputTools>
-            <PromptInputSubmit
-              disabled={!canSend}
-              status={activeChat.loading ? 'streaming' : 'ready'}
-            />
+            <PromptInputSubmit disabled={!canSend} status={activeChat.loading ? 'streaming' : 'ready'} />
           </PromptInputFooter>
         </PromptInput>
 
-        {/* API Key Status / Button */}
-        <div className="flex items-center justify-between">
-          {hasApiKey ? (
-            <button
-              type="button"
-              onClick={handleOpenApiKeyModal}
-              className="inline-flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition"
-            >
-              <span className="font-mono">{maskApiKey(currentApiKey)}</span>
-              <span className="text-[10px] uppercase font-semibold text-gray-400 dark:text-gray-500">
-                {getProviderLabel(currentProvider)} key
-              </span>
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 16 16"
-                fill="currentColor"
-                className="w-3 h-3"
-              >
-                <path d="M13.488 2.513a1.75 1.75 0 0 0-2.475 0L3.765 9.76a2.782 2.782 0 0 0-.758 1.368l-.442 1.878a.75.75 0 0 0 .896.896l1.878-.442a2.782 2.782 0 0 0 1.368-.758l7.248-7.248a1.75 1.75 0 0 0 0-2.475l-.467-.467Zm-1.415 1.06a.25.25 0 0 1 .354 0l.467.467a.25.25 0 0 1 0 .354L5.648 11.64a1.282 1.282 0 0 1-.631.349l-.895.211.211-.895c.054-.23.167-.44.349-.631l7.247-7.247Z" />
-              </svg>
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={handleOpenApiKeyModal}
-              className="inline-flex items-center gap-2 rounded-full border border-amber-300 dark:border-amber-800 bg-amber-100 dark:bg-amber-900/40 px-3 py-1 text-xs font-semibold text-amber-800 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-900 transition"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 16 16"
-                fill="currentColor"
-                className="w-3 h-3"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M8 1a3.5 3.5 0 0 0-3.5 3.5V7A1.5 1.5 0 0 0 3 8.5v5A1.5 1.5 0 0 0 4.5 15h7a1.5 1.5 0 0 0 1.5-1.5v-5A1.5 1.5 0 0 0 11.5 7V4.5A3.5 3.5 0 0 0 8 1Zm2 6V4.5a2 2 0 1 0-4 0V7h4Z"
-                  clipRule="evenodd"
-                />
-              </svg>
-              Enter {getProviderLabel(currentProvider)} API key
-            </button>
-          )}
-        </div>
-
         {modelsFetched && modelLoadError && (
-          <div className="px-1 text-xs text-red-500 dark:text-red-400">
-            Unable to load AI models. Please try again.
-          </div>
+          <div className="px-1 text-xs text-red-500 dark:text-red-400">Unable to load AI models.</div>
         )}
         {modelsFetched && !modelLoadError && !availableModels.length && (
-          <div className="px-1 text-xs text-gray-500 dark:text-gray-400">
-            No AI models are configured yet.
-          </div>
+          <div className="px-1 text-xs text-gray-500 dark:text-gray-400">No AI models configured.</div>
         )}
       </div>
 
-      {/* API Key Modal */}
-      {showApiKeyModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="max-w-lg w-full bg-white dark:bg-gray-900 rounded-2xl shadow-2xl p-6 space-y-4">
-            <div>
-              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
-                {getProviderLabel(currentProvider)} API Key
-              </h2>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                Enter your {getProviderLabel(currentProvider)} API key to use{' '}
-                {currentProvider === 'google' ? 'Gemini' : 'OpenAI'} models.
-                Your key is stored locally and sent directly to the AI service.
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                API Key
-              </label>
-              <input
-                type="password"
-                value={tempApiKey}
-                onChange={(e) => setTempApiKey(e.target.value)}
-                placeholder={`Enter your ${getProviderLabel(currentProvider)} API key`}
-                className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-mono text-sm"
-                autoFocus
-              />
-            </div>
-
-            <div className="flex gap-3 pt-2">
-              <button
-                onClick={handleCancelApiKeyModal}
-                className="flex-1 px-4 py-2 rounded-xl font-semibold bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveApiKey}
-                disabled={!tempApiKey.trim()}
-                className="flex-1 px-4 py-2 rounded-xl font-semibold text-white bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed shadow"
-              >
-                Save Key
-              </button>
-            </div>
+      {/* API Key Edit Dialog */}
+      <Dialog open={showApiKeyDialog} onOpenChange={setShowApiKeyDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{getProviderLabel(currentProvider)} API Key</DialogTitle>
+            <DialogDescription>
+              Update your API key for {getProviderLabel(currentProvider)} models.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <input
+              type="password"
+              value={tempApiKey}
+              onChange={(e) => setTempApiKey(e.target.value)}
+              placeholder={`Enter your ${getProviderLabel(currentProvider)} API key`}
+              className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-mono text-sm"
+              autoFocus
+            />
           </div>
-        </div>
-      )}
+          <DialogFooter className="gap-2 sm:gap-0">
+            <button
+              type="button"
+              onClick={() => setShowApiKeyDialog(false)}
+              className="px-4 py-2 rounded-xl font-semibold bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveApiKeyDialog}
+              disabled={!tempApiKey.trim()}
+              className="px-4 py-2 rounded-xl font-semibold text-white bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed shadow"
+            >
+              Save
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </aside>
   );
 });
