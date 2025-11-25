@@ -226,6 +226,7 @@ export const api = {
       topicId?: number;
       message: string;
       modelId: string;
+      apiKey: string;
       chatId?: string | null;
       messageId?: string;
     },
@@ -241,6 +242,7 @@ export const api = {
       message: string;
       studentAnswer?: string | number | null;
       modelId: string;
+      apiKey: string;
       chatId?: string | null;
       messageId?: string;
     },

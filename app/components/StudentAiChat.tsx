@@ -63,6 +63,44 @@ type StudentAiChatProps = {
 };
 
 const DEFAULT_MODEL_ID = 'google:gemini-2.5-flash';
+const API_KEYS_STORAGE_KEY = 'ai-provider-keys';
+
+const PROVIDER_LABELS: Record<string, string> = {
+  google: 'Gemini',
+  openai: 'OpenAI',
+};
+
+function getProviderFromModelId(modelId: string): string {
+  return modelId.split(':')[0] || 'google';
+}
+
+function getProviderLabel(provider: string): string {
+  return PROVIDER_LABELS[provider] || provider;
+}
+
+function maskApiKey(key: string): string {
+  if (key.length <= 8) return '••••••••';
+  return `••••••${key.slice(-4)}`;
+}
+
+function loadApiKeysFromStorage(): Record<string, string> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const stored = localStorage.getItem(API_KEYS_STORAGE_KEY);
+    return stored ? JSON.parse(stored) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveApiKeysToStorage(keys: Record<string, string>) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(API_KEYS_STORAGE_KEY, JSON.stringify(keys));
+  } catch {
+    // Ignore storage errors
+  }
+}
 
 function getInitialChatState(): ChatState {
   return {
@@ -91,6 +129,18 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
   const [selectedModelId, setSelectedModelId] = useState<string>(DEFAULT_MODEL_ID);
   const [modelsFetched, setModelsFetched] = useState(false);
   const [modelLoadError, setModelLoadError] = useState(false);
+
+  // API key state
+  const [providerApiKeys, setProviderApiKeys] = useState<Record<string, string>>(() =>
+    loadApiKeysFromStorage()
+  );
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+  const [tempApiKey, setTempApiKey] = useState('');
+
+  // Derive current provider and its key
+  const currentProvider = getProviderFromModelId(selectedModelId);
+  const currentApiKey = providerApiKeys[currentProvider] || '';
+  const hasApiKey = Boolean(currentApiKey);
 
   const availableTabs = useMemo<{ value: ChatTab; label: string }[]>(() => {
     if (!activity) return [];
@@ -205,6 +255,14 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
         return;
       }
 
+      // Check for API key
+      const provider = getProviderFromModelId(selectedModelId);
+      const apiKey = providerApiKeys[provider];
+      if (!apiKey) {
+        console.warn('No API key for provider:', provider);
+        return;
+      }
+
       const topicId = typeof currentTopicId === 'number' ? currentTopicId : undefined;
       const normalizedStudentAnswer =
         typeof studentAnswer === 'number'
@@ -235,6 +293,7 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
             topicId,
             message,
             modelId,
+            apiKey,
             chatId: chatState[tab].chatId,
             messageId,
           });
@@ -244,6 +303,7 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
             message,
             studentAnswer: normalizedStudentAnswer,
             modelId,
+            apiKey,
             chatId: chatState[tab].chatId,
             messageId,
           });
@@ -281,6 +341,7 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
       ensureKnowledgeLevel,
       isUserReady,
       knowledgeLevel,
+      providerApiKeys,
       selectedModelId,
       studentAnswer,
     ],
@@ -300,6 +361,12 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
           console.warn('Cannot use sendGuidePrompt when guide mode is disabled');
           return;
         }
+        // Check API key exists for current provider
+        const provider = getProviderFromModelId(selectedModelId);
+        if (!providerApiKeys[provider]) {
+          console.warn('No API key for provider:', provider);
+          return;
+        }
         const fallback = guideInput.trim() || 'I would like guidance on this question.';
         setActiveTab('guide');
         void sendChat('guide', fallback);
@@ -316,15 +383,16 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
         appendMessage('guide', 'assistant', content);
       },
     }),
-    [activity, appendMessage, guideInput, sendChat],
+    [activity, appendMessage, guideInput, providerApiKeys, selectedModelId, sendChat],
   );
 
-  const textAreaDisabled = !activity || !knowledgeLevel || !isUserReady;
+  // Chat is disabled if: no activity, no knowledge level, no API key, or user not ready
+  const chatDisabled = !activity || !knowledgeLevel || !hasApiKey || !isUserReady;
   const activeChat = chatState[activeTab];
   const canSend =
     !!activeChat &&
     !activeChat.loading &&
-    !textAreaDisabled &&
+    !chatDisabled &&
     Boolean(activeChat.input.trim());
 
   const handlePromptInputChange = useCallback(
@@ -366,6 +434,26 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
     [activeTab, canSend, sendChat],
   );
 
+  // API key modal handlers
+  const handleOpenApiKeyModal = useCallback(() => {
+    setTempApiKey(currentApiKey);
+    setShowApiKeyModal(true);
+  }, [currentApiKey]);
+
+  const handleSaveApiKey = useCallback(() => {
+    if (!tempApiKey.trim()) return;
+    const newKeys = { ...providerApiKeys, [currentProvider]: tempApiKey.trim() };
+    setProviderApiKeys(newKeys);
+    saveApiKeysToStorage(newKeys);
+    setShowApiKeyModal(false);
+    setTempApiKey('');
+  }, [currentProvider, providerApiKeys, tempApiKey]);
+
+  const handleCancelApiKeyModal = useCallback(() => {
+    setShowApiKeyModal(false);
+    setTempApiKey('');
+  }, []);
+
   const renderMessages = (tab: ChatTab) => (
     <div className="space-y-3">
       {chatState[tab].messages.map((msg) => (
@@ -383,6 +471,16 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
       ))}
     </div>
   );
+
+  // Determine what message to show in disabled state
+  const getDisabledMessage = () => {
+    if (!activity) return 'Select an activity to begin.';
+    if (!hasApiKey) return `Enter your ${getProviderLabel(currentProvider)} API key to start chatting.`;
+    if (!knowledgeLevel) return 'Set your knowledge level to start chatting.';
+    return null;
+  };
+
+  const disabledMessage = getDisabledMessage();
 
   return (
     <aside className="flex h-[800px] flex-col rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
@@ -459,72 +557,163 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
         <ConversationContent className="px-5 py-4 space-y-3">
           {renderMessages(activeTab)}
           {chatState[activeTab].loading && <div className="mt-2 text-xs text-gray-400">Thinking…</div>}
-          {!activity && <div className="text-sm text-gray-500">Select an activity to begin.</div>}
+          {disabledMessage && chatState[activeTab].messages.length === 0 && (
+            <div className="text-sm text-gray-500">{disabledMessage}</div>
+          )}
         </ConversationContent>
         <ConversationScrollButton />
       </Conversation>
 
-  <div className="border-t border-gray-200 dark:border-gray-800 p-5 space-y-3">
-    <PromptInput
-      onSubmit={handlePromptSubmit}
-      className="shadow-none [&_[data-slot=input-group]]:rounded-2xl [&_[data-slot=input-group]]:border [&_[data-slot=input-group]]:border-gray-200 dark:[&_[data-slot=input-group]]:border-gray-800 [&_[data-slot=input-group]]:bg-white dark:[&_[data-slot=input-group]]:bg-gray-900 [&_[data-slot=input-group]]:px-0 [&_[data-slot=input-group]]:py-0"
-    >
-      <PromptInputBody>
-        <PromptInputTextarea
-          value={chatState[activeTab].input}
-          onChange={handlePromptInputChange}
-          onKeyDown={handleTextareaKeyDown}
-          placeholder={
-            activeTab === 'teach'
-              ? 'Ask about the topic…'
-              : 'Describe where you need guidance…'
-          }
-          disabled={textAreaDisabled}
-          className="px-4 pb-4 pt-5 text-sm"
-        />
-      </PromptInputBody>
-      <PromptInputFooter className="flex-col gap-3 border-t border-gray-100 px-4 pb-4 pt-3 sm:flex-row sm:items-center sm:justify-between dark:border-gray-800">
-        <PromptInputTools className="flex items-center gap-2">
-          <PromptInputModelSelect
-            value={selectedModelId}
-            onValueChange={(value: string) => setSelectedModelId(value)}
-            disabled={!availableModels.length}
-          >
-            <PromptInputModelSelectTrigger className="min-w-[160px]">
-              <PromptInputModelSelectValue placeholder="Select model" />
-            </PromptInputModelSelectTrigger>
-            <PromptInputModelSelectContent>
-              {availableModels.map((model) => (
-                <PromptInputModelSelectItem key={model.id} value={model.modelId}>
-                  {model.modelName}
-                </PromptInputModelSelectItem>
-              ))}
-            </PromptInputModelSelectContent>
-          </PromptInputModelSelect>
-        </PromptInputTools>
-        <PromptInputSubmit
-          disabled={!canSend}
-          status={activeChat.loading ? 'streaming' : 'ready'}
-        />
-      </PromptInputFooter>
-    </PromptInput>
-    {modelsFetched && modelLoadError && (
-      <div className="px-1 text-xs text-red-500 dark:text-red-400">
-        Unable to load AI models. Please try again.
+      <div className="border-t border-gray-200 dark:border-gray-800 p-5 space-y-3">
+        <PromptInput
+          onSubmit={handlePromptSubmit}
+          className="shadow-none [&_[data-slot=input-group]]:rounded-2xl [&_[data-slot=input-group]]:border [&_[data-slot=input-group]]:border-gray-200 dark:[&_[data-slot=input-group]]:border-gray-800 [&_[data-slot=input-group]]:bg-white dark:[&_[data-slot=input-group]]:bg-gray-900 [&_[data-slot=input-group]]:px-0 [&_[data-slot=input-group]]:py-0"
+        >
+          <PromptInputBody>
+            <PromptInputTextarea
+              value={chatState[activeTab].input}
+              onChange={handlePromptInputChange}
+              onKeyDown={handleTextareaKeyDown}
+              placeholder={
+                chatDisabled
+                  ? disabledMessage || 'Chat disabled'
+                  : activeTab === 'teach'
+                  ? 'Ask about the topic…'
+                  : 'Describe where you need guidance…'
+              }
+              disabled={chatDisabled}
+              className="px-4 pb-4 pt-5 text-sm"
+            />
+          </PromptInputBody>
+          <PromptInputFooter className="flex-col gap-3 border-t border-gray-100 px-4 pb-4 pt-3 sm:flex-row sm:items-center sm:justify-between dark:border-gray-800">
+            <PromptInputTools className="flex items-center gap-2">
+              <PromptInputModelSelect
+                value={selectedModelId}
+                onValueChange={(value: string) => setSelectedModelId(value)}
+                disabled={!availableModels.length}
+              >
+                <PromptInputModelSelectTrigger className="min-w-[160px]">
+                  <PromptInputModelSelectValue placeholder="Select model" />
+                </PromptInputModelSelectTrigger>
+                <PromptInputModelSelectContent>
+                  {availableModels.map((model) => (
+                    <PromptInputModelSelectItem key={model.id} value={model.modelId}>
+                      {model.modelName}
+                    </PromptInputModelSelectItem>
+                  ))}
+                </PromptInputModelSelectContent>
+              </PromptInputModelSelect>
+            </PromptInputTools>
+            <PromptInputSubmit
+              disabled={!canSend}
+              status={activeChat.loading ? 'streaming' : 'ready'}
+            />
+          </PromptInputFooter>
+        </PromptInput>
+
+        {/* API Key Status / Button */}
+        <div className="flex items-center justify-between">
+          {hasApiKey ? (
+            <button
+              type="button"
+              onClick={handleOpenApiKeyModal}
+              className="inline-flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition"
+            >
+              <span className="font-mono">{maskApiKey(currentApiKey)}</span>
+              <span className="text-[10px] uppercase font-semibold text-gray-400 dark:text-gray-500">
+                {getProviderLabel(currentProvider)} key
+              </span>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 16 16"
+                fill="currentColor"
+                className="w-3 h-3"
+              >
+                <path d="M13.488 2.513a1.75 1.75 0 0 0-2.475 0L3.765 9.76a2.782 2.782 0 0 0-.758 1.368l-.442 1.878a.75.75 0 0 0 .896.896l1.878-.442a2.782 2.782 0 0 0 1.368-.758l7.248-7.248a1.75 1.75 0 0 0 0-2.475l-.467-.467Zm-1.415 1.06a.25.25 0 0 1 .354 0l.467.467a.25.25 0 0 1 0 .354L5.648 11.64a1.282 1.282 0 0 1-.631.349l-.895.211.211-.895c.054-.23.167-.44.349-.631l7.247-7.247Z" />
+              </svg>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleOpenApiKeyModal}
+              className="inline-flex items-center gap-2 rounded-full border border-amber-300 dark:border-amber-800 bg-amber-100 dark:bg-amber-900/40 px-3 py-1 text-xs font-semibold text-amber-800 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-900 transition"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 16 16"
+                fill="currentColor"
+                className="w-3 h-3"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M8 1a3.5 3.5 0 0 0-3.5 3.5V7A1.5 1.5 0 0 0 3 8.5v5A1.5 1.5 0 0 0 4.5 15h7a1.5 1.5 0 0 0 1.5-1.5v-5A1.5 1.5 0 0 0 11.5 7V4.5A3.5 3.5 0 0 0 8 1Zm2 6V4.5a2 2 0 1 0-4 0V7h4Z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              Enter {getProviderLabel(currentProvider)} API key
+            </button>
+          )}
+        </div>
+
+        {modelsFetched && modelLoadError && (
+          <div className="px-1 text-xs text-red-500 dark:text-red-400">
+            Unable to load AI models. Please try again.
+          </div>
+        )}
+        {modelsFetched && !modelLoadError && !availableModels.length && (
+          <div className="px-1 text-xs text-gray-500 dark:text-gray-400">
+            No AI models are configured yet.
+          </div>
+        )}
       </div>
-    )}
-    {modelsFetched && !modelLoadError && !availableModels.length && (
-      <div className="px-1 text-xs text-gray-500 dark:text-gray-400">
-        No AI models are configured yet.
-      </div>
-    )}
-    {activity && !knowledgeLevel && (
-      <div className="text-sm text-gray-500 dark:text-gray-400">
-        Set your knowledge level to start chatting with your study buddy.
-      </div>
-    )}
-    
-  </div>
+
+      {/* API Key Modal */}
+      {showApiKeyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="max-w-lg w-full bg-white dark:bg-gray-900 rounded-2xl shadow-2xl p-6 space-y-4">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                {getProviderLabel(currentProvider)} API Key
+              </h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                Enter your {getProviderLabel(currentProvider)} API key to use{' '}
+                {currentProvider === 'google' ? 'Gemini' : 'OpenAI'} models.
+                Your key is stored locally and sent directly to the AI service.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                API Key
+              </label>
+              <input
+                type="password"
+                value={tempApiKey}
+                onChange={(e) => setTempApiKey(e.target.value)}
+                placeholder={`Enter your ${getProviderLabel(currentProvider)} API key`}
+                className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-mono text-sm"
+                autoFocus
+              />
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={handleCancelApiKeyModal}
+                className="flex-1 px-4 py-2 rounded-xl font-semibold bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveApiKey}
+                disabled={!tempApiKey.trim()}
+                className="flex-1 px-4 py-2 rounded-xl font-semibold text-white bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed shadow"
+              >
+                Save Key
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </aside>
   );
 });

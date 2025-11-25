@@ -8,7 +8,8 @@ import { getEduAiChatUrl } from './eduaiClient.js';
  * @param {object} options
  * @param {string} options.systemPrompt - Composed system prompt
  * @param {string} options.userMessage - Constructed user message
- * @param {string|null} options.modelId - Optional model ID override
+ * @param {string|null} options.modelId - Optional model ID override (format: "provider:model")
+ * @param {string} options.userApiKey - User-provided API key for the model provider
  * @param {string|null} options.chatId - Optional existing chat id for history
  * @param {string|null} options.messageId - Optional client-generated message id
  * @param {object|null} options.proxyUser - Optional proxy user envelope for eduAI
@@ -19,22 +20,42 @@ async function callEduAI({
   systemPrompt,
   userMessage,
   modelId = null,
+  userApiKey,
   chatId = null,
   messageId = null,
   proxyUser = null,
   courseCode = null,
 }) {
   const apiKey = process.env.EDUAI_API_KEY;
-  const googleApiKey = process.env.EDUAI_GOOGLE_API_KEY;
   const endpoint = getEduAiChatUrl();
   const model = modelId || process.env.EDUAI_MODEL || 'google:gemini-2.5-flash';
 
-  if (!apiKey || !googleApiKey) {
-    console.error('[aiGuidance] Missing API keys in environment variables');
+  if (!apiKey) {
+    console.error('[aiGuidance] Missing EDUAI_API_KEY in environment variables');
     throw new Error('AI API configuration missing');
   }
 
+  if (!userApiKey) {
+    console.error('[aiGuidance] Missing user API key');
+    throw new Error('API key is required');
+  }
+
+  // Extract provider from model ID (e.g., "google:gemini-2.5-flash" -> "google")
+  const [provider] = model.split(':');
+  if (!provider) {
+    console.error('[aiGuidance] Invalid model ID format:', model);
+    throw new Error('Invalid model ID format');
+  }
+
   const userMessageId = messageId || randomUUID();
+
+  // Build apiKeys object dynamically based on provider
+  const apiKeys = {
+    [provider]: {
+      apiKey: userApiKey,
+      isEnabled: true,
+    },
+  };
 
   const requestBody = {
     messages: [
@@ -46,12 +67,7 @@ async function callEduAI({
     ],
     systemPrompt,
     model,
-    apiKeys: {
-      google: {
-        apiKey: googleApiKey,
-        isEnabled: true,
-      },
-    },
+    apiKeys,
     streaming: false,
     ...(chatId ? { chatId } : {}),
     ...(proxyUser ? { proxyUser } : {}),
@@ -156,6 +172,7 @@ export async function generateTeachResponse({
   knowledgeLevel,
   message,
   modelId = null,
+  apiKey,
   chatId = null,
   messageId = null,
   proxyUser = null,
@@ -178,6 +195,7 @@ export async function generateTeachResponse({
       systemPrompt,
       userMessage,
       modelId,
+      userApiKey: apiKey,
       chatId,
       messageId,
       proxyUser,
@@ -195,6 +213,7 @@ export async function generateGuideResponse({
   message,
   studentAnswer,
   modelId = null,
+  apiKey,
   chatId = null,
   messageId = null,
   proxyUser = null,
@@ -217,6 +236,7 @@ export async function generateGuideResponse({
       systemPrompt,
       userMessage,
       modelId,
+      userApiKey: apiKey,
       chatId,
       messageId,
       proxyUser,
