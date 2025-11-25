@@ -252,6 +252,11 @@ export const api = {
       body: JSON.stringify(params),
     }),
   listAiModels: () => http('/api/ai-models') as Promise<AiModel[]>,
+  validateApiKey: (provider: string, apiKey: string) =>
+    http('/api/ai-models/validate-key', {
+      method: 'POST',
+      body: JSON.stringify({ provider, apiKey }),
+    }) as Promise<{ valid: boolean; error?: string }>,
   listPrompts: () => http('/api/prompts'),
   createPrompt: (payload: {
     name: string;

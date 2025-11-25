@@ -140,6 +140,8 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
   const [showApiKeyDialog, setShowApiKeyDialog] = useState(false);
   const [tempApiKey, setTempApiKey] = useState('');
   const [setupApiKeyInput, setSetupApiKeyInput] = useState('');
+  const [apiKeyValidating, setApiKeyValidating] = useState(false);
+  const [apiKeyError, setApiKeyError] = useState<string | null>(null);
 
   // Load API keys from localStorage after hydration
   useEffect(() => {
@@ -341,28 +343,59 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
     [activeTab, canSend, sendChat],
   );
 
-  // Setup card: save API key inline
-  const handleSetupSaveApiKey = useCallback(() => {
+  // Setup card: save API key inline with validation
+  const handleSetupSaveApiKey = useCallback(async () => {
     if (!setupApiKeyInput.trim()) return;
-    const newKeys = { ...providerApiKeys, [currentProvider]: setupApiKeyInput.trim() };
-    setProviderApiKeys(newKeys);
-    saveApiKeysToStorage(newKeys);
-    setSetupApiKeyInput('');
+    
+    setApiKeyValidating(true);
+    setApiKeyError(null);
+    
+    try {
+      const result = await api.validateApiKey(currentProvider, setupApiKeyInput.trim());
+      if (!result.valid) {
+        setApiKeyError(result.error || 'Invalid API key');
+        return;
+      }
+      const newKeys = { ...providerApiKeys, [currentProvider]: setupApiKeyInput.trim() };
+      setProviderApiKeys(newKeys);
+      saveApiKeysToStorage(newKeys);
+      setSetupApiKeyInput('');
+    } catch (err) {
+      setApiKeyError('Could not validate API key');
+    } finally {
+      setApiKeyValidating(false);
+    }
   }, [currentProvider, providerApiKeys, setupApiKeyInput]);
 
-  // Dialog: edit existing API key
+  // Dialog: edit existing API key with validation
   const handleOpenApiKeyDialog = useCallback(() => {
     setTempApiKey(currentApiKey);
+    setApiKeyError(null);
     setShowApiKeyDialog(true);
   }, [currentApiKey]);
 
-  const handleSaveApiKeyDialog = useCallback(() => {
+  const handleSaveApiKeyDialog = useCallback(async () => {
     if (!tempApiKey.trim()) return;
-    const newKeys = { ...providerApiKeys, [currentProvider]: tempApiKey.trim() };
-    setProviderApiKeys(newKeys);
-    saveApiKeysToStorage(newKeys);
-    setShowApiKeyDialog(false);
-    setTempApiKey('');
+    
+    setApiKeyValidating(true);
+    setApiKeyError(null);
+    
+    try {
+      const result = await api.validateApiKey(currentProvider, tempApiKey.trim());
+      if (!result.valid) {
+        setApiKeyError(result.error || 'Invalid API key');
+        return;
+      }
+      const newKeys = { ...providerApiKeys, [currentProvider]: tempApiKey.trim() };
+      setProviderApiKeys(newKeys);
+      saveApiKeysToStorage(newKeys);
+      setShowApiKeyDialog(false);
+      setTempApiKey('');
+    } catch (err) {
+      setApiKeyError('Could not validate API key');
+    } finally {
+      setApiKeyValidating(false);
+    }
   }, [currentProvider, providerApiKeys, tempApiKey]);
 
   const renderMessages = (tab: ChatTab) => (
@@ -448,22 +481,35 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
             <span className="text-xs text-gray-400">Change</span>
           </button>
         ) : (
-          <div className="flex gap-2">
-            <input
-              type="password"
-              value={setupApiKeyInput}
-              onChange={(e) => setSetupApiKeyInput(e.target.value)}
-              placeholder="Enter API key"
-              className="flex-1 px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm font-mono"
-            />
-            <button
-              type="button"
-              onClick={handleSetupSaveApiKey}
-              disabled={!setupApiKeyInput.trim()}
-              className="px-3 py-2 rounded-xl bg-amber-500 text-white text-sm font-semibold disabled:opacity-50 hover:bg-amber-600 transition"
-            >
-              Save
-            </button>
+          <div className="space-y-1.5">
+            <div className="flex gap-2">
+              <input
+                type="password"
+                value={setupApiKeyInput}
+                onChange={(e) => {
+                  setSetupApiKeyInput(e.target.value);
+                  setApiKeyError(null);
+                }}
+                placeholder="Enter API key"
+                className={`flex-1 px-3 py-2 rounded-xl border bg-white dark:bg-gray-800 text-sm font-mono ${
+                  apiKeyError
+                    ? 'border-red-400 dark:border-red-600'
+                    : 'border-gray-200 dark:border-gray-700'
+                }`}
+                disabled={apiKeyValidating}
+              />
+              <button
+                type="button"
+                onClick={handleSetupSaveApiKey}
+                disabled={!setupApiKeyInput.trim() || apiKeyValidating}
+                className="px-3 py-2 rounded-xl bg-amber-500 text-white text-sm font-semibold disabled:opacity-50 hover:bg-amber-600 transition"
+              >
+                {apiKeyValidating ? 'Validating...' : 'Save'}
+              </button>
+            </div>
+            {apiKeyError && (
+              <p className="text-xs text-red-500 dark:text-red-400 pl-1">{apiKeyError}</p>
+            )}
           </div>
         )}
       </div>
@@ -633,31 +679,46 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
               Update your API key for {getProviderLabel(currentProvider)} models.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-2">
             <input
               type="password"
               value={tempApiKey}
-              onChange={(e) => setTempApiKey(e.target.value)}
+              onChange={(e) => {
+                setTempApiKey(e.target.value);
+                setApiKeyError(null);
+              }}
               placeholder={`Enter your ${getProviderLabel(currentProvider)} API key`}
-              className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-mono text-sm"
+              className={`w-full px-4 py-3 rounded-xl border bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-mono text-sm ${
+                apiKeyError
+                  ? 'border-red-400 dark:border-red-600'
+                  : 'border-gray-300 dark:border-gray-700'
+              }`}
               autoFocus
+              disabled={apiKeyValidating}
             />
+            {apiKeyError && (
+              <p className="text-xs text-red-500 dark:text-red-400">{apiKeyError}</p>
+            )}
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
             <button
               type="button"
-              onClick={() => setShowApiKeyDialog(false)}
-              className="px-4 py-2 rounded-xl font-semibold bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
+              onClick={() => {
+                setShowApiKeyDialog(false);
+                setApiKeyError(null);
+              }}
+              disabled={apiKeyValidating}
+              className="px-4 py-2 rounded-xl font-semibold bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="button"
               onClick={handleSaveApiKeyDialog}
-              disabled={!tempApiKey.trim()}
+              disabled={!tempApiKey.trim() || apiKeyValidating}
               className="px-4 py-2 rounded-xl font-semibold text-white bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed shadow"
             >
-              Save
+              {apiKeyValidating ? 'Validating...' : 'Save'}
             </button>
           </DialogFooter>
         </DialogContent>
