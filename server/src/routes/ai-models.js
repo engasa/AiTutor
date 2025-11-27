@@ -28,6 +28,9 @@ router.get('/ai-models', async (req, res) => {
 /**
  * Validate an API key by making a minimal request to the provider.
  * Uses lightweight endpoints (list models) that don't consume tokens.
+ * 
+ * Returns 200 with { valid: true/false, error? } so the client can read
+ * provider-specific error messages. Only returns 4xx/5xx for actual request errors.
  */
 router.post('/ai-models/validate-key', async (req, res) => {
   const { provider, apiKey } = req.body;
@@ -45,7 +48,7 @@ router.post('/ai-models/validate-key', async (req, res) => {
       if (!resp.ok) {
         const body = await resp.json().catch(() => ({}));
         const message = body?.error?.message || 'Invalid API key';
-        return res.status(400).json({ valid: false, error: message });
+        return res.json({ valid: false, error: message });
       }
     } else if (provider === 'openai') {
       // OpenAI: GET /models is free
@@ -55,10 +58,10 @@ router.post('/ai-models/validate-key', async (req, res) => {
       if (!resp.ok) {
         const body = await resp.json().catch(() => ({}));
         const message = body?.error?.message || 'Invalid API key';
-        return res.status(400).json({ valid: false, error: message });
+        return res.json({ valid: false, error: message });
       }
     } else {
-      return res.status(400).json({ valid: false, error: `Unsupported provider: ${provider}` });
+      return res.json({ valid: false, error: `Unsupported provider: ${provider}` });
     }
 
     res.json({ valid: true });
