@@ -225,7 +225,7 @@ export default function InstructorModuleLessons({ loaderData }: Route.ComponentP
   };
 
   return (
-    <div className="min-h-dvh bg-gradient-to-br from-sky-50 via-indigo-50 to-fuchsia-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-900">
+    <div className="min-h-dvh bg-background">
       <Nav />
       <div className="container mx-auto px-4 py-8 space-y-6">
           <Breadcrumb className="mb-6">
@@ -253,7 +253,7 @@ export default function InstructorModuleLessons({ loaderData }: Route.ComponentP
           </Breadcrumb>
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-2xl font-bold">Lessons</h2>
+              <h2 className="font-display text-2xl font-semibold text-foreground">Lessons</h2>
             </div>
             <button
               onClick={() => {
@@ -264,23 +264,23 @@ export default function InstructorModuleLessons({ loaderData }: Route.ComponentP
                 }
                 setShowImport((prev) => !prev);
               }}
-              className="px-3 py-2 rounded-xl bg-purple-600 text-white text-sm font-semibold"
+              className="btn-secondary"
             >
               {showImport ? 'Close' : 'Import Lessons'}
             </button>
           </div>
 
           {showImport && (
-            <div className="p-4 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/90 dark:bg-gray-950/70 shadow-sm space-y-4">
+            <div className="card-editorial p-5 space-y-4">
               <div>
-                <label className="block text-sm font-semibold mb-1">Choose course</label>
+                <label className="block text-sm font-semibold mb-1 text-foreground">Choose course</label>
                 <select
                   value={selectedSourceCourseId ?? ''}
                   onChange={(e) => {
                     const nextValue = e.target.value ? Number(e.target.value) : null;
                     void handleSourceCourseSelection(nextValue);
                   }}
-                  className="w-full px-3 py-2 rounded-xl border border-gray-300 dark:border-gray-700 bg-transparent"
+                  className="input-field"
                 >
                   <option value="">Select course…</option>
                   {availableCourses.map((course) => (
@@ -290,25 +290,25 @@ export default function InstructorModuleLessons({ loaderData }: Route.ComponentP
                   ))}
                 </select>
                 {loadingSourceCourses && (
-                  <p className="mt-2 text-xs text-gray-500">Loading courses…</p>
+                  <p className="mt-2 text-xs text-muted-foreground">Loading courses…</p>
                 )}
                 {!loadingSourceCourses && availableCourses.length === 0 && (
-                  <p className="mt-2 text-xs text-gray-500">
-                    You don’t have another course to copy from yet.
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    You don't have another course to copy from yet.
                   </p>
                 )}
               </div>
 
               {selectedSourceCourseId != null && (
                 <div>
-                  <label className="block text-sm font-semibold mb-1">Choose module</label>
+                  <label className="block text-sm font-semibold mb-1 text-foreground">Choose module</label>
                   <select
                     value={selectedSourceModuleId ?? ''}
                     onChange={(e) => {
                       const nextValue = e.target.value ? Number(e.target.value) : null;
                     void handleSourceModuleSelection(nextValue);
                     }}
-                    className="w-full px-3 py-2 rounded-xl border border-gray-300 dark:border-gray-700 bg-transparent"
+                    className="input-field"
                   >
                     <option value="">Select module…</option>
                     {sourceModules.map((sourceModule) => (
@@ -318,36 +318,36 @@ export default function InstructorModuleLessons({ loaderData }: Route.ComponentP
                     ))}
                   </select>
                   {loadingSourceModules && (
-                    <p className="mt-2 text-xs text-gray-500">Loading modules…</p>
+                    <p className="mt-2 text-xs text-muted-foreground">Loading modules…</p>
                   )}
                   {!loadingSourceModules && sourceModules.length === 0 && (
-                    <p className="mt-2 text-xs text-gray-500">Selected course has no modules yet.</p>
+                    <p className="mt-2 text-xs text-muted-foreground">Selected course has no modules yet.</p>
                   )}
                 </div>
               )}
 
               {selectedSourceCourseId == null ? (
-                <p className="text-sm text-gray-500">Select a course to begin.</p>
+                <p className="text-sm text-muted-foreground">Select a course to begin.</p>
               ) : selectedSourceModuleId == null ? (
-                <p className="text-sm text-gray-500">Select a module to preview lessons.</p>
+                <p className="text-sm text-muted-foreground">Select a module to preview lessons.</p>
               ) : loadingSourceLessons ? (
-                <p className="text-sm text-gray-500">Loading lessons…</p>
+                <p className="text-sm text-muted-foreground">Loading lessons…</p>
               ) : sourceLessons.length === 0 ? (
-                <p className="text-sm text-gray-500">Selected module has no lessons yet.</p>
+                <p className="text-sm text-muted-foreground">Selected module has no lessons yet.</p>
               ) : (
                 <div className="space-y-3">
-                  <div className="border border-gray-200 dark:border-gray-800 rounded-xl">
-                    <div className="px-3 py-2 text-sm font-semibold bg-gray-50 dark:bg-gray-900 rounded-t-xl">
+                  <div className="border border-border rounded-xl overflow-hidden">
+                    <div className="px-4 py-2.5 text-sm font-semibold bg-secondary text-secondary-foreground">
                       Lessons
                     </div>
-                    <div className="p-3 space-y-2">
+                    <div className="p-3 space-y-2 bg-card">
                       {sourceLessons.map((lesson) => (
                         <label
                           key={lesson.id}
-                          className={`flex items-center gap-3 p-2 rounded-lg border cursor-pointer transition ${
+                          className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition ${
                             selectedLessonIds.has(lesson.id)
-                              ? 'border-transparent ring-2 ring-offset-2 ring-purple-500 dark:ring-offset-gray-950'
-                              : 'border-gray-200 dark:border-gray-800'
+                              ? 'border-primary ring-2 ring-primary/30 bg-primary/5'
+                              : 'border-border hover:border-primary/50'
                           }`}
                         >
                           <input
@@ -356,7 +356,7 @@ export default function InstructorModuleLessons({ loaderData }: Route.ComponentP
                             checked={selectedLessonIds.has(lesson.id)}
                             onChange={() => toggleLesson(lesson.id)}
                           />
-                          <span className="text-sm">{lesson.title}</span>
+                          <span className="text-sm text-foreground">{lesson.title}</span>
                         </label>
                       ))}
                     </div>
@@ -364,7 +364,7 @@ export default function InstructorModuleLessons({ loaderData }: Route.ComponentP
                   <button
                     onClick={onImportLessons}
                     disabled={importing || selectedLessonIds.size === 0}
-                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold disabled:opacity-50"
+                    className="btn-primary"
                   >
                     {importing ? 'Importing…' : 'Import selected lessons'}
                   </button>
@@ -373,26 +373,26 @@ export default function InstructorModuleLessons({ loaderData }: Route.ComponentP
             </div>
           )}
 
-          <form onSubmit={onCreateLesson} className="flex gap-2">
+          <form onSubmit={onCreateLesson} className="flex gap-3">
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="New lesson title…"
-              className="flex-1 px-4 py-2 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950"
+              className="input-field flex-1"
             />
             <button
               disabled={creating || !title.trim()}
-              className="px-4 py-2 rounded-xl text-white font-semibold bg-gradient-to-r from-sky-600 to-indigo-600 disabled:opacity-50"
+              className="btn-primary"
             >
               {creating ? 'Adding…' : 'Add Lesson'}
             </button>
           </form>
 
           {oLessons.length === 0 ? (
-            <div className="text-gray-500">No lessons yet.</div>
+            <div className="text-muted-foreground">No lessons yet.</div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {oLessons.map((lesson) => {
+              {oLessons.map((lesson, idx) => {
                 const canPublish = course?.isPublished && module?.isPublished;
                 const blocked = !lesson.isPublished && !canPublish;
                 const parentName = !course?.isPublished
@@ -407,7 +407,8 @@ export default function InstructorModuleLessons({ loaderData }: Route.ComponentP
                 return (
                   <div
                     key={lesson.id}
-                    className="text-left p-5 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-950/60 hover:shadow-md transition group cursor-pointer flex flex-col h-full"
+                    className="card-editorial p-5 hover:shadow-lg transition group cursor-pointer flex flex-col h-full animate-fade-up"
+                    style={{ animationDelay: `${idx * 50}ms` }}
                     onClick={() => navigate(`/instructor/lesson/${lesson.id}`)}
                     role="button"
                     tabIndex={0}
@@ -418,7 +419,14 @@ export default function InstructorModuleLessons({ loaderData }: Route.ComponentP
                       }
                     }}
                     >
-                      <div className="font-semibold group-hover:underline">{lesson.title}</div>
+                      <div className="flex items-start gap-3">
+                        <span className="flex-shrink-0 w-8 h-8 rounded-full bg-accent text-accent-foreground flex items-center justify-center font-display font-semibold text-sm">
+                          {idx + 1}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold text-foreground group-hover:text-primary transition-colors">{lesson.title}</div>
+                        </div>
+                      </div>
                       <div className="flex-grow"></div>
                     <div className="mt-4 flex justify-end">
                       <div onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>

@@ -36,17 +36,17 @@ function ActivityDetailsCard({ activity }: ActivityDetailsCardProps) {
   }, [activity]);
 
   return (
-    <div className="rounded-xl border border-dashed border-sky-200/70 dark:border-sky-900/60 bg-sky-50/50 dark:bg-sky-950/20">
+    <div className="rounded-xl border border-dashed border-accent/50 bg-accent/10">
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
         aria-expanded={open}
         aria-controls={`activity-${activity.id}-details`}
-        className="w-full px-3 py-2 flex items-center justify-between gap-3 text-sm font-semibold text-sky-700 dark:text-sky-200 hover:text-sky-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 focus-visible:ring-offset-sky-50 dark:focus-visible:ring-offset-sky-950 transition"
+        className="w-full px-3 py-2 flex items-center justify-between gap-3 text-sm font-semibold text-accent-foreground hover:text-accent-foreground/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background transition"
       >
         <span>Question details</span>
         <svg
-          className={`h-4 w-4 text-sky-500 transition-transform ${open ? 'rotate-180' : ''}`}
+          className={`h-4 w-4 text-accent-foreground/70 transition-transform ${open ? 'rotate-180' : ''}`}
           viewBox="0 0 20 20"
           fill="currentColor"
           aria-hidden="true"
@@ -61,11 +61,11 @@ function ActivityDetailsCard({ activity }: ActivityDetailsCardProps) {
       {open && (
         <div
           id={`activity-${activity.id}-details`}
-          className="px-3 pb-3 space-y-3 text-sm text-gray-700 dark:text-gray-200"
+          className="px-3 pb-3 space-y-3 text-sm text-foreground"
         >
           {activity.title && (
             <div>
-              <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Internal title
               </div>
               <p className="mt-1 whitespace-pre-wrap">{activity.title}</p>
@@ -74,7 +74,7 @@ function ActivityDetailsCard({ activity }: ActivityDetailsCardProps) {
 
           {activity.instructionsMd && (
             <div>
-              <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Instructions
               </div>
               <p className="mt-1 whitespace-pre-wrap">{activity.instructionsMd}</p>
@@ -83,13 +83,13 @@ function ActivityDetailsCard({ activity }: ActivityDetailsCardProps) {
 
           {details.choices.length > 0 && (
             <div>
-              <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Choices
               </div>
               <ul className="mt-1 space-y-1">
                 {details.choices.map((choice, index) => (
                   <li key={index} className="flex items-start gap-2">
-                    <span className="text-xs font-semibold text-sky-500">
+                    <span className="text-xs font-semibold text-primary">
                       {String.fromCharCode(65 + index)}.
                     </span>
                     <span className="flex-1 whitespace-pre-wrap">{choice}</span>
@@ -101,7 +101,7 @@ function ActivityDetailsCard({ activity }: ActivityDetailsCardProps) {
 
           {activity.type === 'MCQ' && details.correctChoiceIndex !== null && (
             <div>
-              <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Correct answer
               </div>
               <p className="mt-1 whitespace-pre-wrap">
@@ -114,7 +114,7 @@ function ActivityDetailsCard({ activity }: ActivityDetailsCardProps) {
 
           {activity.type === 'SHORT_TEXT' && details.shortAnswerText && (
             <div>
-              <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Expected answer
               </div>
               <p className="mt-1 whitespace-pre-wrap">{details.shortAnswerText}</p>
@@ -123,7 +123,7 @@ function ActivityDetailsCard({ activity }: ActivityDetailsCardProps) {
 
           {activity.hints.length > 0 && (
             <div>
-              <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Hints
               </div>
               <ol className="mt-1 list-decimal list-inside space-y-1">
@@ -137,7 +137,7 @@ function ActivityDetailsCard({ activity }: ActivityDetailsCardProps) {
           )}
 
           {!details.hasContent && (
-            <p className="text-xs text-gray-500 dark:text-gray-400">No additional details captured yet.</p>
+            <p className="text-xs text-muted-foreground">No additional details captured yet.</p>
           )}
         </div>
       )}

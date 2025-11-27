@@ -55,36 +55,36 @@ export default function EditActivityPanel({ activity, busy, error, onSubmit, onC
   return (
     <form
       onSubmit={handleSubmit}
-      className="rounded-xl border border-indigo-200 dark:border-indigo-900 bg-indigo-50/40 dark:bg-indigo-950/40 p-3 space-y-3"
+      className="rounded-xl border border-primary/30 bg-primary/5 p-3 space-y-3"
     >
       <div className="space-y-2">
-        <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">
+        <label className="text-xs font-semibold text-muted-foreground">
           Internal title (optional)
         </label>
         <input
           value={values.title}
           onChange={(event) => setValues((prev) => ({ ...prev, title: event.target.value }))}
           placeholder="Optional internal label"
-          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-sm"
+          className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
         />
       </div>
 
       <div className="space-y-2">
-        <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">
+        <label className="text-xs font-semibold text-muted-foreground">
           Question prompt
         </label>
         <textarea
           value={values.question}
           onChange={(event) => setValues((prev) => ({ ...prev, question: event.target.value }))}
           rows={4}
-          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-sm"
+          className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
         />
       </div>
 
       <div className="flex gap-2 text-sm">
         <label
-          className={`px-3 py-1 rounded-full cursor-pointer ${
-            values.type === 'MCQ' ? 'bg-sky-100 dark:bg-sky-900' : 'bg-gray-100 dark:bg-gray-800'
+          className={`px-3 py-1 rounded-full cursor-pointer transition ${
+            values.type === 'MCQ' ? 'bg-primary/20 text-primary font-medium' : 'bg-secondary text-muted-foreground hover:bg-secondary/80'
           }`}
         >
           <input
@@ -104,10 +104,10 @@ export default function EditActivityPanel({ activity, busy, error, onSubmit, onC
           MCQ
         </label>
         <label
-          className={`px-3 py-1 rounded-full cursor-pointer ${
+          className={`px-3 py-1 rounded-full cursor-pointer transition ${
             values.type === 'SHORT_TEXT'
-              ? 'bg-sky-100 dark:bg-sky-900'
-              : 'bg-gray-100 dark:bg-gray-800'
+              ? 'bg-primary/20 text-primary font-medium'
+              : 'bg-secondary text-muted-foreground hover:bg-secondary/80'
           }`}
         >
           <input
@@ -128,17 +128,17 @@ export default function EditActivityPanel({ activity, busy, error, onSubmit, onC
 
       {values.type === 'MCQ' ? (
         <div className="space-y-3">
-          <div className="text-xs font-semibold text-gray-600 dark:text-gray-400">Choices</div>
+          <div className="text-xs font-semibold text-muted-foreground">Choices</div>
           <div className="space-y-2">
             {paddedChoices.map((choice, index) => {
               const isSelected = values.correctIndex === index;
               return (
                 <label
                   key={index}
-                  className={`flex items-center gap-3 px-3 py-2 rounded-xl border cursor-pointer transition focus-within:outline-none bg-white dark:bg-gray-900 ${
+                  className={`flex items-center gap-3 px-3 py-2 rounded-xl border cursor-pointer transition focus-within:outline-none bg-background ${
                     isSelected
-                      ? 'border-amber-400 dark:border-amber-600'
-                      : 'border-gray-300 dark:border-gray-700 hover:border-amber-300 dark:hover:border-amber-800'
+                      ? 'border-accent-foreground/50 bg-accent/30'
+                      : 'border-border hover:border-primary/30'
                   }`}
                 >
                   <input
@@ -153,7 +153,7 @@ export default function EditActivityPanel({ activity, busy, error, onSubmit, onC
                       }))
                     }
                   />
-                  <span className="text-xs font-semibold text-gray-500 w-6">
+                  <span className="text-xs font-semibold text-muted-foreground w-6">
                     {choiceLabels[index] ?? String.fromCharCode(65 + index)}.
                   </span>
                   <input
@@ -166,7 +166,7 @@ export default function EditActivityPanel({ activity, busy, error, onSubmit, onC
                       })
                     }
                     placeholder="Option text"
-                    className="flex-1 min-w-0 border-none bg-transparent focus:outline-none"
+                    className="flex-1 min-w-0 border-none bg-transparent text-foreground focus:outline-none"
                   />
                   {paddedChoices.length > 2 && (
                     <button
@@ -191,7 +191,7 @@ export default function EditActivityPanel({ activity, busy, error, onSubmit, onC
                           };
                         })
                       }
-                      className="text-[0.7rem] text-rose-500"
+                      className="text-[0.7rem] text-destructive hover:text-destructive/80"
                     >
                       Remove
                     </button>
@@ -208,57 +208,57 @@ export default function EditActivityPanel({ activity, busy, error, onSubmit, onC
                 choices: [...ensureChoiceSlots(prev.choices), ''],
               }))
             }
-            className="text-xs font-medium text-indigo-600 hover:text-indigo-500"
+            className="text-xs font-medium text-primary hover:text-primary/80"
           >
             Add choice
           </button>
         </div>
       ) : (
         <div className="space-y-2">
-          <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">
+          <label className="text-xs font-semibold text-muted-foreground">
             Expected answer
           </label>
           <input
             value={values.textAnswer}
             onChange={(event) => setValues((prev) => ({ ...prev, textAnswer: event.target.value }))}
             placeholder="Ideal short response"
-            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-sm"
+            className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
           />
         </div>
       )}
 
       <div className="space-y-2">
-        <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">
+        <label className="text-xs font-semibold text-muted-foreground">
           Instructions (optional)
         </label>
         <textarea
           value={values.instructionsMd}
           onChange={(event) => setValues((prev) => ({ ...prev, instructionsMd: event.target.value }))}
           rows={3}
-          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-sm"
+          className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
         />
       </div>
 
       <div className="space-y-2">
-        <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">
+        <label className="text-xs font-semibold text-muted-foreground">
           Hints (one per line)
         </label>
         <textarea
           value={values.hintsText}
           onChange={(event) => setValues((prev) => ({ ...prev, hintsText: event.target.value }))}
           rows={3}
-          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-sm"
+          className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
         />
       </div>
 
       {(formError || error) && (
-        <p className="text-xs text-rose-500">{formError || error}</p>
+        <p className="text-xs text-destructive">{formError || error}</p>
       )}
 
       <div className="flex justify-end gap-2">
         <button
           type="button"
-          className="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 text-sm"
+          className="px-3 py-2 rounded-lg border border-border text-foreground text-sm hover:bg-secondary transition"
           onClick={() => {
             setValues(activityToFormValues(activity));
             setFormError(null);
@@ -270,10 +270,10 @@ export default function EditActivityPanel({ activity, busy, error, onSubmit, onC
         </button>
         <button
           type="submit"
-          className="px-3 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold disabled:opacity-60"
+          className="px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-60 hover:bg-primary/90 transition"
           disabled={busy}
         >
-          {busy ? 'Saving…' : 'Save changes'}
+          {busy ? 'Saving...' : 'Save changes'}
         </button>
       </div>
     </form>

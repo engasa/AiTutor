@@ -128,13 +128,13 @@ export default function AddActivityPanel({
   return (
     <form
       onSubmit={handleAddActivity}
-      className="p-5 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 space-y-3"
+      className="card-editorial p-5 space-y-4"
     >
-      <div className="font-semibold">Add Activity</div>
+      <div className="font-semibold text-foreground">Add Activity</div>
       <div className="flex gap-2 text-sm">
         <label
-          className={`px-3 py-1 rounded-full cursor-pointer ${
-            type === 'MCQ' ? 'bg-sky-100 dark:bg-sky-900' : 'bg-gray-100 dark:bg-gray-800'
+          className={`px-3 py-1.5 rounded-full cursor-pointer transition ${
+            type === 'MCQ' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-muted'
           }`}
         >
           <input
@@ -147,8 +147,8 @@ export default function AddActivityPanel({
           MCQ
         </label>
         <label
-          className={`px-3 py-1 rounded-full cursor-pointer ${
-            type === 'SHORT_TEXT' ? 'bg-sky-100 dark:bg-sky-900' : 'bg-gray-100 dark:bg-gray-800'
+          className={`px-3 py-1.5 rounded-full cursor-pointer transition ${
+            type === 'SHORT_TEXT' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-muted'
           }`}
         >
           <input
@@ -163,7 +163,7 @@ export default function AddActivityPanel({
       </div>
 
       <div className="space-y-2">
-        <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">
+        <label className="text-xs font-semibold text-muted-foreground">
           Question prompt
         </label>
         <textarea
@@ -171,23 +171,23 @@ export default function AddActivityPanel({
           onChange={(event) => setQuestion(event.target.value)}
           placeholder="Write the question learners should answer…"
           rows={4}
-          className="w-full px-3 py-2 rounded-xl border border-gray-300 dark:border-gray-700 bg-transparent"
+          className="input-field"
         />
       </div>
 
       {type === 'MCQ' ? (
         <div className="space-y-3">
-          <div className="text-xs font-semibold text-gray-600 dark:text-gray-400">Choices</div>
+          <div className="text-xs font-semibold text-muted-foreground">Choices</div>
           <div className="space-y-2">
             {choices.map((choice, index) => {
               const isSelected = correct === index && hasSelectedCorrect;
               return (
                 <label
                   key={index}
-                  className={`flex items-center gap-3 px-3 py-2 rounded-xl border cursor-pointer transition focus-within:outline-none bg-white dark:bg-gray-900 ${
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border cursor-pointer transition focus-within:outline-none bg-card ${
                     isSelected
-                      ? 'border-amber-400 dark:border-amber-600'
-                      : 'border-gray-300 dark:border-gray-700 hover:border-amber-300 dark:hover:border-amber-800'
+                      ? 'border-primary ring-2 ring-primary/20'
+                      : 'border-border hover:border-primary/50'
                   }`}
                 >
                   <input
@@ -200,7 +200,7 @@ export default function AddActivityPanel({
                       setHasSelectedCorrect(true);
                     }}
                   />
-                  <span className="text-xs font-semibold text-gray-500 w-6">{String.fromCharCode(65 + index)}.</span>
+                  <span className="text-xs font-semibold text-muted-foreground w-6">{String.fromCharCode(65 + index)}.</span>
                   <input
                     value={choice}
                     onChange={(event) =>
@@ -211,7 +211,7 @@ export default function AddActivityPanel({
                       })
                     }
                     placeholder="Option text"
-                    className="flex-1 min-w-0 border-none bg-transparent focus:outline-none"
+                    className="flex-1 min-w-0 border-none bg-transparent focus:outline-none text-foreground placeholder:text-muted-foreground"
                   />
                 </label>
               );
@@ -220,20 +220,20 @@ export default function AddActivityPanel({
         </div>
       ) : (
         <div className="space-y-2">
-          <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">
+          <label className="text-xs font-semibold text-muted-foreground">
             Expected answer
           </label>
           <input
             value={textAnswer}
             onChange={(event) => setTextAnswer(event.target.value)}
             placeholder="Ideal short response…"
-            className="w-full px-3 py-2 rounded-xl border border-gray-300 dark:border-gray-700 bg-transparent"
+            className="input-field"
           />
         </div>
       )}
 
       <div className="space-y-2">
-        <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Main topic</label>
+        <label className="text-xs font-semibold text-muted-foreground">Main topic</label>
         <select
           value={selectedMainTopicId === '' ? '' : selectedMainTopicId}
           onChange={(event) => {
@@ -245,7 +245,7 @@ export default function AddActivityPanel({
             }
           }}
           disabled={loadingTopics || topics.length === 0}
-          className="w-full px-3 py-2 rounded-xl border border-indigo-200 dark:border-indigo-900 bg-white dark:bg-gray-950 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:opacity-60"
+          className="input-field text-sm"
         >
           <option value="">Select a topic…</option>
           {topics.map((topic) => (
@@ -255,27 +255,27 @@ export default function AddActivityPanel({
           ))}
         </select>
         {topicSelectionError && (
-          <p className="text-xs text-rose-500">{topicSelectionError}</p>
+          <p className="text-xs text-destructive">{topicSelectionError}</p>
         )}
       </div>
 
       <div className="space-y-2">
-        <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 block">
+        <span className="text-xs font-semibold text-muted-foreground block">
           Secondary topics (optional)
         </span>
         <div className="flex flex-wrap gap-2">
           {availableSecondaryTopics.length === 0 ? (
-            <span className="text-xs text-gray-500">No other topics available.</span>
+            <span className="text-xs text-muted-foreground">No other topics available.</span>
           ) : (
             availableSecondaryTopics.map((topic) => {
               const checked = selectedSecondaryTopicIds.includes(topic.id);
               return (
                 <label
                   key={topic.id}
-                  className={`flex items-center gap-2 px-3 py-1 rounded-full border text-xs cursor-pointer transition ${
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs cursor-pointer transition ${
                     checked
-                      ? 'border-transparent bg-indigo-500 text-white shadow'
-                      : 'border-indigo-200 dark:border-indigo-900 bg-indigo-50/60 dark:bg-indigo-950/20'
+                      ? 'border-transparent bg-accent text-accent-foreground shadow-sm'
+                      : 'border-border bg-secondary hover:border-accent/50'
                   }`}
                 >
                   <input
@@ -293,10 +293,10 @@ export default function AddActivityPanel({
       </div>
 
       <div className="space-y-2 pt-1">
-        <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 block">
+        <span className="text-xs font-semibold text-muted-foreground block">
           AI Study Buddy Modes
         </span>
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-muted-foreground">
           Choose which AI assistance modes students can use for this activity.
         </p>
         <div className="space-y-2">
@@ -311,9 +311,9 @@ export default function AddActivityPanel({
                 }
                 setEnableTeachMode(e.target.checked);
               }}
-              className="rounded border-purple-300 text-purple-600 focus:ring-purple-500"
+              className="rounded border-primary/50 text-primary focus:ring-primary"
             />
-            <span className="text-sm">Teach me - Conceptual learning about topics</span>
+            <span className="text-sm text-foreground">Teach me - Conceptual learning about topics</span>
           </label>
           <label className="flex items-center gap-2 cursor-pointer">
             <input
@@ -326,9 +326,9 @@ export default function AddActivityPanel({
                 }
                 setEnableGuideMode(e.target.checked);
               }}
-              className="rounded border-purple-300 text-purple-600 focus:ring-purple-500"
+              className="rounded border-primary/50 text-primary focus:ring-primary"
             />
-            <span className="text-sm">Guide me - Step-by-step guidance on this question</span>
+            <span className="text-sm text-foreground">Guide me - Step-by-step guidance on this question</span>
           </label>
         </div>
       </div>
@@ -337,18 +337,18 @@ export default function AddActivityPanel({
         value={hint}
         onChange={(event) => setHint(event.target.value)}
         placeholder="Optional hint…"
-        className="w-full px-3 py-2 rounded-xl border border-gray-300 dark:border-gray-700 bg-transparent"
+        className="input-field"
       />
 
       <button
         type="submit"
         disabled={busy || !question.trim()}
-        className="w-full px-4 py-2 rounded-xl text-white font-semibold bg-gradient-to-r from-indigo-600 to-fuchsia-600 disabled:opacity-50"
+        className="w-full btn-primary"
       >
         {busy ? 'Adding…' : 'Add Activity'}
       </button>
 
-      {topicsError && <p className="text-xs text-rose-500">{topicsError}</p>}
+      {topicsError && <p className="text-xs text-destructive">{topicsError}</p>}
     </form>
   );
 }
