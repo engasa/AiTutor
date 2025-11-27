@@ -6,10 +6,11 @@ import { mapActivity } from '../utils/mappers.js';
 import { evaluateQuestion } from '../services/activityEvaluation.js';
 import { getActivityCompletionStatuses } from '../services/progressCalculation.js';
 import {
+  generateCustomResponse,
   generateGuideResponse,
   generateTeachResponse,
 } from '../services/aiGuidance.js';
-import { GuideRequestSchema, TeachRequestSchema } from '../../../shared/schemas/aiGuidance.js';
+import { CustomRequestSchema, GuideRequestSchema, TeachRequestSchema } from '../../../shared/schemas/aiGuidance.js';
 import { CreateActivitySchema, UpdateActivitySchema } from '../../../shared/schemas/activity.js';
 
 const router = express.Router();
@@ -17,6 +18,12 @@ const router = express.Router();
 const normalizeCustomPrompt = (value) => {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+};
+
+const normalizeCustomPromptTitle = (value) => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim().slice(0, 20);
   return trimmed.length > 0 ? trimmed : null;
 };
 
@@ -126,6 +133,7 @@ router.post('/lessons/:lessonId/activities', requireRole('INSTRUCTOR'), async (r
         lessonId,
         promptTemplateId: payload.promptTemplateId ?? null,
         customPrompt: normalizeCustomPrompt(payload.customPrompt),
+        customPromptTitle: normalizeCustomPromptTitle(payload.customPromptTitle),
         mainTopicId: payload.mainTopicId,
         enableTeachMode: payload.enableTeachMode,
         enableGuideMode: payload.enableGuideMode,
@@ -177,6 +185,7 @@ router.patch('/activities/:activityId', requireRole('INSTRUCTOR'), async (req, r
   const noUpdatableFields =
     typeof payload.promptTemplateId === 'undefined' &&
     typeof payload.customPrompt === 'undefined' &&
+    typeof payload.customPromptTitle === 'undefined' &&
     typeof payload.enableCustomMode === 'undefined' &&
     typeof payload.mainTopicId === 'undefined' &&
     typeof payload.secondaryTopicIds === 'undefined' &&
@@ -313,6 +322,16 @@ router.patch('/activities/:activityId', requireRole('INSTRUCTOR'), async (req, r
         updateData.customPrompt = normalizeCustomPrompt(payload.customPrompt);
       } else {
         return res.status(400).json({ error: 'customPrompt must be a string or null' });
+      }
+    }
+
+    if (typeof payload.customPromptTitle !== 'undefined') {
+      if (payload.customPromptTitle === null) {
+        updateData.customPromptTitle = null;
+      } else if (typeof payload.customPromptTitle === 'string') {
+        updateData.customPromptTitle = normalizeCustomPromptTitle(payload.customPromptTitle);
+      } else {
+        return res.status(400).json({ error: 'customPromptTitle must be a string or null' });
       }
     }
 
@@ -836,6 +855,173 @@ router.post('/activities/:activityId/guide', async (req, res) => {
     });
   } catch (e) {
     console.error('Error generating guidance:', e);
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+router.post('/activities/:activityId/custom', async (req, res) => {
+  const authUser = req.user;
+  const activityId = Number(req.params.activityId);
+
+  if (!Number.isFinite(activityId)) {
+    return res.status(400).json({ error: 'Invalid activity id' });
+  }
+
+  if (!authUser) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  let payload;
+  try {
+    payload = CustomRequestSchema.parse(req.body || {});
+  } catch (error) {
+    return res.status(400).json({ error: 'Invalid payload', details: error?.errors || String(error) });
+  }
+
+  try {
+    // Load activity with course offering context for authorization
+    const activity = await prisma.activity.findUnique({
+      where: { id: activityId },
+      include: {
+        mainTopic: true,
+        secondaryTopics: { include: { topic: true } },
+        lesson: {
+          include: {
+            module: {
+              include: {
+                courseOffering: {
+                  select: {
+                    id: true,
+                    externalId: true,
+                    externalSource: true,
+                    externalMetadata: true,
+                    instructors: { select: { userId: true } },
+                    enrollments: { select: { userId: true } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!activity) {
+      return res.status(404).json({ error: 'Activity not found' });
+    }
+
+    // Check if custom mode is enabled and has a prompt
+    if (!activity.enableCustomMode) {
+      return res.status(400).json({ error: 'Custom mode is not enabled for this activity' });
+    }
+
+    if (!activity.customPrompt) {
+      return res.status(400).json({ error: 'No custom prompt configured for this activity' });
+    }
+
+    // Authorization: user must be enrolled (student) or an instructor of the course
+    const course = activity.lesson?.module?.courseOffering;
+    if (!course) {
+      return res.status(500).json({ error: 'Activity course context missing' });
+    }
+
+    const isInstructorForCourse = course.instructors.some((i) => i.userId === authUser.id);
+    const isEnrolledStudent = course.enrollments.some((e) => e.userId === authUser.id);
+
+    if (!(isInstructorForCourse || isEnrolledStudent)) {
+      return res.status(403).json({ error: 'Not authorized for this activity' });
+    }
+
+    const existingSession =
+      payload.chatId && payload.chatId.trim().length > 0
+        ? await prisma.aiChatSession.findUnique({
+            where: {
+              userId_activityId_mode: {
+                userId: authUser.id,
+                activityId,
+                mode: 'custom',
+              },
+            },
+          })
+        : null;
+
+    const courseCode =
+      (course.externalMetadata &&
+        typeof course.externalMetadata === 'object' &&
+        typeof course.externalMetadata.code === 'string' &&
+        course.externalMetadata.code) ||
+      (typeof course.externalId === 'string' ? course.externalId : null);
+
+    const proxyUser = {
+      provider: 'aitutor',
+      id: String(authUser.id),
+      email: authUser.email,
+    };
+
+    const chatId = payload.chatId || existingSession?.chatId || null;
+    const messageId = payload.messageId || randomUUID();
+
+    // Resolve topic name if topicId provided
+    const topicName = (() => {
+      if (!payload.topicId) {
+        return activity.mainTopic?.name;
+      }
+      const match = activity.secondaryTopics.find((sec) => sec.topicId === payload.topicId);
+      if (match) {
+        return match.topic.name;
+      }
+      if (activity.mainTopic && activity.mainTopic.id === payload.topicId) {
+        return activity.mainTopic.name;
+      }
+      return activity.mainTopic?.name;
+    })();
+
+    const aiResult = await generateCustomResponse({
+      activity,
+      topicName,
+      knowledgeLevel: payload.knowledgeLevel,
+      message: payload.message,
+      studentAnswer: payload.studentAnswer,
+      modelId: payload.modelId,
+      apiKey: payload.apiKey,
+      chatId,
+      messageId,
+      proxyUser,
+      courseCode,
+    });
+
+    const nextChatId = aiResult.chatId || chatId || null;
+
+    if (nextChatId) {
+      await prisma.aiChatSession.upsert({
+        where: {
+          userId_activityId_mode: {
+            userId: authUser.id,
+            activityId,
+            mode: 'custom',
+          },
+        },
+        update: {
+          chatId: nextChatId,
+          modelId: payload.modelId,
+        },
+        create: {
+          userId: authUser.id,
+          activityId,
+          mode: 'custom',
+          chatId: nextChatId,
+          modelId: payload.modelId,
+        },
+      });
+    }
+
+    res.json({
+      ok: true,
+      message: aiResult.message,
+      chatId: nextChatId,
+    });
+  } catch (e) {
+    console.error('Error generating custom response:', e);
     res.status(500).json({ error: String(e) });
   }
 });

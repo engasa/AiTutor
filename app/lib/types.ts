@@ -84,6 +84,7 @@ export type Activity = {
   enableGuideMode: boolean;
   enableCustomMode: boolean;
   customPrompt: string | null;
+  customPromptTitle: string | null;
   completionStatus?: CompletionStatus;
 };
 

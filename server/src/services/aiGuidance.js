@@ -247,3 +247,50 @@ export async function generateGuideResponse({
     return { message: 'AI study buddy not available right now. Please try again later.', chatId };
   }
 }
+
+/**
+ * Generate a response using the instructor's custom prompt
+ * Uses the activity's customPrompt field as the system prompt
+ */
+export async function generateCustomResponse({
+  activity,
+  topicName,
+  knowledgeLevel,
+  message,
+  studentAnswer,
+  modelId = null,
+  apiKey,
+  chatId = null,
+  messageId = null,
+  proxyUser = null,
+  courseCode = null,
+}) {
+  try {
+    if (!activity.customPrompt) {
+      throw new Error('No custom prompt configured for this activity');
+    }
+
+    // Use the instructor's custom prompt, applying placeholders if present
+    const systemPrompt = buildSystemPrompt(activity.customPrompt, {
+      topic: topicName || activity.mainTopic?.name || 'the subject',
+      knowledgeLevel,
+    });
+
+    // Include student answer context like guide mode
+    const userMessage = buildGuideUserMessage(activity, { message, studentAnswer });
+
+    return await callEduAI({
+      systemPrompt,
+      userMessage,
+      modelId,
+      userApiKey: apiKey,
+      chatId,
+      messageId,
+      proxyUser,
+      courseCode,
+    });
+  } catch (error) {
+    console.error('[aiGuidance] Failed to generate custom response:', error);
+    return { message: 'AI study buddy not available right now. Please try again later.', chatId };
+  }
+}

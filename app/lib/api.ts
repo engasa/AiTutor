@@ -147,6 +147,7 @@ export const api = {
       instructionsMd?: string;
       promptTemplateId?: number | null;
       customPrompt?: string | null;
+      customPromptTitle?: string | null;
       mainTopicId: number;
       secondaryTopicIds?: number[];
       enableTeachMode?: boolean;
@@ -170,6 +171,7 @@ export const api = {
       hints?: string[];
       promptTemplateId?: number | null;
       customPrompt?: string | null;
+      customPromptTitle?: string | null;
       mainTopicId?: number;
       secondaryTopicIds?: number[];
       enableTeachMode?: boolean;
@@ -249,6 +251,23 @@ export const api = {
     },
   ) =>
     http(`/api/activities/${activityId}/guide`, {
+      method: 'POST',
+      body: JSON.stringify(params),
+    }),
+  sendCustomMessage: (
+    activityId: number,
+    params: {
+      knowledgeLevel: string;
+      topicId?: number;
+      message: string;
+      studentAnswer?: string | number | null;
+      modelId: string;
+      apiKey: string;
+      chatId?: string | null;
+      messageId?: string;
+    },
+  ) =>
+    http(`/api/activities/${activityId}/custom`, {
       method: 'POST',
       body: JSON.stringify(params),
     }),

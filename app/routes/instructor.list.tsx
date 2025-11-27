@@ -112,6 +112,7 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
   const [showModeSaving, setShowModeSaving] = useState(false);
   const modeSavingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [promptDrafts, setPromptDrafts] = useState<Record<number, string>>({});
+  const [titleDrafts, setTitleDrafts] = useState<Record<number, string>>({});
   const [savingPromptId, setSavingPromptId] = useState<number | null>(null);
   const [promptErrors, setPromptErrors] = useState<Record<number, string>>({});
   const [promptSaved, setPromptSaved] = useState<Record<number, boolean>>({});
@@ -320,28 +321,43 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
 
   const handleCustomPromptSave = async (activity: Activity) => {
     const draft = (promptDrafts[activity.id] ?? activity.customPrompt ?? '').trim();
+    const titleDraft = (titleDrafts[activity.id] ?? activity.customPromptTitle ?? '').trim().slice(0, 20);
+    
+    // Validate: both title and prompt are required
+    if (!titleDraft) {
+      setPromptErrors((prev) => ({
+        ...prev,
+        [activity.id]: 'Please provide a title for the custom prompt (max 20 characters).',
+      }));
+      return;
+    }
+    if (!draft) {
+      setPromptErrors((prev) => ({
+        ...prev,
+        [activity.id]: 'Please provide the custom prompt text.',
+      }));
+      return;
+    }
+
     setPromptErrors((prev) => ({ ...prev, [activity.id]: '' }));
 
     addActivityOpt((items) =>
       items.map((item) =>
-        item.id === activity.id ? { ...item, customPrompt: draft || null } : item,
+        item.id === activity.id
+          ? { ...item, customPrompt: draft, customPromptTitle: titleDraft }
+          : item,
       ),
     );
     setSavingPromptId(activity.id);
     try {
-      const updated = await api.updateActivity(activity.id, { customPrompt: draft || null });
+      const updated = await api.updateActivity(activity.id, {
+        customPrompt: draft,
+        customPromptTitle: titleDraft,
+      });
       setActivities((prev) =>
         prev.map((item) => (item.id === activity.id ? updated : item)),
       );
       setPromptSaved((prev) => ({ ...prev, [activity.id]: true }));
-      if (!draft) {
-        setPromptDrafts((prev) => {
-          const next = { ...prev };
-          delete next[activity.id];
-          return next;
-        });
-        setPromptSaved((prev) => ({ ...prev, [activity.id]: false }));
-      }
     } catch (error) {
       console.error('Failed to save custom prompt', error);
       setPromptErrors((prev) => ({
@@ -696,26 +712,52 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
                               <span className="text-[0.7rem] text-primary">Saving…</span>
                             )}
                             {isCustomEnabled && (
-                              <div className="mt-3 space-y-2">
-                                <label className="text-xs font-semibold text-primary block">
-                                  Custom AI prompt
-                                </label>
-                                <textarea
-                                  value={promptDraft}
-                                  onChange={(event) =>
-                                    setPromptDrafts((prev) => {
+                              <div className="mt-3 space-y-3">
+                                <div>
+                                  <label className="text-xs font-semibold text-primary block mb-1">
+                                    Button title (shown to students, max 20 chars)
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={titleDrafts[activity.id] ?? activity.customPromptTitle ?? ''}
+                                    onChange={(event) => {
+                                      const value = event.target.value.slice(0, 20);
+                                      setTitleDrafts((prev) => ({ ...prev, [activity.id]: value }));
                                       setPromptSaved((saved) => ({ ...saved, [activity.id]: false }));
-                                      return {
-                                        ...prev,
-                                        [activity.id]: event.target.value,
-                                      };
-                                    })
-                                  }
-                                  placeholder="Write a custom prompt the AI should follow for this activity…"
-                                  rows={3}
-                                  className="input-field text-sm"
-                                  disabled={isSavingPrompt}
-                                />
+                                    }}
+                                    placeholder="e.g., Explain simply"
+                                    maxLength={20}
+                                    className="input-field text-sm"
+                                    disabled={isSavingPrompt}
+                                  />
+                                  <div className="text-[0.65rem] text-muted-foreground mt-1">
+                                    {(titleDrafts[activity.id] ?? activity.customPromptTitle ?? '').length}/20 characters
+                                  </div>
+                                </div>
+                                <div>
+                                  <label className="text-xs font-semibold text-primary block mb-1">
+                                    Custom AI prompt
+                                  </label>
+                                  <textarea
+                                    value={promptDraft}
+                                    onChange={(event) =>
+                                      setPromptDrafts((prev) => {
+                                        setPromptSaved((saved) => ({ ...saved, [activity.id]: false }));
+                                        return {
+                                          ...prev,
+                                          [activity.id]: event.target.value,
+                                        };
+                                      })
+                                    }
+                                    placeholder="Write a custom prompt the AI should follow for this activity…"
+                                    rows={3}
+                                    className="input-field text-sm"
+                                    disabled={isSavingPrompt}
+                                  />
+                                  <div className="text-[0.65rem] text-muted-foreground mt-1">
+                                    Tip: Use <code className="bg-secondary px-1 rounded">[INSERT TOPIC HERE]</code> and <code className="bg-secondary px-1 rounded">[ENTER KNOWLEDGE LEVEL]</code> as placeholders.
+                                  </div>
+                                </div>
                                 <div className="flex items-center gap-3">
                                   <button
                                     type="button"

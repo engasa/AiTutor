@@ -38,7 +38,7 @@ import {
 import api from '../lib/api';
 import type { Activity, AiModel } from '../lib/types';
 
-type ChatTab = 'teach' | 'guide';
+type ChatTab = 'teach' | 'guide' | 'custom';
 
 type ChatMessage = {
   id: string;
@@ -46,10 +46,9 @@ type ChatMessage = {
   content: string;
 };
 
-type ChatState = Record<
-  ChatTab,
-  { messages: ChatMessage[]; input: string; loading: boolean; chatId: string | null }
->;
+type SingleChatState = { messages: ChatMessage[]; input: string; loading: boolean; chatId: string | null };
+
+type ChatState = Record<ChatTab, SingleChatState>;
 
 type TopicOption = { label: string; value: number };
 
@@ -110,6 +109,7 @@ function getInitialChatState(): ChatState {
   return {
     teach: { messages: [], input: '', loading: false, chatId: null },
     guide: { messages: [], input: '', loading: false, chatId: null },
+    custom: { messages: [], input: '', loading: false, chatId: null },
   };
 }
 
@@ -160,18 +160,25 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
     const tabs = [];
     if (activity.enableTeachMode) tabs.push({ value: 'teach' as ChatTab, label: 'Teach me' });
     if (activity.enableGuideMode) tabs.push({ value: 'guide' as ChatTab, label: 'Guide me' });
+    if (activity.enableCustomMode && activity.customPrompt) {
+      tabs.push({ value: 'custom' as ChatTab, label: activity.customPromptTitle || 'Custom' });
+    }
     return tabs;
   }, [activity]);
 
   const showTabToggle = availableTabs.length > 1;
   const isTeachEnabled = activity?.enableTeachMode ?? false;
   const isGuideEnabled = activity?.enableGuideMode ?? false;
+  const isCustomEnabled = (activity?.enableCustomMode && activity?.customPrompt) ?? false;
   const currentTabEnabled =
-    (activeTab === 'teach' && isTeachEnabled) || (activeTab === 'guide' && isGuideEnabled);
+    (activeTab === 'teach' && isTeachEnabled) ||
+    (activeTab === 'guide' && isGuideEnabled) ||
+    (activeTab === 'custom' && isCustomEnabled);
 
   if (!currentTabEnabled) {
     if (isTeachEnabled) setActiveTab('teach');
     else if (isGuideEnabled) setActiveTab('guide');
+    else if (isCustomEnabled) setActiveTab('custom');
     else if (activeTab !== 'teach') setActiveTab('teach');
   }
 
@@ -225,7 +232,8 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
 
       const modeEnabled =
         (tab === 'teach' && activity.enableTeachMode) ||
-        (tab === 'guide' && activity.enableGuideMode);
+        (tab === 'guide' && activity.enableGuideMode) ||
+        (tab === 'custom' && activity.enableCustomMode && activity.customPrompt);
       if (!modeEnabled) {
         console.warn(`Cannot use disabled ${tab} mode for activity ${activity.id}`);
         return;
@@ -264,15 +272,23 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
 
       try {
         const modelId = selectedModelId || DEFAULT_MODEL_ID;
-        const response = tab === 'teach'
-          ? await api.sendTeachMessage(activity.id, {
-              knowledgeLevel: level, topicId, message, modelId, apiKey,
-              chatId: chatState[tab].chatId, messageId,
-            })
-          : await api.sendGuideMessage(activity.id, {
-              knowledgeLevel: level, message, studentAnswer: normalizedStudentAnswer,
-              modelId, apiKey, chatId: chatState[tab].chatId, messageId,
-            });
+        let response;
+        if (tab === 'teach') {
+          response = await api.sendTeachMessage(activity.id, {
+            knowledgeLevel: level, topicId, message, modelId, apiKey,
+            chatId: chatState[tab].chatId, messageId,
+          });
+        } else if (tab === 'guide') {
+          response = await api.sendGuideMessage(activity.id, {
+            knowledgeLevel: level, message, studentAnswer: normalizedStudentAnswer,
+            modelId, apiKey, chatId: chatState[tab].chatId, messageId,
+          });
+        } else {
+          response = await api.sendCustomMessage(activity.id, {
+            knowledgeLevel: level, topicId, message, modelId, apiKey,
+            chatId: chatState[tab].chatId, messageId,
+          });
+        }
 
         const nextChatId = response.chatId ?? chatState[tab].chatId ?? null;
         if (nextChatId) {
@@ -585,8 +601,8 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
             ) : null}
           </div>
 
-          {/* Topic selector for teach mode */}
-          {activeTab === 'teach' && topicOptions.length > 1 && (
+          {/* Topic selector for teach mode and custom mode (when prompt uses topic placeholder) */}
+          {(activeTab === 'teach' || (activeTab === 'custom' && activity?.customPrompt?.includes('[INSERT TOPIC HERE]'))) && topicOptions.length > 1 && (
             <div>
               <label className="block text-xs font-semibold text-muted-foreground mb-1.5">
                 Focus topic
@@ -670,7 +686,9 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
                   ? 'Complete setup above to start chatting'
                   : activeTab === 'teach'
                   ? 'Ask about the topic...'
-                  : 'Describe where you need guidance...'
+                  : activeTab === 'guide'
+                  ? 'Describe where you need guidance...'
+                  : 'Ask a question...'
               }
               disabled={chatDisabled}
               className="px-4 pb-3 pt-4 text-sm"

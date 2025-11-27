@@ -147,8 +147,9 @@ model Activity {
   lesson           Lesson          @relation(fields: [lessonId], references: [id], onDelete: Cascade)
   lessonId         Int
   promptTemplate   PromptTemplate? @relation(fields: [promptTemplateId], references: [id])
-  promptTemplateId Int?
-  customPrompt     String?
+  promptTemplateId   Int?
+  customPrompt       String?
+  customPromptTitle  String?
 
   mainTopic       Topic                    @relation("ActivityMainTopic", fields: [mainTopicId], references: [id])
   mainTopicId     Int
