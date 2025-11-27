@@ -1,7 +1,10 @@
+import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
 import { hashPassword } from 'better-auth/crypto';
 
-const prisma = new PrismaClient();
+const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
+const prisma = new PrismaClient({ adapter });
 
 async function clearDatabase() {
   await prisma.systemPrompt.deleteMany();
@@ -180,7 +183,15 @@ We are learning about [ENTER TOPIC], and I [ENTER KNOWLEDGE LEVEL].`,
   };
 }
 
-function knowledgeCheckConfig({ question, type, options, answer, hints }) {
+interface KnowledgeCheckConfigParams {
+  question: string;
+  type?: string;
+  options?: string[] | null;
+  answer?: unknown;
+  hints?: string[];
+}
+
+function knowledgeCheckConfig({ question, type, options, answer, hints }: KnowledgeCheckConfigParams) {
   return {
     question,
     questionType: type ?? 'MCQ',
@@ -190,7 +201,14 @@ function knowledgeCheckConfig({ question, type, options, answer, hints }) {
   };
 }
 
-function debuggingConfig({ question, context, answer, hints }) {
+interface DebuggingConfigParams {
+  question: string;
+  context: string;
+  answer?: unknown;
+  hints?: string[];
+}
+
+function debuggingConfig({ question, context, answer, hints }: DebuggingConfigParams) {
   return {
     question,
     debugContext: context,
@@ -200,7 +218,46 @@ function debuggingConfig({ question, context, answer, hints }) {
   };
 }
 
-async function createCourseWithContent(course, modules, defaults, topics = []) {
+interface CourseData {
+  title: string;
+  description?: string | null;
+  startDate?: Date | null;
+  endDate?: Date | null;
+  isPublished?: boolean;
+}
+
+interface ActivityData {
+  title?: string | null;
+  instructionsMd?: string;
+  position?: number;
+  promptTemplateId?: number | null;
+  mainTopic: string;
+  secondaryTopics?: string[];
+  config: unknown;
+}
+
+interface LessonData {
+  title: string;
+  contentMd?: string;
+  position?: number;
+  activities?: ActivityData[];
+}
+
+interface ModuleData {
+  title: string;
+  description?: string | null;
+  position?: number;
+  lessons?: LessonData[];
+}
+
+interface Defaults {
+  knowledgePrompt: { id: number };
+  debuggingPrompt: { id: number };
+  learningPrompt: { id: number };
+  exercisePrompt: { id: number };
+}
+
+async function createCourseWithContent(course: CourseData, modules: ModuleData[], defaults: Defaults, topics: string[] = []) {
   const offering = await prisma.courseOffering.create({
     data: {
       title: course.title,
@@ -211,7 +268,7 @@ async function createCourseWithContent(course, modules, defaults, topics = []) {
     },
   });
 
-  const topicNameToId = new Map();
+  const topicNameToId = new Map<string, number>();
 
   const baseTopics = Array.isArray(topics) ? topics : [];
   for (const topicName of baseTopics) {
@@ -266,7 +323,7 @@ async function createCourseWithContent(course, modules, defaults, topics = []) {
           ? activity.secondaryTopics
           : [];
 
-        const secondaryTopicIds = [];
+        const secondaryTopicIds: number[] = [];
         for (const name of secondaryNames) {
           if (typeof name !== 'string' || name === mainTopicName) continue;
           let topicId = topicNameToId.get(name);
@@ -311,7 +368,7 @@ async function createCourseWithContent(course, modules, defaults, topics = []) {
   return offering;
 }
 
-async function ensureTopicForCourse(courseOfferingId, name) {
+async function ensureTopicForCourse(courseOfferingId: number, name: string) {
   const trimmed = name.trim();
   if (!trimmed) throw new Error('Topic name must be provided');
 
@@ -336,7 +393,7 @@ async function ensureTopicForCourse(courseOfferingId, name) {
   return created.id;
 }
 
-async function copyLessonsBetweenOfferings(lessonIds, targetModuleId) {
+async function copyLessonsBetweenOfferings(lessonIds: number[], targetModuleId: number) {
   const targetModule = await prisma.module.findUnique({
     where: { id: targetModuleId },
     select: { courseOfferingId: true },
@@ -357,9 +414,9 @@ async function copyLessonsBetweenOfferings(lessonIds, targetModuleId) {
 
   if (lessons.length === 0) return;
 
-  const sourceTopicById = new Map();
+  const sourceTopicById = new Map<number, { id: number; name: string; courseOfferingId: number }>();
   const sourceCourseIds = new Set(
-    lessons.map((lesson) => lesson.module.courseOfferingId).filter((value) => Number.isInteger(value)),
+    lessons.map((lesson) => lesson.module.courseOfferingId).filter((value): value is number => Number.isInteger(value)),
   );
 
   for (const courseId of sourceCourseIds) {
@@ -373,12 +430,12 @@ async function copyLessonsBetweenOfferings(lessonIds, targetModuleId) {
     where: { courseOfferingId: targetModule.courseOfferingId },
   });
   const targetTopicsByName = new Map(existingTargetTopics.map((topic) => [topic.name, topic]));
-  const topicIdMap = new Map();
+  const topicIdMap = new Map<number, number>();
 
-  const resolveTopicId = async (sourceTopicId) => {
+  const resolveTopicId = async (sourceTopicId: number | null): Promise<number | null> => {
     if (!sourceTopicId) return null;
     if (topicIdMap.has(sourceTopicId)) {
-      return topicIdMap.get(sourceTopicId);
+      return topicIdMap.get(sourceTopicId)!;
     }
     const sourceTopic = sourceTopicById.get(sourceTopicId);
     if (!sourceTopic) return null;
@@ -421,7 +478,7 @@ async function copyLessonsBetweenOfferings(lessonIds, targetModuleId) {
         throw new Error('Failed to map main topic while copying seed lessons.');
       }
 
-      const secondaryTopics = [];
+      const secondaryTopics: number[] = [];
       for (const relation of activity.secondaryTopics) {
         const mapped = await resolveTopicId(relation.topicId);
         if (mapped) {
@@ -450,7 +507,7 @@ async function copyLessonsBetweenOfferings(lessonIds, targetModuleId) {
   }
 }
 
-async function createSampleSubmissions(algorithmsOfferingId, linearOfferingId, studentIds) {
+async function createSampleSubmissions(algorithmsOfferingId: number, linearOfferingId: number, studentIds: number[]) {
   const [studentOneId, studentTwoId] = studentIds;
 
   const sortingActivity = await prisma.activity.findFirst({
