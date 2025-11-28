@@ -31,7 +31,7 @@ export function ProgressBar({
           <span className="text-muted-foreground font-medium">
             {completed} of {total} completed
           </span>
-          <span className={`font-bold tabular-nums ${isComplete ? 'text-accent-foreground' : 'text-foreground'}`}>
+          <span className="font-bold tabular-nums text-foreground">
             {percentage}%
           </span>
         </div>
@@ -41,16 +41,12 @@ export function ProgressBar({
       >
         {/* Track glow on completion */}
         {isComplete && (
-          <div className="absolute inset-0 bg-accent/30 animate-pulse-soft" />
+          <div className="absolute inset-0 bg-primary/30 animate-pulse-soft" />
         )}
         
         {/* Progress fill */}
         <div
-          className={`h-full rounded-full transition-all duration-700 ease-out relative ${
-            isComplete 
-              ? 'bg-accent' 
-              : 'bg-primary'
-          }`}
+          className="h-full rounded-full transition-all duration-700 ease-out relative bg-primary"
           style={{ width: `${percentage}%` }}
         >
           {/* Shimmer effect for in-progress */}
