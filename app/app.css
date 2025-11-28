@@ -491,22 +491,31 @@ html.dark {
 
 @layer utilities {
   .animate-fade-in {
+    opacity: 0;
     animation: fade-in 0.4s var(--ease-out-expo) forwards;
   }
   
   .animate-fade-up {
+    opacity: 0;
+    transform: translateY(16px);
     animation: fade-up 0.5s var(--ease-out-expo) forwards;
   }
   
   .animate-fade-down {
+    opacity: 0;
+    transform: translateY(-16px);
     animation: fade-down 0.5s var(--ease-out-expo) forwards;
   }
   
   .animate-scale-in {
+    opacity: 0;
+    transform: scale(0.95);
     animation: scale-in 0.4s var(--ease-out-expo) forwards;
   }
   
   .animate-slide-in-right {
+    opacity: 0;
+    transform: translateX(24px);
     animation: slide-in-right 0.5s var(--ease-out-expo) forwards;
   }
   
