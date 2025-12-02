@@ -35,6 +35,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '~/components/ui/dialog';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '~/components/ui/tooltip';
 import api from '../lib/api';
 import type { Activity, AiModel } from '../lib/types';
 
@@ -155,13 +161,29 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
   const hasApiKey = apiKeysLoaded && Boolean(currentApiKey);
   const setupComplete = hasApiKey && Boolean(knowledgeLevel);
 
-  const availableTabs = useMemo<{ value: ChatTab; label: string }[]>(() => {
+  const availableTabs = useMemo<{ value: ChatTab; label: string; tooltip: string }[]>(() => {
     if (!activity) return [];
     const tabs = [];
-    if (activity.enableTeachMode) tabs.push({ value: 'teach' as ChatTab, label: 'Teach me' });
-    if (activity.enableGuideMode) tabs.push({ value: 'guide' as ChatTab, label: 'Guide me' });
+    if (activity.enableTeachMode) {
+      tabs.push({
+        value: 'teach' as ChatTab,
+        label: 'Teach me',
+        tooltip: 'Learn concepts and get explanations about the topic',
+      });
+    }
+    if (activity.enableGuideMode) {
+      tabs.push({
+        value: 'guide' as ChatTab,
+        label: 'Guide me',
+        tooltip: 'Get hints and guidance to solve the problem yourself',
+      });
+    }
     if (activity.enableCustomMode && activity.customPrompt) {
-      tabs.push({ value: 'custom' as ChatTab, label: activity.customPromptTitle || 'Custom' });
+      tabs.push({
+        value: 'custom' as ChatTab,
+        label: activity.customPromptTitle || 'Custom',
+        tooltip: activity.customPrompt.slice(0, 100) + (activity.customPrompt.length > 100 ? '...' : ''),
+      });
     }
     return tabs;
   }, [activity]);
@@ -579,25 +601,42 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
         <div className="px-5 pt-4 space-y-3">
           <div className="flex items-center gap-3">
             {showTabToggle ? (
-              <div className="flex rounded-xl bg-secondary p-1">
-                {availableTabs.map((tab) => (
-                  <button
-                    key={tab.value}
-                    onClick={() => setActiveTab(tab.value)}
-                    className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-                      activeTab === tab.value
-                        ? 'bg-card text-foreground shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
+              <TooltipProvider delayDuration={300}>
+                <div className="flex rounded-xl bg-secondary p-1">
+                  {availableTabs.map((tab) => (
+                    <Tooltip key={tab.value}>
+                      <TooltipTrigger asChild>
+                        <button
+                          onClick={() => setActiveTab(tab.value)}
+                          className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                            activeTab === tab.value
+                              ? 'bg-card text-foreground shadow-sm'
+                              : 'text-muted-foreground hover:text-foreground'
+                          }`}
+                        >
+                          {tab.label}
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="max-w-[250px]">
+                        <p>{tab.tooltip}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  ))}
+                </div>
+              </TooltipProvider>
             ) : availableTabs.length === 1 ? (
-              <div className="tag">
-                {availableTabs[0].label}
-              </div>
+              <TooltipProvider delayDuration={300}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="tag cursor-default">
+                      {availableTabs[0].label}
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-[250px]">
+                    <p>{availableTabs[0].tooltip}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             ) : null}
           </div>
 
