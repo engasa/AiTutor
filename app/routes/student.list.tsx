@@ -263,7 +263,7 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
           </div>
         )}
 
-        <div className="grid gap-8 lg:grid-cols-[1fr_400px]">
+        <div className="grid gap-8 lg:grid-cols-[3fr_2fr]">
           {/* Main content area */}
           <div className="space-y-6 animate-fade-up delay-150">
             {/* Question card */}
