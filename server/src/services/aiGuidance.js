@@ -6,6 +6,7 @@ import { getEduAiChatUrl } from './eduaiClient.js';
 // SUPERVISOR CONFIGURATION
 // =============================================================================
 
+const SUPERVISOR_ENABLED = process.env.AI_SUPERVISOR_ENABLED !== 'false';
 const MAX_SUPERVISOR_ITERATIONS = 3;
 const SUPERVISOR_ERROR_MESSAGE = 'AI study buddy encountered an issue reviewing the response. Please try again.';
 const FALLBACK_MESSAGE = "I'm having trouble formulating a helpful response right now. Please try rephrasing your question, or ask your instructor for guidance.";
@@ -110,7 +111,7 @@ async function callEduAI({
  * Call supervisor (AI2) to review tutor's response.
  * Returns approval verdict with reason/suggestion if rejected.
  */
-async function callSupervisor({ studentMessage, tutorResponse, modelId, userApiKey }) {
+async function callSupervisor({ studentMessage, studentContext, tutorResponse, modelId, userApiKey }) {
   const template = await getPromptTemplateBySlug('supervisor-prompt');
   if (!template) {
     throw new Error('Supervisor prompt template not configured');
@@ -118,6 +119,9 @@ async function callSupervisor({ studentMessage, tutorResponse, modelId, userApiK
 
   const userMessage = `STUDENT MESSAGE:
 ${studentMessage}
+
+CONTEXT (QUESTION / OPTIONS / KNOWLEDGE):
+${studentContext || 'Not provided'}
 
 TUTOR'S DRAFT RESPONSE:
 ${tutorResponse}`;
@@ -156,8 +160,12 @@ ${tutorResponse}`;
  * AI1 generates, AI2 reviews, retry up to MAX_SUPERVISOR_ITERATIONS if rejected.
  */
 async function supervisedGenerate(generateFn, context) {
-  const { originalStudentMessage, modelId, userApiKey } = context;
+  const { originalStudentMessage, studentContext, modelId, userApiKey } = context;
   let currentChatId = context.chatId;
+
+  if (!SUPERVISOR_ENABLED) {
+    return generateFn(currentChatId || null, false);
+  }
 
   for (let iteration = 0; iteration < MAX_SUPERVISOR_ITERATIONS; iteration++) {
     const isRevision = iteration > 0;
@@ -167,6 +175,7 @@ async function supervisedGenerate(generateFn, context) {
     try {
       const verdict = await callSupervisor({
         studentMessage: originalStudentMessage,
+        studentContext,
         tutorResponse: tutorResult.message,
         modelId,
         userApiKey,
@@ -200,6 +209,7 @@ async function generateWithSupervisor({
   systemPrompt,
   buildUserMessage,
   message,
+  supervisorContext,
   modelId,
   apiKey,
   chatId,
@@ -209,6 +219,7 @@ async function generateWithSupervisor({
 }) {
   const context = {
     originalStudentMessage: message,
+    studentContext: supervisorContext || buildUserMessage(),
     modelId,
     userApiKey: apiKey,
     chatId,
@@ -328,10 +339,13 @@ export async function generateTeachResponse({
     }
 
     const resolvedTopicName = topicName || activity.mainTopic?.name || 'the subject';
+    const baseUserMessage = buildTeachUserMessage({ topicName: resolvedTopicName, message });
+    const supervisorContext = `${baseUserMessage}\n\nKnowledge level: ${knowledgeLevel}`;
 
     return await generateWithSupervisor({
       systemPrompt: buildSystemPrompt(template.systemPrompt, { topic: resolvedTopicName, knowledgeLevel }),
-      buildUserMessage: () => buildTeachUserMessage({ topicName: resolvedTopicName, message }),
+      buildUserMessage: () => baseUserMessage,
+      supervisorContext,
       message,
       modelId,
       apiKey,
@@ -368,9 +382,13 @@ export async function generateGuideResponse({
       throw new Error('Exercise prompt template missing');
     }
 
+    const baseUserMessage = buildGuideUserMessage(activity, { message, studentAnswer });
+    const supervisorContext = `${baseUserMessage}\n\nKnowledge level: ${knowledgeLevel}`;
+
     return await generateWithSupervisor({
       systemPrompt: buildSystemPrompt(template.systemPrompt, { topic: activity.mainTopic?.name || 'the subject', knowledgeLevel }),
-      buildUserMessage: () => buildGuideUserMessage(activity, { message, studentAnswer }),
+      buildUserMessage: () => baseUserMessage,
+      supervisorContext,
       message,
       modelId,
       apiKey,
@@ -408,10 +426,13 @@ export async function generateCustomResponse({
     }
 
     const resolvedTopicName = topicName || activity.mainTopic?.name || 'the subject';
+    const baseUserMessage = buildGuideUserMessage(activity, { message, studentAnswer });
+    const supervisorContext = `${baseUserMessage}\n\nKnowledge level: ${knowledgeLevel}`;
 
     return await generateWithSupervisor({
       systemPrompt: buildSystemPrompt(activity.customPrompt, { topic: resolvedTopicName, knowledgeLevel }),
-      buildUserMessage: () => buildGuideUserMessage(activity, { message, studentAnswer }),
+      buildUserMessage: () => baseUserMessage,
+      supervisorContext,
       message,
       modelId,
       apiKey,
