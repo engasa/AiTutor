@@ -2,19 +2,21 @@ import { randomUUID } from 'crypto';
 import { prisma } from '../config/database.js';
 import { getEduAiChatUrl } from './eduaiClient.js';
 
+// =============================================================================
+// SUPERVISOR CONFIGURATION
+// =============================================================================
+
+const MAX_SUPERVISOR_ITERATIONS = 3;
+const SUPERVISOR_ERROR_MESSAGE = 'AI study buddy encountered an issue reviewing the response. Please try again.';
+const FALLBACK_MESSAGE = "I'm having trouble formulating a helpful response right now. Please try rephrasing your question, or ask your instructor for guidance.";
+
+// =============================================================================
+// EDUAI API COMMUNICATION
+// =============================================================================
+
 /**
- * Call UBC eduAI API to generate guidance
- * Calls eduAI's /chat endpoint with non-streaming, chat-aware payload.
- * @param {object} options
- * @param {string} options.systemPrompt - Composed system prompt
- * @param {string} options.userMessage - Constructed user message
- * @param {string|null} options.modelId - Optional model ID override (format: "provider:model")
- * @param {string} options.userApiKey - User-provided API key for the model provider
- * @param {string|null} options.chatId - Optional existing chat id for history
- * @param {string|null} options.messageId - Optional client-generated message id
- * @param {object|null} options.proxyUser - Optional proxy user envelope for eduAI
- * @param {string|null} options.courseCode - Optional course code for RAG
- * @returns {Promise<{ message: string, chatId: string | null }>}
+ * Call EduAI API to generate a response.
+ * Handles authentication, request formatting, and response parsing.
  */
 async function callEduAI({
   systemPrompt,
@@ -49,7 +51,6 @@ async function callEduAI({
 
   const userMessageId = messageId || randomUUID();
 
-  // Build apiKeys object dynamically based on provider
   const apiKeys = {
     [provider]: {
       apiKey: userApiKey,
@@ -58,13 +59,7 @@ async function callEduAI({
   };
 
   const requestBody = {
-    messages: [
-      {
-        id: userMessageId,
-        role: 'user',
-        content: userMessage,
-      },
-    ],
+    messages: [{ id: userMessageId, role: 'user', content: userMessage }],
     systemPrompt,
     model,
     apiKeys,
@@ -107,9 +102,147 @@ async function callEduAI({
   }
 }
 
+// =============================================================================
+// TWO-AGENT SUPERVISOR SYSTEM
+// =============================================================================
+
 /**
- * Build system prompt using provided template and context
+ * Call supervisor (AI2) to review tutor's response.
+ * Returns approval verdict with reason/suggestion if rejected.
  */
+async function callSupervisor({ studentMessage, tutorResponse, modelId, userApiKey }) {
+  const template = await getPromptTemplateBySlug('supervisor-prompt');
+  if (!template) {
+    throw new Error('Supervisor prompt template not configured');
+  }
+
+  const userMessage = `STUDENT MESSAGE:
+${studentMessage}
+
+TUTOR'S DRAFT RESPONSE:
+${tutorResponse}`;
+
+  const result = await callEduAI({
+    systemPrompt: template.systemPrompt,
+    userMessage,
+    modelId,
+    userApiKey,
+    chatId: null,
+    messageId: null,
+    proxyUser: null,
+    courseCode: null,
+  });
+
+  // Parse JSON verdict - fail-open on parse errors (approve tutor's draft)
+  try {
+    let jsonStr = result.message.trim();
+    if (jsonStr.startsWith('```')) {
+      jsonStr = jsonStr.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+    }
+    const verdict = JSON.parse(jsonStr);
+    return {
+      approved: Boolean(verdict.approved),
+      reason: verdict.reason || '',
+      suggestion: verdict.suggestion || '',
+    };
+  } catch (parseError) {
+    console.error('[supervisor] Failed to parse verdict (fail-open):', result.message, parseError);
+    return { approved: true, reason: '', suggestion: '', parseError: true };
+  }
+}
+
+/**
+ * Wrap tutor generation with supervisor review loop.
+ * AI1 generates, AI2 reviews, retry up to MAX_SUPERVISOR_ITERATIONS if rejected.
+ */
+async function supervisedGenerate(generateFn, context) {
+  const { originalStudentMessage, modelId, userApiKey } = context;
+  let currentChatId = context.chatId;
+
+  for (let iteration = 0; iteration < MAX_SUPERVISOR_ITERATIONS; iteration++) {
+    const isRevision = iteration > 0;
+    const tutorResult = await generateFn(currentChatId, isRevision);
+    currentChatId = tutorResult.chatId || currentChatId;
+
+    try {
+      const verdict = await callSupervisor({
+        studentMessage: originalStudentMessage,
+        tutorResponse: tutorResult.message,
+        modelId,
+        userApiKey,
+      });
+
+      console.log(`[supervisor] Iteration ${iteration + 1}: approved=${verdict.approved}`);
+      if (verdict.approved) {
+        return { message: tutorResult.message, chatId: currentChatId };
+      }
+
+      console.log(`[supervisor] Rejected - reason: ${verdict.reason}, suggestion: ${verdict.suggestion}`);
+      context.lastFeedback = {
+        reason: verdict.reason,
+        suggestion: verdict.suggestion,
+      };
+    } catch (supervisorError) {
+      console.error('[supervisor] Error during review:', supervisorError);
+      throw new Error(SUPERVISOR_ERROR_MESSAGE);
+    }
+  }
+
+  console.warn('[supervisor] Max iterations reached, returning fallback');
+  return { message: FALLBACK_MESSAGE, chatId: currentChatId };
+}
+
+/**
+ * Core generation with supervisor - shared by all modes.
+ * Handles context setup, revision logic, and EduAI calls.
+ */
+async function generateWithSupervisor({
+  systemPrompt,
+  buildUserMessage,
+  message,
+  modelId,
+  apiKey,
+  chatId,
+  messageId,
+  proxyUser,
+  courseCode,
+}) {
+  const context = {
+    originalStudentMessage: message,
+    modelId,
+    userApiKey: apiKey,
+    chatId,
+    lastFeedback: null,
+  };
+
+  const generateFn = async (currentChatId, isRevision) => {
+    let userMessage = buildUserMessage();
+    
+    // Prepend supervisor feedback on revision attempts
+    if (isRevision && context.lastFeedback) {
+      userMessage = `[REVISION NEEDED: ${context.lastFeedback.reason}. Suggestion: ${context.lastFeedback.suggestion}. Guide without revealing answers.]\n\n` + userMessage;
+    }
+
+    return callEduAI({
+      systemPrompt,
+      userMessage,
+      modelId,
+      userApiKey: apiKey,
+      chatId: currentChatId,
+      messageId: isRevision ? randomUUID() : messageId,
+      proxyUser,
+      courseCode,
+    });
+  };
+
+  return supervisedGenerate(generateFn, context);
+}
+
+// =============================================================================
+// PROMPT BUILDING UTILITIES
+// =============================================================================
+
+/** Replace template placeholders with context values. */
 function buildSystemPrompt(templateContent, context = {}) {
   let systemPrompt = templateContent || 'You are a helpful teaching assistant who guides students toward understanding without revealing answers directly.';
 
@@ -125,11 +258,13 @@ function buildSystemPrompt(templateContent, context = {}) {
   return systemPrompt;
 }
 
+/** Build user message for teach mode. */
 function buildTeachUserMessage({ topicName, message }) {
   const topicText = topicName ? `Topic: ${topicName}\n\n` : '';
   return `${topicText}Student request: ${message}`;
 }
 
+/** Build user message for guide/custom mode with question context. */
 function buildGuideUserMessage(activity, { message, studentAnswer }) {
   const config = activity.config || {};
   const questionType = config.questionType || 'MCQ';
@@ -158,14 +293,22 @@ function buildGuideUserMessage(activity, { message, studentAnswer }) {
   }
 
   base += `\n\nStudent request: ${message}`;
-
   return base;
 }
 
+/** Fetch prompt template from database by slug. */
 async function getPromptTemplateBySlug(slug) {
   return prisma.promptTemplate.findUnique({ where: { slug } });
 }
 
+// =============================================================================
+// PUBLIC API - RESPONSE GENERATORS
+// =============================================================================
+
+/**
+ * Generate response for "Teach me" mode.
+ * Uses 'learning-prompt' template, wrapped with supervisor review.
+ */
 export async function generateTeachResponse({
   activity,
   topicName,
@@ -184,18 +327,14 @@ export async function generateTeachResponse({
       throw new Error('Learning prompt template missing');
     }
 
-    const systemPrompt = buildSystemPrompt(template.systemPrompt, {
-      topic: topicName || activity.mainTopic?.name || 'the subject',
-      knowledgeLevel,
-    });
+    const resolvedTopicName = topicName || activity.mainTopic?.name || 'the subject';
 
-    const userMessage = buildTeachUserMessage({ topicName: topicName || activity.mainTopic?.name, message });
-
-    return await callEduAI({
-      systemPrompt,
-      userMessage,
+    return await generateWithSupervisor({
+      systemPrompt: buildSystemPrompt(template.systemPrompt, { topic: resolvedTopicName, knowledgeLevel }),
+      buildUserMessage: () => buildTeachUserMessage({ topicName: resolvedTopicName, message }),
+      message,
       modelId,
-      userApiKey: apiKey,
+      apiKey,
       chatId,
       messageId,
       proxyUser,
@@ -203,10 +342,14 @@ export async function generateTeachResponse({
     });
   } catch (error) {
     console.error('[aiGuidance] Failed to generate teach response:', error);
-    return { message: 'AI study buddy not available right now. Please try again later.', chatId };
+    return { message: error.message || 'AI study buddy not available right now. Please try again later.', chatId };
   }
 }
 
+/**
+ * Generate response for "Guide me" mode.
+ * Uses 'exercise-prompt' template, wrapped with supervisor review.
+ */
 export async function generateGuideResponse({
   activity,
   knowledgeLevel,
@@ -225,18 +368,12 @@ export async function generateGuideResponse({
       throw new Error('Exercise prompt template missing');
     }
 
-    const systemPrompt = buildSystemPrompt(template.systemPrompt, {
-      topic: activity.mainTopic?.name || 'the subject',
-      knowledgeLevel,
-    });
-
-    const userMessage = buildGuideUserMessage(activity, { message, studentAnswer });
-
-    return await callEduAI({
-      systemPrompt,
-      userMessage,
+    return await generateWithSupervisor({
+      systemPrompt: buildSystemPrompt(template.systemPrompt, { topic: activity.mainTopic?.name || 'the subject', knowledgeLevel }),
+      buildUserMessage: () => buildGuideUserMessage(activity, { message, studentAnswer }),
+      message,
       modelId,
-      userApiKey: apiKey,
+      apiKey,
       chatId,
       messageId,
       proxyUser,
@@ -244,13 +381,13 @@ export async function generateGuideResponse({
     });
   } catch (error) {
     console.error('[aiGuidance] Failed to generate guide response:', error);
-    return { message: 'AI study buddy not available right now. Please try again later.', chatId };
+    return { message: error.message || 'AI study buddy not available right now. Please try again later.', chatId };
   }
 }
 
 /**
- * Generate a response using the instructor's custom prompt
- * Uses the activity's customPrompt field as the system prompt
+ * Generate response using instructor's custom prompt.
+ * Uses activity.customPrompt as system prompt, wrapped with supervisor review.
  */
 export async function generateCustomResponse({
   activity,
@@ -270,20 +407,14 @@ export async function generateCustomResponse({
       throw new Error('No custom prompt configured for this activity');
     }
 
-    // Use the instructor's custom prompt, applying placeholders if present
-    const systemPrompt = buildSystemPrompt(activity.customPrompt, {
-      topic: topicName || activity.mainTopic?.name || 'the subject',
-      knowledgeLevel,
-    });
+    const resolvedTopicName = topicName || activity.mainTopic?.name || 'the subject';
 
-    // Include student answer context like guide mode
-    const userMessage = buildGuideUserMessage(activity, { message, studentAnswer });
-
-    return await callEduAI({
-      systemPrompt,
-      userMessage,
+    return await generateWithSupervisor({
+      systemPrompt: buildSystemPrompt(activity.customPrompt, { topic: resolvedTopicName, knowledgeLevel }),
+      buildUserMessage: () => buildGuideUserMessage(activity, { message, studentAnswer }),
+      message,
       modelId,
-      userApiKey: apiKey,
+      apiKey,
       chatId,
       messageId,
       proxyUser,
@@ -291,6 +422,6 @@ export async function generateCustomResponse({
     });
   } catch (error) {
     console.error('[aiGuidance] Failed to generate custom response:', error);
-    return { message: 'AI study buddy not available right now. Please try again later.', chatId };
+    return { message: error.message || 'AI study buddy not available right now. Please try again later.', chatId };
   }
 }
