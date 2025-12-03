@@ -117,7 +117,8 @@ async function callSupervisor({ studentMessage, studentContext, tutorResponse, m
     throw new Error('Supervisor prompt template not configured');
   }
 
-  const userMessage = `STUDENT MESSAGE:
+  const buildUserMessage = (parseErrorDetails = null) => {
+    const base = `STUDENT MESSAGE:
 ${studentMessage}
 
 CONTEXT (QUESTION / OPTIONS / KNOWLEDGE):
@@ -126,33 +127,60 @@ ${studentContext || 'Not provided'}
 TUTOR'S DRAFT RESPONSE:
 ${tutorResponse}`;
 
-  const result = await callEduAI({
-    systemPrompt: template.systemPrompt,
-    userMessage,
-    modelId,
-    userApiKey,
-    chatId: null,
-    messageId: null,
-    proxyUser: null,
-    courseCode: null,
-  });
+    if (!parseErrorDetails) return base;
+    return `${base}
 
-  // Parse JSON verdict - fail-open on parse errors (approve tutor's draft)
-  try {
-    let jsonStr = result.message.trim();
-    if (jsonStr.startsWith('```')) {
-      jsonStr = jsonStr.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+PREVIOUS SUPERVISOR RESPONSE WAS NOT VALID JSON.
+PARSE ERROR: ${parseErrorDetails}
+RESPOND WITH ONLY VALID JSON PER INSTRUCTIONS.`;
+  };
+
+  const attemptParse = async (parseErrorDetails = null) => {
+    const result = await callEduAI({
+      systemPrompt: template.systemPrompt,
+      userMessage: buildUserMessage(parseErrorDetails),
+      modelId,
+      userApiKey,
+      chatId: null,
+      messageId: null,
+      proxyUser: null,
+      courseCode: null,
+    });
+
+    try {
+      let jsonStr = result.message.trim();
+      if (jsonStr.startsWith('```')) {
+        jsonStr = jsonStr.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+      }
+      const verdict = JSON.parse(jsonStr);
+      return {
+        ok: true,
+        approved: Boolean(verdict.approved),
+        reason: verdict.reason || '',
+        suggestion: verdict.suggestion || '',
+      };
+    } catch (parseError) {
+      return { ok: false, parseError, raw: result.message };
     }
-    const verdict = JSON.parse(jsonStr);
-    return {
-      approved: Boolean(verdict.approved),
-      reason: verdict.reason || '',
-      suggestion: verdict.suggestion || '',
-    };
-  } catch (parseError) {
-    console.error('[supervisor] Failed to parse verdict (fail-open):', result.message, parseError);
-    return { approved: true, reason: '', suggestion: '', parseError: true };
+  };
+
+  const first = await attemptParse();
+  if (first.ok) {
+    return { approved: first.approved, reason: first.reason, suggestion: first.suggestion, parseFailed: false };
   }
+
+  const second = await attemptParse(first.parseError?.message || 'Invalid JSON');
+  if (second.ok) {
+    return { approved: second.approved, reason: second.reason, suggestion: second.suggestion, parseFailed: false };
+  }
+
+  console.error('[supervisor] Failed to parse verdict after retry:', second.raw, second.parseError);
+  return {
+    approved: false,
+    reason: 'Supervisor response invalid after retry',
+    suggestion: 'Regenerate guided reply without revealing answers; supervisor could not validate.',
+    parseFailed: true,
+  };
 }
 
 /**
@@ -182,6 +210,17 @@ async function supervisedGenerate(generateFn, context) {
       });
 
       console.log(`[supervisor] Iteration ${iteration + 1}: approved=${verdict.approved}`);
+      if (verdict.parseFailed) {
+        // Supervisor couldn't produce valid JSON after retry; do one recovery tutor revision and return it.
+        context.lastFeedback = {
+          reason: verdict.reason,
+          suggestion: verdict.suggestion,
+        };
+        const recovery = await generateFn(currentChatId, true);
+        currentChatId = recovery.chatId || currentChatId;
+        return { message: recovery.message, chatId: currentChatId };
+      }
+
       if (verdict.approved) {
         return { message: tutorResult.message, chatId: currentChatId };
       }

@@ -71,33 +71,19 @@ OR
 
 #### 2. Core Functions
 
-**`callSupervisor()`** - Calls EduAI with supervisor prompt to review tutor response:
+**`callSupervisor()`** - Calls EduAI with supervisor prompt to review tutor response. Includes a retry on invalid JSON and a recovery path:
 
 ```javascript
-async function callSupervisor({ studentMessage, tutorResponse, modelId, userApiKey }) {
-  const template = await getPromptTemplateBySlug('supervisor-prompt');
-  
-  const userMessage = `STUDENT MESSAGE:\n${studentMessage}\n\nTUTOR'S DRAFT RESPONSE:\n${tutorResponse}`;
+async function callSupervisor({ studentMessage, studentContext, tutorResponse, modelId, userApiKey }) {
+  // attempt once; if JSON parse fails, retry with parse error details
+  const first = await attemptParse();
+  if (first.ok) return first.verdict;
 
-  const result = await callEduAI({
-    systemPrompt: template.systemPrompt,
-    userMessage,
-    modelId,
-    userApiKey,
-    // No chatId - supervisor doesn't need conversation history
-  });
+  const second = await attemptParse(first.parseError.message);
+  if (second.ok) return second.verdict;
 
-  // Parse JSON verdict (handles markdown code blocks)
-  let jsonStr = result.message.trim();
-  if (jsonStr.startsWith('```')) {
-    jsonStr = jsonStr.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
-  }
-  const verdict = JSON.parse(jsonStr);
-  return {
-    approved: Boolean(verdict.approved),
-    reason: verdict.reason || '',
-    suggestion: verdict.suggestion || '',
-  };
+  // if still invalid, mark parseFailed so we can fall back to tutor recovery
+  return { approved: false, parseFailed: true, reason: 'Supervisor response invalid after retry' };
 }
 ```
 
@@ -138,15 +124,14 @@ async function generateWithSupervisor({
 ```javascript
 async function supervisedGenerate(generateFn, context) {
   for (let iteration = 0; iteration < MAX_SUPERVISOR_ITERATIONS; iteration++) {
-    const isRevision = iteration > 0;
-    const tutorResult = await generateFn(currentChatId, isRevision);
-    
-    const verdict = await callSupervisor({
-      studentMessage: context.originalStudentMessage,
-      tutorResponse: tutorResult.message,
-      modelId: context.modelId,
-      userApiKey: context.userApiKey,
-    });
+    const tutorResult = await generateFn(currentChatId, iteration > 0);
+    const verdict = await callSupervisor({ ...context, tutorResponse: tutorResult.message });
+
+    if (verdict.parseFailed) {
+      // one recovery pass without supervisor
+      const recovery = await generateFn(currentChatId, true);
+      return { message: recovery.message, chatId: recovery.chatId || currentChatId };
+    }
 
     if (verdict.approved) return { message: tutorResult.message, chatId: currentChatId };
 
@@ -156,6 +141,16 @@ async function supervisedGenerate(generateFn, context) {
   return { message: FALLBACK_MESSAGE, chatId: currentChatId };
 }
 ```
+
+### Supervisor context
+
+- Supervisor now sees the full question/options/knowledge context (not just the raw student message) plus the tutor draft, so it can detect answer leaks like “option C is correct.”
+- Env flag `AI_SUPERVISOR_ENABLED` (default `true`) disables the supervisor loop when set to `false`.
+
+### Failure handling
+
+- If the supervisor returns non-JSON, we retry once, including the parse error in the prompt.
+- If the second attempt is still invalid, we do a single tutor recovery pass with a revision note and return that to the student (no further supervisor checks).
 
 #### 3. Integration with Chat Modes
 
