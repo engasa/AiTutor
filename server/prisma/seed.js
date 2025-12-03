@@ -172,11 +172,36 @@ We are learning about [ENTER TOPIC], and I [ENTER KNOWLEDGE LEVEL].`,
     },
   });
 
+  const supervisorPrompt = await prisma.promptTemplate.create({
+    data: {
+      name: 'Supervisor Prompt',
+      slug: 'supervisor-prompt',
+      systemPrompt: `You are a pedagogical supervisor reviewing a tutor's response to a student.
+
+RULES the tutor MUST follow:
+1. NEVER directly reveal answers, solutions, or correct options
+2. Guide via questions, hints, analogies — not direct statements
+3. Never explicitly confirm "correct" or "incorrect"
+4. Be encouraging but don't do the thinking for the student
+5. If student asks for the answer directly, redirect them to think critically
+
+Review the tutor's draft response and determine if it violates these rules.
+
+Respond with ONLY valid JSON (no markdown, no extra text):
+{"approved": true}
+OR
+{"approved": false, "reason": "brief explanation", "suggestion": "how to improve"}`,
+      temperature: 0.1,
+      topP: 0.9,
+    },
+  });
+
   return {
     knowledgePrompt,
     debuggingPrompt,
     learningPrompt,
     exercisePrompt,
+    supervisorPrompt,
   };
 }
 
