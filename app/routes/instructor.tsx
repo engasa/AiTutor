@@ -5,11 +5,11 @@ import { PublishStatusButton } from '../components/PublishStatusButton';
 import api from '../lib/api';
 import type { Course, EduAiCourse } from '../lib/types';
 import type { Route } from './+types/instructor';
-import { fetchJson, requireUserFromRequest } from '~/lib/server-api';
+import { requireClientUser } from '~/lib/client-auth';
 
-export async function loader({ request }: Route.LoaderArgs) {
-  await requireUserFromRequest(request, 'INSTRUCTOR');
-  const courses = await fetchJson<Course[]>(request, '/api/courses');
+export async function clientLoader(_: Route.ClientLoaderArgs) {
+  await requireClientUser('INSTRUCTOR');
+  const courses = (await api.listCourses()) as Course[];
   return { courses };
 }
 

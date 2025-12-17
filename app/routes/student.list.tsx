@@ -14,27 +14,27 @@ import {
 import api from '../lib/api';
 import type { Activity, Course, Lesson, ModuleDetail } from '../lib/types';
 import type { Route } from './+types/student.list';
-import { fetchJson, requireUserFromRequest } from '~/lib/server-api';
+import { requireClientUser } from '~/lib/client-auth';
 import { useLocalUser } from '~/hooks/useLocalUser';
 
-export async function loader({ request, params }: Route.LoaderArgs) {
-  await requireUserFromRequest(request, 'STUDENT');
+export async function clientLoader({ params }: Route.ClientLoaderArgs) {
+  await requireClientUser('STUDENT');
   const lessonId = Number(params.lessonId);
   if (!Number.isFinite(lessonId)) {
     throw new Response('Invalid lesson id', { status: 400 });
   }
 
   const [lesson, activities] = await Promise.all([
-    fetchJson<Lesson>(request, `/api/lessons/${lessonId}`),
-    fetchJson<Activity[]>(request, `/api/lessons/${lessonId}/activities`),
+    api.lessonById(lessonId) as Promise<Lesson>,
+    api.activitiesForLesson(lessonId) as Promise<Activity[]>,
   ]);
 
   let module: ModuleDetail | null = null;
   let course: Course | null = null;
   if (lesson.moduleId) {
-    module = await fetchJson<ModuleDetail>(request, `/api/modules/${lesson.moduleId}`);
+    module = (await api.moduleById(lesson.moduleId)) as ModuleDetail;
     if (module?.courseOfferingId) {
-      course = await fetchJson<Course>(request, `/api/courses/${module.courseOfferingId}`);
+      course = (await api.courseById(module.courseOfferingId)) as Course;
     }
   }
 

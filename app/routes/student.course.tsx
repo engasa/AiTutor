@@ -12,18 +12,19 @@ import {
 } from '../components/ui/breadcrumb';
 import type { Course, Module } from '../lib/types';
 import type { Route } from './+types/student.course';
-import { fetchJson, requireUserFromRequest } from '~/lib/server-api';
+import api from '~/lib/api';
+import { requireClientUser } from '~/lib/client-auth';
 
-export async function loader({ request, params }: Route.LoaderArgs) {
-  await requireUserFromRequest(request, 'STUDENT');
+export async function clientLoader({ params }: Route.ClientLoaderArgs) {
+  await requireClientUser('STUDENT');
   const courseId = Number(params.courseId);
   if (!Number.isFinite(courseId)) {
     throw new Response('Invalid course id', { status: 400 });
   }
 
   const [course, modules] = await Promise.all([
-    fetchJson<Course>(request, `/api/courses/${courseId}`),
-    fetchJson<Module[]>(request, `/api/courses/${courseId}/modules`),
+    api.courseById(courseId) as Promise<Course>,
+    api.modulesForCourse(courseId) as Promise<Module[]>,
   ]);
 
   return { course, modules };

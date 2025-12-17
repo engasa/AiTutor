@@ -14,21 +14,21 @@ import { PublishStatusButton } from '../components/PublishStatusButton';
 import api from '../lib/api';
 import type { Course, Lesson, Module, ModuleDetail } from '../lib/types';
 import type { Route } from './+types/instructor.topic';
-import { fetchJson, requireUserFromRequest } from '~/lib/server-api';
+import { requireClientUser } from '~/lib/client-auth';
 
-export async function loader({ request, params }: Route.LoaderArgs) {
-  await requireUserFromRequest(request, 'INSTRUCTOR');
+export async function clientLoader({ params }: Route.ClientLoaderArgs) {
+  await requireClientUser('INSTRUCTOR');
   const moduleId = Number(params.moduleId);
   if (!Number.isFinite(moduleId)) {
     throw new Response('Invalid module id', { status: 400 });
   }
 
   const [module, lessons] = await Promise.all([
-    fetchJson<ModuleDetail>(request, `/api/modules/${moduleId}`),
-    fetchJson<Lesson[]>(request, `/api/modules/${moduleId}/lessons`),
+    api.moduleById(moduleId) as Promise<ModuleDetail>,
+    api.lessonsForModule(moduleId) as Promise<Lesson[]>,
   ]);
 
-  const course = await fetchJson<Course>(request, `/api/courses/${module.courseOfferingId}`);
+  const course = (await api.courseById(module.courseOfferingId)) as Course;
 
   return { course, module, lessons };
 }

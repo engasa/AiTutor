@@ -1,4 +1,4 @@
-import type { AiModel, EduAiCourse } from './types';
+import type { AiModel, EduAiCourse, User } from './types';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
@@ -30,6 +30,7 @@ async function http(path: string, init?: RequestInit) {
 }
 
 export const api = {
+  me: () => http('/api/me') as Promise<{ user: User | null }>,
   login: async (email: string, password: string) => {
     const res = await fetch(`${API_BASE}/api/auth/sign-in/email`, {
       method: 'POST',

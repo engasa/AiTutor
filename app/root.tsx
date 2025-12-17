@@ -5,13 +5,11 @@ import {
   Outlet,
   Scripts,
   ScrollRestoration,
-  useLoaderData,
 } from "react-router";
 
 import type { Route } from "./+types/root";
 import "./app.css";
 import { AuthProvider } from "~/hooks/useLocalUser";
-import { loadUserFromRequest } from "~/lib/server-api";
 
 // Theme script runs before React hydration to prevent flash
 // Sets dark class on <html> based on localStorage or system preference
@@ -45,9 +43,12 @@ export const links: Route.LinksFunction = () => [
   },
 ];
 
-export async function loader({ request }: Route.LoaderArgs) {
-  const user = await loadUserFromRequest(request);
-  return { user };
+export function HydrateFallback() {
+  return (
+    <div className="min-h-dvh bg-gradient-to-br from-gray-50 to-white dark:from-gray-950 dark:to-gray-900 flex items-center justify-center">
+      <div className="text-sm text-gray-600 dark:text-gray-300">Loading…</div>
+    </div>
+  );
 }
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -75,9 +76,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
-  const { user } = useLoaderData<typeof loader>();
   return (
-    <AuthProvider initialUser={user}>
+    <AuthProvider initialUser={null}>
       <Outlet />
     </AuthProvider>
   );

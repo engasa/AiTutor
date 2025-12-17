@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import api from "~/lib/api";
 import type { User } from "~/lib/types";
 
@@ -20,6 +20,27 @@ type AuthProviderProps = {
 
 export function AuthProvider({ initialUser, children }: AuthProviderProps) {
   const [user, setUser] = useState<AuthUser | null>(initialUser);
+  const [bootstrapped, setBootstrapped] = useState(false);
+
+  useEffect(() => {
+    if (bootstrapped) return;
+    setBootstrapped(true);
+    if (initialUser) return;
+
+    api
+      .me()
+      .then((data) => {
+        const nextUser = data?.user ?? null;
+        if (nextUser) {
+          setUser({ id: nextUser.id, name: nextUser.name, role: nextUser.role });
+        } else {
+          setUser(null);
+        }
+      })
+      .catch(() => {
+        setUser(null);
+      });
+  }, [bootstrapped, initialUser]);
 
   const saveAuth = (userData: AuthUser) => {
     setUser(userData);

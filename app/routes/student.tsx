@@ -4,11 +4,12 @@ import Nav from '../components/Nav';
 import { ProgressBarFromData } from '../components/ProgressBar';
 import type { Course } from '../lib/types';
 import type { Route } from './+types/student';
-import { fetchJson, requireUserFromRequest } from '~/lib/server-api';
+import api from '~/lib/api';
+import { requireClientUser } from '~/lib/client-auth';
 
-export async function loader({ request }: Route.LoaderArgs) {
-  await requireUserFromRequest(request, 'STUDENT');
-  const courses = await fetchJson<Course[]>(request, '/api/courses');
+export async function clientLoader(_: Route.ClientLoaderArgs) {
+  await requireClientUser('STUDENT');
+  const courses = (await api.listCourses()) as Course[];
   return { courses };
 }
 

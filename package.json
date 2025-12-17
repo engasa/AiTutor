@@ -5,7 +5,7 @@
   "scripts": {
     "build": "react-router build",
     "dev": "react-router dev",
-    "start": "react-router-serve ./build/server/index.js",
+    "start": "vite preview --outDir build/client",
     "typecheck": "react-router typegen && tsc"
   },
   "dependencies": {
@@ -27,8 +27,8 @@
     "isbot": "^5.1.27",
     "lucide-react": "^0.554.0",
     "nanoid": "^5.1.6",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
+    "react": "19.2.1",
+    "react-dom": "19.2.1",
     "react-router": "^7.7.1",
     "streamdown": "^1.5.1",
     "tailwind-merge": "^3.3.1",
