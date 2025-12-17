@@ -28,7 +28,13 @@ export default function Home() {
       const response = await api.login(email, password);
       const { user } = response;
       saveAuth({ id: user.id, name: user.name, role: user.role });
-      navigate(user.role === 'STUDENT' ? '/student' : '/instructor');
+      navigate(
+        user.role === 'STUDENT'
+          ? '/student'
+          : user.role === 'INSTRUCTOR'
+            ? '/instructor'
+            : '/admin',
+      );
     } catch (err) {
       setError('Invalid email or password');
     } finally {

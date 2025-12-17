@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import { prisma } from '../config/database.js';
 import { getEduAiChatUrl } from './eduaiClient.js';
+import { getEffectiveEduAiApiKey } from './systemSettings.js';
 
 // =============================================================================
 // SUPERVISOR CONFIGURATION
@@ -29,7 +30,7 @@ async function callEduAI({
   proxyUser = null,
   courseCode = null,
 }) {
-  const apiKey = process.env.EDUAI_API_KEY;
+  const apiKey = await getEffectiveEduAiApiKey();
   const endpoint = getEduAiChatUrl();
   const model = modelId || process.env.EDUAI_MODEL || 'google:gemini-2.5-flash';
 

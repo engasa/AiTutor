@@ -4,6 +4,7 @@ import { hashPassword } from 'better-auth/crypto';
 const prisma = new PrismaClient();
 
 async function clearDatabase() {
+  await prisma.systemSetting.deleteMany();
   await prisma.systemPrompt.deleteMany();
 
   await prisma.submission.deleteMany();
@@ -40,14 +41,15 @@ Guidelines:
 
 
 async function createUsers() {
-  const [studentPw, student2Pw, instructorPw, assistantPw] = await Promise.all([
+  const [studentPw, student2Pw, instructorPw, assistantPw, adminPw] = await Promise.all([
     hashPassword('student123'),
     hashPassword('student456'),
     hashPassword('instructor123'),
     hashPassword('assistant123'),
+    hashPassword('admin123'),
   ]);
 
-  const [student, studentTwo, instructor, assistant] = await Promise.all([
+  const [student, studentTwo, instructor, assistant, admin] = await Promise.all([
     prisma.user.create({
       data: {
         name: 'Student One',
@@ -78,6 +80,14 @@ async function createUsers() {
         email: 'assistant@example.com',
         password: assistantPw,
         role: 'INSTRUCTOR',
+      },
+    }),
+    prisma.user.create({
+      data: {
+        name: 'Admin',
+        email: 'admin@example.com',
+        password: adminPw,
+        role: 'ADMIN',
       },
     }),
   ]);
@@ -116,9 +126,17 @@ async function createUsers() {
         password: assistantPw,
       },
     }),
+    prisma.account.create({
+      data: {
+        providerId: 'credential',
+        accountId: String(admin.id),
+        userId: admin.id,
+        password: adminPw,
+      },
+    }),
   ]);
 
-  return { student, studentTwo, instructor, assistant };
+  return { student, studentTwo, instructor, assistant, admin };
 }
 
 async function createPromptTemplates() {

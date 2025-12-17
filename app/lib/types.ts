@@ -1,10 +1,18 @@
-export type Role = 'STUDENT' | 'INSTRUCTOR';
+export type Role = 'STUDENT' | 'INSTRUCTOR' | 'ADMIN';
 
 export type User = {
   id: number;
   name: string;
   email: string;
   role: Role;
+};
+
+export type EduAiApiKeyStatus = {
+  configured: boolean;
+  source: 'ADMIN' | 'ENV' | 'NONE';
+  hasAdminOverride: boolean;
+  envConfigured: boolean;
+  updatedAt: string | null;
 };
 
 export type Progress = {

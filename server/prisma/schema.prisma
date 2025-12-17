@@ -10,6 +10,7 @@ datasource db {
 enum Role {
   STUDENT
   INSTRUCTOR
+  ADMIN
 }
 
 enum InstructorRole {
@@ -190,6 +191,13 @@ model SystemPrompt {
   id        Int      @id @default(autoincrement())
   slug      String   @unique
   content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SystemSetting {
+  key       String   @id
+  value     String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }

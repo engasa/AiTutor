@@ -1,4 +1,5 @@
 import { EduAiCourseListSchema, EduAiTopicListSchema } from '../schemas/eduai.js';
+import { getEffectiveEduAiApiKey } from './systemSettings.js';
 const DEFAULT_BASE_URL = 'http://localhost:5174/api';
 
 function normalizeBaseUrl(rawUrl) {
@@ -15,7 +16,7 @@ export function getEduAiChatUrl() {
 }
 
 async function requestEduAi(path, options = {}) {
-  const apiKey = process.env.EDUAI_API_KEY;
+  const apiKey = await getEffectiveEduAiApiKey();
   if (!apiKey) {
     throw new Error('EDUAI_API_KEY is not configured');
   }

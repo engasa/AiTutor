@@ -44,7 +44,7 @@ Student asks question
 
 | File | Purpose |
 |------|---------|
-| `server/prisma/seed.js` | Added `supervisor-prompt` template |
+| `server/prisma/seed.ts` | Added `supervisor-prompt` template |
 | `server/src/services/aiGuidance.js` | Core supervisor logic |
 
 ### Architecture

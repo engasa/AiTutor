@@ -1,4 +1,4 @@
-import type { AiModel, EduAiCourse, User } from "./types";
+import type { AiModel, EduAiApiKeyStatus, EduAiCourse, User } from "./types";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
@@ -282,6 +282,17 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ provider, apiKey }),
     }) as Promise<{ valid: boolean; error?: string }>,
+  getEduAiApiKeyStatus: () =>
+    http("/api/admin/settings/eduai-api-key") as Promise<EduAiApiKeyStatus>,
+  setEduAiApiKey: (apiKey: string) =>
+    http("/api/admin/settings/eduai-api-key", {
+      method: "PUT",
+      body: JSON.stringify({ apiKey }),
+    }) as Promise<EduAiApiKeyStatus>,
+  clearEduAiApiKey: () =>
+    http("/api/admin/settings/eduai-api-key", {
+      method: "DELETE",
+    }) as Promise<EduAiApiKeyStatus>,
   listPrompts: () => http("/api/prompts"),
   createPrompt: (payload: {
     name: string;

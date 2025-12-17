@@ -15,6 +15,7 @@ import activityRoutes from './routes/activities.js';
 import promptRoutes from './routes/prompts.js';
 import topicRoutes from './routes/topics.js';
 import aiModelRoutes from './routes/ai-models.js';
+import adminRoutes from './routes/admin.js';
 const app = express();
 
 app.use(cors({ origin: true, credentials: true }));
@@ -47,6 +48,26 @@ app.use('/api', (req, res, next) => {
   return requireAuth(req, res, next);
 });
 
+// Admins are intentionally isolated to admin-only endpoints for now
+app.use('/api', (req, res, next) => {
+  if (req.path === '/health' || req.path.startsWith('/auth/')) {
+    return next();
+  }
+
+  if (!req.user) {
+    return next();
+  }
+
+  if (req.user.role === 'ADMIN') {
+    if (req.path === '/me' || req.path.startsWith('/admin/')) {
+      return next();
+    }
+    return res.status(403).json({ error: 'Admins can only access admin endpoints' });
+  }
+
+  next();
+});
+
 // Mount route modules
 app.use('/api', authRoutes);
 app.use('/api', courseRoutes);
@@ -56,6 +77,7 @@ app.use('/api', activityRoutes);
 app.use('/api', promptRoutes);
 app.use('/api', topicRoutes);
 app.use('/api', aiModelRoutes);
+app.use('/api', adminRoutes);
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => console.log(`API listening on :${PORT}`));
