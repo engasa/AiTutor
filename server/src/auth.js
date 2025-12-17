@@ -1,19 +1,17 @@
-import { betterAuth } from 'better-auth';
-import { prismaAdapter } from 'better-auth/adapters/prisma';
-import { prisma } from './config/database.js';
+import { betterAuth } from "better-auth";
+import { prismaAdapter } from "better-auth/adapters/prisma";
+import { prisma } from "./config/database.js";
 
-const isProd = process.env.NODE_ENV === 'production';
-const baseURL = process.env.BETTER_AUTH_URL || 'http://localhost:4000/api/auth';
-const cookieDomain = process.env.COOKIE_DOMAIN || 'localhost';
+const isProd = process.env.NODE_ENV === "production";
+const baseURL = process.env.BETTER_AUTH_URL || "http://localhost:4000/api/auth";
+const cookieDomain = process.env.COOKIE_DOMAIN || "localhost";
 
 export const auth = betterAuth({
   // Base URL of the API server hosting the auth handler
   baseURL,
 
   // Allow the frontend dev origin to call auth endpoints
-  trustedOrigins: [
-    'http://localhost:5173',
-  ],
+  trustedOrigins: ["http://localhost:5173", "https://aitutor.ok.ubc.ca"],
 
   // IDs are numeric in our Prisma schema (User.id, Account.userId are Int)
   advanced: {
@@ -24,7 +22,7 @@ export const auth = betterAuth({
 
   // Use Prisma as the database adapter (PostgreSQL in this repo)
   database: prismaAdapter(prisma, {
-    provider: 'postgresql',
+    provider: "postgresql",
   }),
 
   // Enable simple email + password
@@ -36,6 +34,6 @@ export const auth = betterAuth({
   cookies: {
     domain: cookieDomain,
     secure: isProd,
-    sameSite: 'lax',
+    sameSite: "lax",
   },
 });
