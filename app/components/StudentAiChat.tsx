@@ -758,7 +758,7 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
                             key={prompt.id}
                             type="button"
                             onClick={() => handleSuggestedPromptClick(prompt.text)}
-                            className="px-3 py-1.5 text-xs rounded-full border border-border bg-card hover:bg-secondary hover:border-primary/30 transition-colors text-left"
+                            className="px-4 py-2.5 text-sm rounded-xl border border-border bg-card hover:bg-secondary hover:border-primary/30 transition-colors text-left"
                           >
                             {prompt.text}
                           </button>
