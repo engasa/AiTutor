@@ -1,7 +1,11 @@
 import { Link, useLocation, useNavigate } from 'react-router';
 import { useLocalUser } from '../hooks/useLocalUser';
+import { useEffect, useState } from 'react';
+import { api } from '../lib/api';
+import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 
 export default function Nav() {
+  const [eduAiStatus, setEduAiStatus] = useState<'loading' | 'connected' | 'disconnected'>('loading');
   const navigate = useNavigate();
   const loc = useLocation();
   const { user, logout } = useLocalUser();
@@ -10,6 +14,18 @@ export default function Nav() {
     await logout();
     navigate('/');
   };
+
+  useEffect(() => {
+    let mounted = true;
+    api.listAiModels()
+      .then(() => {
+        if (mounted) setEduAiStatus('connected');
+      })
+      .catch(() => {
+        if (mounted) setEduAiStatus('disconnected');
+      });
+    return () => { mounted = false; };
+  }, []);
 
   const isStudent = loc.pathname.startsWith('/student');
   const isInstructor = loc.pathname.startsWith('/instructor');
@@ -89,6 +105,37 @@ export default function Nav() {
               {/* User info & logout */}
               {user && (
                 <div className="flex items-center gap-3 pl-2 ml-2 border-l border-border">
+                  {/* EduAI Status Badge */}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div 
+                        className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium cursor-default ${
+                          eduAiStatus === 'loading' 
+                            ? 'bg-muted text-muted-foreground' 
+                            : eduAiStatus === 'connected'
+                            ? 'bg-green-500/15 text-green-600 dark:text-green-400'
+                            : 'bg-red-500/15 text-red-600 dark:text-red-400'
+                        }`}
+                      >
+                        <span className={`h-1.5 w-1.5 rounded-full ${
+                          eduAiStatus === 'loading'
+                            ? 'bg-muted-foreground animate-pulse'
+                            : eduAiStatus === 'connected'
+                            ? 'bg-green-500'
+                            : 'bg-red-500'
+                        }`} />
+                        <span className="hidden sm:inline">EduAI</span>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {eduAiStatus === 'loading' 
+                        ? 'Checking EduAI connection...' 
+                        : eduAiStatus === 'connected'
+                        ? 'EduAI is connected'
+                        : 'EduAI is not connected'}
+                    </TooltipContent>
+                  </Tooltip>
+
                   {/* User badge */}
                   <div className="hidden md:flex items-center gap-2">
                     <div className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary text-xs font-semibold uppercase text-secondary-foreground">
