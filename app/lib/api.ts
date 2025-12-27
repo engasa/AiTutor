@@ -1,4 +1,4 @@
-import type { AiModel, EduAiApiKeyStatus, EduAiCourse, User } from "./types";
+import type { AiModel, EduAiApiKeyStatus, EduAiCourse, SuggestedPrompt, User } from "./types";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
@@ -294,6 +294,7 @@ export const api = {
       method: "DELETE",
     }) as Promise<EduAiApiKeyStatus>,
   listPrompts: () => http("/api/prompts"),
+  listSuggestedPrompts: () => http("/api/suggested-prompts") as Promise<SuggestedPrompt[]>,
   createPrompt: (payload: {
     name: string;
     systemPrompt: string;

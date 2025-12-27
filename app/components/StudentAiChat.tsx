@@ -42,7 +42,7 @@ import {
   TooltipTrigger,
 } from '~/components/ui/tooltip';
 import api from '../lib/api';
-import type { Activity, AiModel } from '../lib/types';
+import type { Activity, AiModel, SuggestedPrompt } from '../lib/types';
 
 type ChatTab = 'teach' | 'guide' | 'custom';
 
@@ -149,11 +149,32 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
   const [apiKeyValidating, setApiKeyValidating] = useState(false);
   const [apiKeyError, setApiKeyError] = useState<string | null>(null);
 
+  // Suggested prompts state
+  const [suggestedPrompts, setSuggestedPrompts] = useState<SuggestedPrompt[]>([]);
+  const [promptsDismissed, setPromptsDismissed] = useState<Record<ChatTab, boolean>>({
+    teach: false,
+    guide: false,
+    custom: false,
+  });
+
   // Load API keys from localStorage after hydration
   useEffect(() => {
     const stored = loadApiKeysFromStorage();
     setProviderApiKeys(stored);
     setApiKeysLoaded(true);
+  }, []);
+
+  // Load suggested prompts
+  useEffect(() => {
+    let isMounted = true;
+    api.listSuggestedPrompts()
+      .then((prompts) => {
+        if (isMounted) setSuggestedPrompts(prompts);
+      })
+      .catch((err) => {
+        console.error('Failed to load suggested prompts:', err);
+      });
+    return () => { isMounted = false; };
   }, []);
 
   const currentProvider = getProviderFromModelId(selectedModelId);
@@ -290,6 +311,9 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
         [tab]: { ...prev[tab], input: overrideMessage ? prev[tab].input : '', loading: true },
       }));
 
+      // Dismiss suggested prompts for this tab after first message
+      setPromptsDismissed((prev) => ({ ...prev, [tab]: true }));
+
       appendMessage(tab, 'user', message, messageId);
 
       try {
@@ -352,6 +376,18 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
   const activeChat = chatState[activeTab];
   const canSend = !!activeChat && !activeChat.loading && !chatDisabled && Boolean(activeChat.input.trim());
 
+  // Filter suggested prompts for current tab (only teach/guide, not custom)
+  const currentSuggestedPrompts = useMemo(() => {
+    if (activeTab === 'custom') return [];
+    return suggestedPrompts.filter((p) => p.mode === activeTab);
+  }, [activeTab, suggestedPrompts]);
+
+  const showSuggestedPrompts =
+    setupComplete &&
+    currentSuggestedPrompts.length > 0 &&
+    chatState[activeTab].messages.length === 0 &&
+    !promptsDismissed[activeTab];
+
   const handlePromptInputChange = useCallback(
     (event: ChangeEvent<HTMLTextAreaElement>) => {
       setChatState((prev) => ({ ...prev, [activeTab]: { ...prev[activeTab], input: event.target.value } }));
@@ -375,6 +411,16 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
       }
     },
     [activeTab, canSend, sendChat],
+  );
+
+  const handleSuggestedPromptClick = useCallback(
+    (text: string) => {
+      setChatState((prev) => ({
+        ...prev,
+        [activeTab]: { ...prev[activeTab], input: text },
+      }));
+    },
+    [activeTab],
   );
 
   const handleSetupSaveApiKey = useCallback(async () => {
@@ -692,15 +738,34 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
                 </div>
               )}
               {chatState[activeTab].messages.length === 0 && (
-                <div className="flex flex-col items-center justify-center h-full text-center py-12">
+                <div className="flex flex-col items-center justify-center h-full text-center py-8">
                   <div className="w-12 h-12 rounded-xl bg-accent/50 flex items-center justify-center mb-4">
                     <svg className="w-6 h-6 text-accent-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
                     </svg>
                   </div>
-                  <p className="text-sm text-muted-foreground max-w-[200px]">
+                  <p className="text-sm text-muted-foreground max-w-[200px] mb-4">
                     Ask your study buddy anything about this topic!
                   </p>
+                  
+                  {/* Suggested prompts */}
+                  {showSuggestedPrompts && (
+                    <div className="w-full max-w-sm space-y-2">
+                      <p className="text-xs font-medium text-muted-foreground mb-2">Try asking:</p>
+                      <div className="flex flex-wrap gap-2 justify-center">
+                        {currentSuggestedPrompts.map((prompt) => (
+                          <button
+                            key={prompt.id}
+                            type="button"
+                            onClick={() => handleSuggestedPromptClick(prompt.text)}
+                            className="px-3 py-1.5 text-xs rounded-full border border-border bg-card hover:bg-secondary hover:border-primary/30 transition-colors text-left"
+                          >
+                            {prompt.text}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </>

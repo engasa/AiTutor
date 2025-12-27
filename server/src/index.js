@@ -16,6 +16,7 @@ import promptRoutes from './routes/prompts.js';
 import topicRoutes from './routes/topics.js';
 import aiModelRoutes from './routes/ai-models.js';
 import adminRoutes from './routes/admin.js';
+import suggestedPromptRoutes from './routes/suggested-prompts.js';
 const app = express();
 
 app.use(cors({ origin: true, credentials: true }));
@@ -78,6 +79,7 @@ app.use('/api', promptRoutes);
 app.use('/api', topicRoutes);
 app.use('/api', aiModelRoutes);
 app.use('/api', adminRoutes);
+app.use('/api', suggestedPromptRoutes);
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => console.log(`API listening on :${PORT}`));

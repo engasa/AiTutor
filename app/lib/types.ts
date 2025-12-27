@@ -115,3 +115,9 @@ export type AiModel = {
   modelId: string;
   modelName: string;
 };
+
+export type SuggestedPrompt = {
+  id: number;
+  mode: 'teach' | 'guide';
+  text: string;
+};

@@ -4,6 +4,7 @@ import { hashPassword } from 'better-auth/crypto';
 const prisma = new PrismaClient();
 
 async function clearDatabase() {
+  await prisma.suggestedPrompt.deleteMany();
   await prisma.systemSetting.deleteMany();
   await prisma.systemPrompt.deleteMany();
 
@@ -35,6 +36,25 @@ Guidelines:
       slug: 'global-activity-base',
       content: helpfulBasePrompt,
     },
+  });
+}
+
+async function createSuggestedPrompts() {
+  const prompts = [
+    // Teach mode prompts
+    { mode: 'teach', text: 'Can you explain this concept in simpler terms?', position: 1 },
+    { mode: 'teach', text: 'What are the key things I should understand about this topic?', position: 2 },
+    { mode: 'teach', text: 'Can you give me an example to help me understand?', position: 3 },
+    { mode: 'teach', text: 'Why is this concept important?', position: 4 },
+    // Guide mode prompts
+    { mode: 'guide', text: 'I\'m stuck, can you give me a hint?', position: 1 },
+    { mode: 'guide', text: 'What should I think about to solve this?', position: 2 },
+    { mode: 'guide', text: 'Am I on the right track with my approach?', position: 3 },
+    { mode: 'guide', text: 'What concept should I review to answer this?', position: 4 },
+  ];
+
+  await prisma.suggestedPrompt.createMany({
+    data: prompts.map((p) => ({ ...p, isActive: true })),
   });
 }
 
@@ -590,6 +610,7 @@ async function main() {
   await clearDatabase();
 
   await createBaseSystemPrompt();
+  await createSuggestedPrompts();
 
   const { student, studentTwo, instructor, assistant } = await createUsers();
   const foundation = await createPromptTemplates();
