@@ -1,4 +1,4 @@
-import type { AiModel, EduAiApiKeyStatus, EduAiCourse, SuggestedPrompt, User } from "./types";
+import type { AdminUser, AiModel, EduAiApiKeyStatus, EduAiCourse, SuggestedPrompt, User } from "./types";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
@@ -297,6 +297,12 @@ export const api = {
     }) as Promise<{ valid: boolean; error?: string }>,
   getEduAiApiKeyStatus: () =>
     http("/api/admin/settings/eduai-api-key") as Promise<EduAiApiKeyStatus>,
+  listAdminUsers: () => http("/api/admin/users") as Promise<AdminUser[]>,
+  promoteUserRole: (userId: number, role: "INSTRUCTOR" | "ADMIN") =>
+    http(`/api/admin/users/${userId}/role`, {
+      method: "PATCH",
+      body: JSON.stringify({ role }),
+    }) as Promise<AdminUser>,
   setEduAiApiKey: (apiKey: string) =>
     http("/api/admin/settings/eduai-api-key", {
       method: "PUT",

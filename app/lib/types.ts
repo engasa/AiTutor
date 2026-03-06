@@ -7,6 +7,14 @@ export type User = {
   role: Role;
 };
 
+export type AdminUser = {
+  id: number;
+  name: string;
+  email: string;
+  role: Role;
+  createdAt: string;
+};
+
 export type EduAiApiKeyStatus = {
   configured: boolean;
   source: 'ADMIN' | 'ENV' | 'NONE';
