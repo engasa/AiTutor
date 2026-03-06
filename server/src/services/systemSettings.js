@@ -2,6 +2,7 @@ import { prisma } from '../config/database.js';
 
 export const SYSTEM_SETTING_KEYS = {
   EDUAI_API_KEY: 'EDUAI_API_KEY',
+  AI_MODEL_POLICY: 'AI_MODEL_POLICY',
 };
 
 export async function getSystemSetting(key) {
@@ -45,4 +46,3 @@ export async function getEduAiApiKeyStatus() {
     updatedAt: override?.updatedAt ? override.updatedAt.toISOString() : null,
   };
 }
-

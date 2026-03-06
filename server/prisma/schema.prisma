@@ -35,6 +35,9 @@ model User {
   emailVerified  Boolean            @default(false)
   image          String?
   aiChatSessions AiChatSession[]
+  activityFeedback ActivityFeedback[]
+  activityStudentMetrics ActivityStudentMetric[]
+  aiInteractionTraces AiInteractionTrace[]
 
   @@map("User")
 }
@@ -162,6 +165,10 @@ model Activity {
 
   submissions    Submission[]
   aiChatSessions AiChatSession[]
+  activityFeedback ActivityFeedback[]
+  activityAnalytics ActivityAnalytics?
+  activityStudentMetrics ActivityStudentMetric[]
+  aiInteractionTraces AiInteractionTrace[]
 }
 
 model Submission {
@@ -176,6 +183,7 @@ model Submission {
   userId        Int
   activity      Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
   activityId    Int
+  activityFeedback ActivityFeedback[]
 }
 
 model ActivitySecondaryTopic {
@@ -202,6 +210,55 @@ model SystemSetting {
   updatedAt DateTime @updatedAt
 }
 
+model ActivityFeedback {
+  id         Int      @id @default(autoincrement())
+  rating     Int
+  note       String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     Int
+  activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  activityId Int
+  submission Submission? @relation(fields: [submissionId], references: [id], onDelete: SetNull)
+  submissionId Int?
+
+  @@unique([userId, activityId])
+}
+
+model ActivityStudentMetric {
+  id                      Int      @id @default(autoincrement())
+  helpRequestCount        Int      @default(0)
+  submissionCount         Int      @default(0)
+  incorrectSubmissionCount Int     @default(0)
+  correctSubmissionCount  Int      @default(0)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId                  Int
+  activity                Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  activityId              Int
+
+  @@unique([userId, activityId])
+}
+
+model ActivityAnalytics {
+  id                      Int      @id @default(autoincrement())
+  helpRequestCount        Int      @default(0)
+  submissionCount         Int      @default(0)
+  incorrectSubmissionCount Int     @default(0)
+  correctSubmissionCount  Int      @default(0)
+  studentCount            Int      @default(0)
+  feedbackCount           Int      @default(0)
+  averageRating           Float?
+  difficultyScore         Int      @default(0)
+  difficultyLabel         String   @default("LOW")
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  activity                Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  activityId              Int      @unique
+}
+
 model SuggestedPrompt {
   id        Int      @id @default(autoincrement())
   mode      String   // 'teach' or 'guide'
@@ -211,8 +268,6 @@ model SuggestedPrompt {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
-
-
 
 model AiChatSession {
   id         Int      @id @default(autoincrement())
@@ -225,8 +280,30 @@ model AiChatSession {
   modelId    String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+  aiInteractionTraces AiInteractionTrace[]
 
   @@unique([userId, activityId, mode])
+}
+
+model AiInteractionTrace {
+  id                 Int      @id @default(autoincrement())
+  mode               String
+  knowledgeLevel     String?
+  chatId             String?
+  tutorModelId       String?
+  supervisorModelId  String?
+  userMessage        String
+  finalResponse      String
+  finalOutcome       String
+  iterationCount     Int      @default(0)
+  trace              Json
+  createdAt          DateTime @default(now())
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId             Int
+  activity           Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  activityId         Int
+  aiChatSession      AiChatSession? @relation(fields: [aiChatSessionId], references: [id], onDelete: SetNull)
+  aiChatSessionId    Int?
 }
 
 // Better Auth tables (minimal)

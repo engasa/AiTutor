@@ -229,7 +229,7 @@ Review the tutor's draft response and determine if it violates these rules.
 Respond with ONLY valid JSON (no markdown, no extra text):
 {"approved": true}
 OR
-{"approved": false, "reason": "brief explanation", "suggestion": "how to improve"}`,
+{"approved": false, "reason": "brief explanation", "feedbackToTutor": "how to improve", "safeResponseToStudent": "a safe, student-facing fallback that does not reveal the answer"}`,
       temperature: 0.1,
       topP: 0.9,
     },

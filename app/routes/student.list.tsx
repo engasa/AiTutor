@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import Nav from '../components/Nav';
 import { ProgressBar } from '../components/ProgressBar';
+import StudentActivityFeedbackCard from '../components/StudentActivityFeedbackCard';
 import StudentAiChat, { type StudentAiChatHandle } from '../components/StudentAiChat';
 import {
   Breadcrumb,
@@ -16,6 +17,37 @@ import type { Activity, Course, Lesson, ModuleDetail } from '../lib/types';
 import type { Route } from './+types/student.list';
 import { requireClientUser } from '~/lib/client-auth';
 import { useLocalUser } from '~/hooks/useLocalUser';
+
+type StudentFeedbackState = {
+  rating: number | null;
+  note: string;
+  promptShown: boolean;
+  promptVisible: boolean;
+  submitted: boolean;
+  dismissed: boolean;
+  saving: boolean;
+  error: string | null;
+};
+
+type FeedbackApi = typeof api & {
+  submitActivityFeedback?: (
+    activityId: number,
+    payload: { rating: number; note?: string },
+  ) => Promise<{ ok?: boolean }>;
+};
+
+function createFeedbackState(): StudentFeedbackState {
+  return {
+    rating: null,
+    note: '',
+    promptShown: false,
+    promptVisible: false,
+    submitted: false,
+    dismissed: false,
+    saving: false,
+    error: null,
+  };
+}
 
 export async function clientLoader({ params }: Route.ClientLoaderArgs) {
   await requireClientUser('STUDENT');
@@ -58,6 +90,7 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
   const [tempKnowledgeLevel, setTempKnowledgeLevel] = useState('');
   const [knowledgeLevels, setKnowledgeLevels] = useState<Record<number, string>>({});
   const [topicSelection, setTopicSelection] = useState<Record<number, number>>({});
+  const [feedbackByActivity, setFeedbackByActivity] = useState<Record<number, StudentFeedbackState>>({});
   const chatRef = useRef<StudentAiChatHandle>(null);
 
   // Adjust state during render when loader data changes
@@ -80,6 +113,7 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
   const currentTopicId = activity
     ? topicSelection[activity.id] ?? activity.mainTopic?.id ?? null
     : null;
+  const currentFeedback = activity ? feedbackByActivity[activity.id] ?? createFeedbackState() : createFeedbackState();
   const studentAnswer = activity
     ? activity.type === 'MCQ'
       ? mcq
@@ -122,6 +156,28 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
       } else {
         setWasCorrect(false);
       }
+
+      setFeedbackByActivity((prev) => {
+        const current = prev[activity.id] ?? createFeedbackState();
+        if (
+          current.promptShown ||
+          current.submitted ||
+          current.dismissed ||
+          res.feedbackRequired === false ||
+          res.feedbackAlreadySubmitted
+        ) {
+          return prev;
+        }
+        return {
+          ...prev,
+          [activity.id]: {
+            ...current,
+            promptShown: true,
+            promptVisible: true,
+            error: null,
+          },
+        };
+      });
     } catch (e) {
       setResult('There was a problem submitting.');
       setWasCorrect(false);
@@ -160,6 +216,84 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
     if (!activity || wasCorrect) return;
     chatRef.current?.sendGuidePrompt();
   }, [activity, wasCorrect]);
+
+  const updateFeedbackState = useCallback(
+    (updater: (current: StudentFeedbackState) => StudentFeedbackState) => {
+      if (!activity) return;
+      setFeedbackByActivity((prev) => ({
+        ...prev,
+        [activity.id]: updater(prev[activity.id] ?? createFeedbackState()),
+      }));
+    },
+    [activity],
+  );
+
+  const handleFeedbackRating = useCallback(
+    (rating: number) => {
+      updateFeedbackState((current) => ({
+        ...current,
+        rating,
+        error: null,
+      }));
+    },
+    [updateFeedbackState],
+  );
+
+  const handleFeedbackNote = useCallback(
+    (note: string) => {
+      updateFeedbackState((current) => ({
+        ...current,
+        note,
+      }));
+    },
+    [updateFeedbackState],
+  );
+
+  const handleDismissFeedback = useCallback(() => {
+    updateFeedbackState((current) => ({
+      ...current,
+      promptVisible: false,
+      dismissed: true,
+      error: null,
+    }));
+  }, [updateFeedbackState]);
+
+  const handleSubmitFeedback = useCallback(async () => {
+    if (!activity || !currentFeedback.rating) return;
+
+    updateFeedbackState((current) => ({
+      ...current,
+      saving: true,
+      error: null,
+    }));
+
+    try {
+      const feedbackApi = api as FeedbackApi;
+      if (typeof feedbackApi.submitActivityFeedback !== 'function') {
+        throw new Error('Feedback service not available');
+      }
+
+      await feedbackApi.submitActivityFeedback(activity.id, {
+        rating: currentFeedback.rating,
+        note: currentFeedback.note.trim() || undefined,
+      });
+
+      updateFeedbackState((current) => ({
+        ...current,
+        saving: false,
+        submitted: true,
+        promptVisible: false,
+        dismissed: false,
+        error: null,
+      }));
+    } catch (error) {
+      updateFeedbackState((current) => ({
+        ...current,
+        saving: false,
+        error: 'Could not save feedback right now. Please try again.',
+      }));
+    }
+  }, [activity, currentFeedback.note, currentFeedback.rating, updateFeedbackState]);
 
   const handleConfirmKnowledge = () => {
     if (!activity || !tempKnowledgeLevel) {
@@ -430,6 +564,23 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
                   )}
                   <span className="font-medium">{result}</span>
                 </div>
+              )}
+
+              {activity &&
+                currentFeedback.promptShown &&
+                !currentFeedback.dismissed &&
+                (currentFeedback.promptVisible || currentFeedback.submitted) && (
+                <StudentActivityFeedbackCard
+                  rating={currentFeedback.rating}
+                  note={currentFeedback.note}
+                  saving={currentFeedback.saving}
+                  submitted={currentFeedback.submitted}
+                  error={currentFeedback.error}
+                  onSelectRating={handleFeedbackRating}
+                  onNoteChange={handleFeedbackNote}
+                  onSubmit={handleSubmitFeedback}
+                  onDismiss={handleDismissFeedback}
+                />
               )}
             </div>
           </div>

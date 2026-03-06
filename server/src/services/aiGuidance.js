@@ -3,23 +3,10 @@ import { prisma } from '../config/database.js';
 import { getEduAiChatUrl } from './eduaiClient.js';
 import { getEffectiveEduAiApiKey } from './systemSettings.js';
 
-// =============================================================================
-// SUPERVISOR CONFIGURATION
-// =============================================================================
-
-const SUPERVISOR_ENABLED = process.env.AI_SUPERVISOR_ENABLED !== 'false';
-const MAX_SUPERVISOR_ITERATIONS = 3;
 const SUPERVISOR_ERROR_MESSAGE = 'AI study buddy encountered an issue reviewing the response. Please try again.';
-const FALLBACK_MESSAGE = "I'm having trouble formulating a helpful response right now. Please try rephrasing your question, or ask your instructor for guidance.";
+const FALLBACK_MESSAGE =
+  "I'm having trouble formulating a helpful response right now. Please try rephrasing your question, or ask your instructor for guidance.";
 
-// =============================================================================
-// EDUAI API COMMUNICATION
-// =============================================================================
-
-/**
- * Call EduAI API to generate a response.
- * Handles authentication, request formatting, and response parsing.
- */
 async function callEduAI({
   systemPrompt,
   userMessage,
@@ -44,7 +31,6 @@ async function callEduAI({
     throw new Error('API key is required');
   }
 
-  // Extract provider from model ID (e.g., "google:gemini-2.5-flash" -> "google")
   const [provider] = model.split(':');
   if (!provider) {
     console.error('[aiGuidance] Invalid model ID format:', model);
@@ -52,7 +38,6 @@ async function callEduAI({
   }
 
   const userMessageId = messageId || randomUUID();
-
   const apiKeys = {
     [provider]: {
       apiKey: userApiKey,
@@ -88,7 +73,6 @@ async function callEduAI({
     }
 
     const data = await response.json();
-
     if (data.content && typeof data.content === 'string') {
       return {
         message: data.content,
@@ -104,62 +88,77 @@ async function callEduAI({
   }
 }
 
-// =============================================================================
-// TWO-AGENT SUPERVISOR SYSTEM
-// =============================================================================
+async function getPromptTemplateBySlug(slug) {
+  return prisma.promptTemplate.findUnique({ where: { slug } });
+}
 
-/**
- * Call supervisor (AI2) to review tutor's response.
- * Returns approval verdict with reason/suggestion if rejected.
- */
-async function callSupervisor({ studentMessage, studentContext, tutorResponse, modelId, userApiKey }) {
+function stripMarkdownFence(rawText) {
+  let value = rawText.trim();
+  if (value.startsWith('```')) {
+    value = value.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+  }
+  return value;
+}
+
+function normalizeSupervisorVerdict(verdict) {
+  return {
+    approved: Boolean(verdict.approved),
+    reason: verdict.reason || '',
+    feedbackToTutor:
+      verdict.feedbackToTutor ||
+      verdict.suggestion ||
+      'Revise the response to stay more Socratic and avoid directly revealing the answer.',
+    safeResponseToStudent:
+      verdict.safeResponseToStudent ||
+      'Let’s take one smaller step. Focus on the key concept behind the question and explain which part feels most uncertain.',
+  };
+}
+
+async function callSupervisor({
+  studentMessage,
+  visibleContext,
+  hiddenContext,
+  tutorResponse,
+  supervisorModelId,
+  userApiKey,
+}) {
   const template = await getPromptTemplateBySlug('supervisor-prompt');
   if (!template) {
     throw new Error('Supervisor prompt template not configured');
   }
 
   const buildUserMessage = (parseErrorDetails = null) => {
-    const base = `STUDENT MESSAGE:
+    const base = `VISIBLE STUDENT CONTEXT:
+${visibleContext}
+
+HIDDEN REVIEW CONTEXT (NOT FOR TUTOR):
+${hiddenContext}
+
+LATEST STUDENT MESSAGE:
 ${studentMessage}
 
-CONTEXT (QUESTION / OPTIONS / KNOWLEDGE):
-${studentContext || 'Not provided'}
-
-TUTOR'S DRAFT RESPONSE:
+TUTOR DRAFT RESPONSE:
 ${tutorResponse}`;
 
     if (!parseErrorDetails) return base;
     return `${base}
 
-PREVIOUS SUPERVISOR RESPONSE WAS NOT VALID JSON.
+YOUR PREVIOUS RESPONSE WAS NOT VALID JSON.
 PARSE ERROR: ${parseErrorDetails}
-RESPOND WITH ONLY VALID JSON PER INSTRUCTIONS.`;
+RESPOND WITH ONLY VALID JSON.`;
   };
 
   const attemptParse = async (parseErrorDetails = null) => {
     const result = await callEduAI({
       systemPrompt: template.systemPrompt,
       userMessage: buildUserMessage(parseErrorDetails),
-      modelId,
+      modelId: supervisorModelId,
       userApiKey,
-      chatId: null,
-      messageId: null,
-      proxyUser: null,
-      courseCode: null,
     });
 
     try {
-      let jsonStr = result.message.trim();
-      if (jsonStr.startsWith('```')) {
-        jsonStr = jsonStr.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
-      }
-      const verdict = JSON.parse(jsonStr);
-      return {
-        ok: true,
-        approved: Boolean(verdict.approved),
-        reason: verdict.reason || '',
-        suggestion: verdict.suggestion || '',
-      };
+      const verdict = JSON.parse(stripMarkdownFence(result.message));
+      return { ok: true, verdict: normalizeSupervisorVerdict(verdict), raw: result.message };
     } catch (parseError) {
       return { ok: false, parseError, raw: result.message };
     }
@@ -167,135 +166,30 @@ RESPOND WITH ONLY VALID JSON PER INSTRUCTIONS.`;
 
   const first = await attemptParse();
   if (first.ok) {
-    return { approved: first.approved, reason: first.reason, suggestion: first.suggestion, parseFailed: false };
+    return { ...first.verdict, parseFailed: false, raw: first.raw };
   }
 
   const second = await attemptParse(first.parseError?.message || 'Invalid JSON');
   if (second.ok) {
-    return { approved: second.approved, reason: second.reason, suggestion: second.suggestion, parseFailed: false };
+    return { ...second.verdict, parseFailed: false, raw: second.raw };
   }
 
   console.error('[supervisor] Failed to parse verdict after retry:', second.raw, second.parseError);
   return {
     approved: false,
     reason: 'Supervisor response invalid after retry',
-    suggestion: 'Regenerate guided reply without revealing answers; supervisor could not validate.',
+    feedbackToTutor: 'Revise the reply to avoid revealing the answer and stay focused on a single helpful hint.',
+    safeResponseToStudent:
+      'Let’s slow down and focus on one clue at a time. Think about which concept the question is really testing before choosing your next step.',
     parseFailed: true,
+    raw: second.raw,
   };
 }
 
-/**
- * Wrap tutor generation with supervisor review loop.
- * AI1 generates, AI2 reviews, retry up to MAX_SUPERVISOR_ITERATIONS if rejected.
- */
-async function supervisedGenerate(generateFn, context) {
-  const { originalStudentMessage, studentContext, modelId, userApiKey } = context;
-  let currentChatId = context.chatId;
-
-  if (!SUPERVISOR_ENABLED) {
-    return generateFn(currentChatId || null, false);
-  }
-
-  for (let iteration = 0; iteration < MAX_SUPERVISOR_ITERATIONS; iteration++) {
-    const isRevision = iteration > 0;
-    const tutorResult = await generateFn(currentChatId, isRevision);
-    currentChatId = tutorResult.chatId || currentChatId;
-
-    try {
-      const verdict = await callSupervisor({
-        studentMessage: originalStudentMessage,
-        studentContext,
-        tutorResponse: tutorResult.message,
-        modelId,
-        userApiKey,
-      });
-
-      console.log(`[supervisor] Iteration ${iteration + 1}: approved=${verdict.approved}`);
-      if (verdict.parseFailed) {
-        // Supervisor couldn't produce valid JSON after retry; do one recovery tutor revision and return it.
-        context.lastFeedback = {
-          reason: verdict.reason,
-          suggestion: verdict.suggestion,
-        };
-        const recovery = await generateFn(currentChatId, true);
-        currentChatId = recovery.chatId || currentChatId;
-        return { message: recovery.message, chatId: currentChatId };
-      }
-
-      if (verdict.approved) {
-        return { message: tutorResult.message, chatId: currentChatId };
-      }
-
-      console.log(`[supervisor] Rejected - reason: ${verdict.reason}, suggestion: ${verdict.suggestion}`);
-      context.lastFeedback = {
-        reason: verdict.reason,
-        suggestion: verdict.suggestion,
-      };
-    } catch (supervisorError) {
-      console.error('[supervisor] Error during review:', supervisorError);
-      throw new Error(SUPERVISOR_ERROR_MESSAGE);
-    }
-  }
-
-  console.warn('[supervisor] Max iterations reached, returning fallback');
-  return { message: FALLBACK_MESSAGE, chatId: currentChatId };
-}
-
-/**
- * Core generation with supervisor - shared by all modes.
- * Handles context setup, revision logic, and EduAI calls.
- */
-async function generateWithSupervisor({
-  systemPrompt,
-  buildUserMessage,
-  message,
-  supervisorContext,
-  modelId,
-  apiKey,
-  chatId,
-  messageId,
-  proxyUser,
-  courseCode,
-}) {
-  const context = {
-    originalStudentMessage: message,
-    studentContext: supervisorContext || buildUserMessage(),
-    modelId,
-    userApiKey: apiKey,
-    chatId,
-    lastFeedback: null,
-  };
-
-  const generateFn = async (currentChatId, isRevision) => {
-    let userMessage = buildUserMessage();
-    
-    // Prepend supervisor feedback on revision attempts
-    if (isRevision && context.lastFeedback) {
-      userMessage = `[REVISION NEEDED: ${context.lastFeedback.reason}. Suggestion: ${context.lastFeedback.suggestion}. Guide without revealing answers.]\n\n` + userMessage;
-    }
-
-    return callEduAI({
-      systemPrompt,
-      userMessage,
-      modelId,
-      userApiKey: apiKey,
-      chatId: currentChatId,
-      messageId: isRevision ? randomUUID() : messageId,
-      proxyUser,
-      courseCode,
-    });
-  };
-
-  return supervisedGenerate(generateFn, context);
-}
-
-// =============================================================================
-// PROMPT BUILDING UTILITIES
-// =============================================================================
-
-/** Replace template placeholders with context values. */
 function buildSystemPrompt(templateContent, context = {}) {
-  let systemPrompt = templateContent || 'You are a helpful teaching assistant who guides students toward understanding without revealing answers directly.';
+  let systemPrompt =
+    templateContent ||
+    'You are a helpful teaching assistant who guides students toward understanding without revealing answers directly.';
 
   if (context.topic) {
     systemPrompt = systemPrompt.replace(/\[INSERT TOPIC HERE\]/g, context.topic);
@@ -309,24 +203,24 @@ function buildSystemPrompt(templateContent, context = {}) {
   return systemPrompt;
 }
 
-/** Build user message for teach mode. */
 function buildTeachUserMessage({ topicName, message }) {
   const topicText = topicName ? `Topic: ${topicName}\n\n` : '';
   return `${topicText}Student request: ${message}`;
 }
 
-/** Build user message for guide/custom mode with question context. */
 function buildGuideUserMessage(activity, { message, studentAnswer }) {
   const config = activity.config || {};
   const questionType = config.questionType || 'MCQ';
   const question = config.question || activity.instructionsMd || 'No question text provided.';
 
   let base = `Question: ${question}`;
-
   if (questionType === 'MCQ') {
     const options = Array.isArray(config.options)
       ? config.options
-      : (config.options && Array.isArray(config.options.choices) ? config.options.choices : []);
+      : config.options && Array.isArray(config.options.choices)
+      ? config.options.choices
+      : [];
+
     if (options.length > 0) {
       base += '\n\nOptions:\n';
       options.forEach((option, idx) => {
@@ -337,9 +231,10 @@ function buildGuideUserMessage(activity, { message, studentAnswer }) {
   }
 
   if (studentAnswer !== null && studentAnswer !== undefined && String(studentAnswer).length > 0) {
-    const answerText = typeof studentAnswer === 'number'
-      ? String.fromCharCode(65 + studentAnswer)
-      : String(studentAnswer);
+    const answerText =
+      typeof studentAnswer === 'number'
+        ? String.fromCharCode(65 + studentAnswer)
+        : String(studentAnswer);
     base += `\n\nStudent answer: ${answerText}`;
   }
 
@@ -347,25 +242,202 @@ function buildGuideUserMessage(activity, { message, studentAnswer }) {
   return base;
 }
 
-/** Fetch prompt template from database by slug. */
-async function getPromptTemplateBySlug(slug) {
-  return prisma.promptTemplate.findUnique({ where: { slug } });
+function formatAnswerKey(activity, studentAnswer) {
+  const config = activity.config || {};
+  const questionType = config.questionType || 'MCQ';
+
+  if (questionType === 'MCQ') {
+    const correctIndex = config.answer?.correctIndex;
+    const options = Array.isArray(config.options)
+      ? config.options
+      : config.options && Array.isArray(config.options.choices)
+      ? config.options.choices
+      : [];
+
+    if (typeof correctIndex === 'number') {
+      const label = String.fromCharCode(65 + correctIndex);
+      const answerText = options[correctIndex] ? `${label}. ${options[correctIndex]}` : label;
+      return `Correct answer: ${answerText}`;
+    }
+  }
+
+  if (questionType === 'SHORT_TEXT' && typeof config.answer?.text === 'string' && config.answer.text.trim()) {
+    return `Correct answer: ${config.answer.text.trim()}`;
+  }
+
+  if (studentAnswer !== null && studentAnswer !== undefined && String(studentAnswer).length > 0) {
+    return `Student submitted answer: ${String(studentAnswer)}`;
+  }
+
+  return 'Correct answer: unavailable';
 }
 
-// =============================================================================
-// PUBLIC API - RESPONSE GENERATORS
-// =============================================================================
+function buildTeachSupervisorContexts({ topicName, knowledgeLevel, message }) {
+  const visibleContext = buildTeachUserMessage({ topicName, message });
+  const hiddenContext = `${visibleContext}\n\nKnowledge level: ${knowledgeLevel}\n\nThis is a teaching exchange. The tutor should stay concise, encouraging, and avoid doing the student’s thinking for them.`;
+  return { visibleContext, hiddenContext };
+}
 
-/**
- * Generate response for "Teach me" mode.
- * Uses 'learning-prompt' template, wrapped with supervisor review.
- */
+function buildGuideSupervisorContexts(activity, { knowledgeLevel, message, studentAnswer }) {
+  const visibleContext = buildGuideUserMessage(activity, { message, studentAnswer });
+  const hiddenContext = `${visibleContext}\n\nKnowledge level: ${knowledgeLevel}\n\nANSWER KEY FOR SUPERVISOR ONLY:\n${formatAnswerKey(
+    activity,
+    studentAnswer,
+  )}`;
+  return { visibleContext, hiddenContext };
+}
+
+async function supervisedGenerate(generateFn, context) {
+  let currentChatId = context.chatId;
+  const trace = {
+    tutorModelId: context.tutorModelId,
+    supervisorModelId: context.supervisorModelId,
+    visibleContext: context.visibleContext,
+    hiddenContext: context.hiddenContext,
+    iterations: [],
+    dualLoopEnabled: context.dualLoopEnabled,
+    maxSupervisorIterations: context.maxSupervisorIterations,
+  };
+
+  if (!context.dualLoopEnabled) {
+    const tutorResult = await generateFn(currentChatId || null, false);
+    currentChatId = tutorResult.chatId || currentChatId;
+    trace.iterations.push({
+      iteration: 1,
+      tutorDraft: tutorResult.message,
+      supervisorVerdict: null,
+    });
+    return {
+      message: tutorResult.message,
+      chatId: currentChatId,
+      trace: {
+        ...trace,
+        finalOutcome: 'single_pass',
+        finalResponse: tutorResult.message,
+        iterationCount: 1,
+      },
+    };
+  }
+
+  let lastSafeResponse = FALLBACK_MESSAGE;
+
+  for (let iteration = 0; iteration < context.maxSupervisorIterations; iteration += 1) {
+    const isRevision = iteration > 0;
+    const tutorResult = await generateFn(currentChatId, isRevision, context.lastFeedback);
+    currentChatId = tutorResult.chatId || currentChatId;
+
+    const traceIteration = {
+      iteration: iteration + 1,
+      tutorDraft: tutorResult.message,
+      supervisorVerdict: null,
+    };
+
+    try {
+      const verdict = await callSupervisor({
+        studentMessage: context.originalStudentMessage,
+        visibleContext: context.visibleContext,
+        hiddenContext: context.hiddenContext,
+        tutorResponse: tutorResult.message,
+        supervisorModelId: context.supervisorModelId,
+        userApiKey: context.userApiKey,
+      });
+
+      traceIteration.supervisorVerdict = verdict;
+      trace.iterations.push(traceIteration);
+      lastSafeResponse = verdict.safeResponseToStudent || lastSafeResponse;
+
+      if (verdict.approved) {
+        return {
+          message: tutorResult.message,
+          chatId: currentChatId,
+          trace: {
+            ...trace,
+            finalOutcome: 'approved',
+            finalResponse: tutorResult.message,
+            iterationCount: trace.iterations.length,
+          },
+        };
+      }
+
+      context.lastFeedback = verdict.feedbackToTutor;
+    } catch (supervisorError) {
+      console.error('[supervisor] Error during review:', supervisorError);
+      throw new Error(SUPERVISOR_ERROR_MESSAGE);
+    }
+  }
+
+  return {
+    message: lastSafeResponse,
+    chatId: currentChatId,
+    trace: {
+      ...trace,
+      finalOutcome: 'safe_fallback',
+      finalResponse: lastSafeResponse,
+      iterationCount: trace.iterations.length,
+    },
+  };
+}
+
+async function generateWithSupervisor({
+  systemPrompt,
+  buildUserMessage,
+  originalStudentMessage,
+  visibleContext,
+  hiddenContext,
+  tutorModelId,
+  supervisorModelId,
+  dualLoopEnabled,
+  maxSupervisorIterations,
+  apiKey,
+  chatId,
+  messageId,
+  proxyUser,
+  courseCode,
+}) {
+  const context = {
+    originalStudentMessage,
+    visibleContext,
+    hiddenContext,
+    tutorModelId,
+    supervisorModelId,
+    userApiKey: apiKey,
+    chatId,
+    dualLoopEnabled,
+    maxSupervisorIterations,
+    lastFeedback: null,
+  };
+
+  const generateFn = async (currentChatId, isRevision, lastFeedback) => {
+    let userMessage = buildUserMessage();
+
+    if (isRevision && lastFeedback) {
+      userMessage = `[SUPERVISOR FEEDBACK: ${lastFeedback}]\n\n${userMessage}`;
+    }
+
+    return callEduAI({
+      systemPrompt,
+      userMessage,
+      modelId: tutorModelId,
+      userApiKey: apiKey,
+      chatId: currentChatId,
+      messageId: isRevision ? randomUUID() : messageId,
+      proxyUser,
+      courseCode,
+    });
+  };
+
+  return supervisedGenerate(generateFn, context);
+}
+
 export async function generateTeachResponse({
   activity,
   topicName,
   knowledgeLevel,
   message,
-  modelId = null,
+  tutorModelId = null,
+  supervisorModelId = null,
+  dualLoopEnabled = true,
+  maxSupervisorIterations = 3,
   apiKey,
   chatId = null,
   messageId = null,
@@ -380,14 +452,25 @@ export async function generateTeachResponse({
 
     const resolvedTopicName = topicName || activity.mainTopic?.name || 'the subject';
     const baseUserMessage = buildTeachUserMessage({ topicName: resolvedTopicName, message });
-    const supervisorContext = `${baseUserMessage}\n\nKnowledge level: ${knowledgeLevel}`;
-
-    return await generateWithSupervisor({
-      systemPrompt: buildSystemPrompt(template.systemPrompt, { topic: resolvedTopicName, knowledgeLevel }),
-      buildUserMessage: () => baseUserMessage,
-      supervisorContext,
+    const { visibleContext, hiddenContext } = buildTeachSupervisorContexts({
+      topicName: resolvedTopicName,
+      knowledgeLevel,
       message,
-      modelId,
+    });
+
+    return generateWithSupervisor({
+      systemPrompt: buildSystemPrompt(template.systemPrompt, {
+        topic: resolvedTopicName,
+        knowledgeLevel,
+      }),
+      buildUserMessage: () => baseUserMessage,
+      originalStudentMessage: message,
+      visibleContext,
+      hiddenContext,
+      tutorModelId,
+      supervisorModelId,
+      dualLoopEnabled,
+      maxSupervisorIterations,
       apiKey,
       chatId,
       messageId,
@@ -396,20 +479,31 @@ export async function generateTeachResponse({
     });
   } catch (error) {
     console.error('[aiGuidance] Failed to generate teach response:', error);
-    return { message: error.message || 'AI study buddy not available right now. Please try again later.', chatId };
+    return {
+      message: error.message || 'AI study buddy not available right now. Please try again later.',
+      chatId,
+      trace: {
+        tutorModelId,
+        supervisorModelId,
+        iterations: [],
+        finalOutcome: 'error',
+        finalResponse:
+          error.message || 'AI study buddy not available right now. Please try again later.',
+        iterationCount: 0,
+      },
+    };
   }
 }
 
-/**
- * Generate response for "Guide me" mode.
- * Uses 'exercise-prompt' template, wrapped with supervisor review.
- */
 export async function generateGuideResponse({
   activity,
   knowledgeLevel,
   message,
   studentAnswer,
-  modelId = null,
+  tutorModelId = null,
+  supervisorModelId = null,
+  dualLoopEnabled = true,
+  maxSupervisorIterations = 3,
   apiKey,
   chatId = null,
   messageId = null,
@@ -423,14 +517,25 @@ export async function generateGuideResponse({
     }
 
     const baseUserMessage = buildGuideUserMessage(activity, { message, studentAnswer });
-    const supervisorContext = `${baseUserMessage}\n\nKnowledge level: ${knowledgeLevel}`;
-
-    return await generateWithSupervisor({
-      systemPrompt: buildSystemPrompt(template.systemPrompt, { topic: activity.mainTopic?.name || 'the subject', knowledgeLevel }),
-      buildUserMessage: () => baseUserMessage,
-      supervisorContext,
+    const { visibleContext, hiddenContext } = buildGuideSupervisorContexts(activity, {
+      knowledgeLevel,
       message,
-      modelId,
+      studentAnswer,
+    });
+
+    return generateWithSupervisor({
+      systemPrompt: buildSystemPrompt(template.systemPrompt, {
+        topic: activity.mainTopic?.name || 'the subject',
+        knowledgeLevel,
+      }),
+      buildUserMessage: () => baseUserMessage,
+      originalStudentMessage: message,
+      visibleContext,
+      hiddenContext,
+      tutorModelId,
+      supervisorModelId,
+      dualLoopEnabled,
+      maxSupervisorIterations,
       apiKey,
       chatId,
       messageId,
@@ -439,21 +544,32 @@ export async function generateGuideResponse({
     });
   } catch (error) {
     console.error('[aiGuidance] Failed to generate guide response:', error);
-    return { message: error.message || 'AI study buddy not available right now. Please try again later.', chatId };
+    return {
+      message: error.message || 'AI study buddy not available right now. Please try again later.',
+      chatId,
+      trace: {
+        tutorModelId,
+        supervisorModelId,
+        iterations: [],
+        finalOutcome: 'error',
+        finalResponse:
+          error.message || 'AI study buddy not available right now. Please try again later.',
+        iterationCount: 0,
+      },
+    };
   }
 }
 
-/**
- * Generate response using instructor's custom prompt.
- * Uses activity.customPrompt as system prompt, wrapped with supervisor review.
- */
 export async function generateCustomResponse({
   activity,
   topicName,
   knowledgeLevel,
   message,
   studentAnswer,
-  modelId = null,
+  tutorModelId = null,
+  supervisorModelId = null,
+  dualLoopEnabled = true,
+  maxSupervisorIterations = 3,
   apiKey,
   chatId = null,
   messageId = null,
@@ -467,14 +583,25 @@ export async function generateCustomResponse({
 
     const resolvedTopicName = topicName || activity.mainTopic?.name || 'the subject';
     const baseUserMessage = buildGuideUserMessage(activity, { message, studentAnswer });
-    const supervisorContext = `${baseUserMessage}\n\nKnowledge level: ${knowledgeLevel}`;
-
-    return await generateWithSupervisor({
-      systemPrompt: buildSystemPrompt(activity.customPrompt, { topic: resolvedTopicName, knowledgeLevel }),
-      buildUserMessage: () => baseUserMessage,
-      supervisorContext,
+    const { visibleContext, hiddenContext } = buildGuideSupervisorContexts(activity, {
+      knowledgeLevel,
       message,
-      modelId,
+      studentAnswer,
+    });
+
+    return generateWithSupervisor({
+      systemPrompt: buildSystemPrompt(activity.customPrompt, {
+        topic: resolvedTopicName,
+        knowledgeLevel,
+      }),
+      buildUserMessage: () => baseUserMessage,
+      originalStudentMessage: message,
+      visibleContext,
+      hiddenContext,
+      tutorModelId,
+      supervisorModelId,
+      dualLoopEnabled,
+      maxSupervisorIterations,
       apiKey,
       chatId,
       messageId,
@@ -483,6 +610,18 @@ export async function generateCustomResponse({
     });
   } catch (error) {
     console.error('[aiGuidance] Failed to generate custom response:', error);
-    return { message: error.message || 'AI study buddy not available right now. Please try again later.', chatId };
+    return {
+      message: error.message || 'AI study buddy not available right now. Please try again later.',
+      chatId,
+      trace: {
+        tutorModelId,
+        supervisorModelId,
+        iterations: [],
+        finalOutcome: 'error',
+        finalResponse:
+          error.message || 'AI study buddy not available right now. Please try again later.',
+        iterationCount: 0,
+      },
+    };
   }
 }

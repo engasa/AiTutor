@@ -1,22 +1,26 @@
 import express from 'express';
-import { prisma } from '../config/database.js';
-
-import { listEduAiModels } from '../services/eduaiClient.js';
+import { getAiModelPolicyState } from '../services/aiModelPolicy.js';
 
 const router = express.Router();
 
 router.get('/ai-models', async (req, res) => {
   try {
-    const eduAiModels = await listEduAiModels();
-    
-    const models = eduAiModels
-      .filter(m => m.isActive)
-      .map(m => ({
-        id: m.id,
-        modelId: `${m.provider.name}:${m.modelId}`,
-        modelName: m.name,
-      }))
-      .sort((a, b) => a.modelName.localeCompare(b.modelName));
+    const { policy, availableModels, availableModelsError } = await getAiModelPolicyState();
+
+    if (availableModelsError) {
+      return res.status(500).json({ error: 'Failed to load AI models', detail: availableModelsError });
+    }
+
+    const visibleModels =
+      req.user?.role === 'STUDENT'
+        ? availableModels.filter((model) => policy.allowedTutorModelIds.includes(model.modelId))
+        : availableModels;
+
+    const models = visibleModels.map((model) => ({
+      ...model,
+      studentSelectable: policy.allowedTutorModelIds.includes(model.modelId),
+      availability: policy.allowedTutorModelIds.includes(model.modelId) ? 'allowed' : 'admin-only',
+    }));
 
     res.json(models);
   } catch (error) {

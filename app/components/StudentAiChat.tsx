@@ -58,6 +58,14 @@ type ChatState = Record<ChatTab, SingleChatState>;
 
 type TopicOption = { label: string; value: number };
 
+type StudentSelectableModel = AiModel & {
+  studentSelectable?: boolean;
+  isStudentSelectable?: boolean;
+  allowedForStudents?: boolean;
+  isAllowed?: boolean;
+  availability?: 'allowed' | 'blocked' | 'admin-only';
+};
+
 export type StudentAiChatHandle = {
   sendGuidePrompt: () => void;
   pushGuideMessage: (content: string) => void;
@@ -78,6 +86,25 @@ type StudentAiChatProps = {
 const DEFAULT_MODEL_ID = 'google:gemini-2.5-flash';
 const API_KEYS_STORAGE_KEY = 'ai-provider-keys';
 const PROVIDER_LABELS: Record<string, string> = { google: 'Gemini', openai: 'OpenAI' };
+
+function modelHasStudentPolicy(model: StudentSelectableModel): boolean {
+  return (
+    typeof model.studentSelectable === 'boolean' ||
+    typeof model.isStudentSelectable === 'boolean' ||
+    typeof model.allowedForStudents === 'boolean' ||
+    typeof model.isAllowed === 'boolean' ||
+    typeof model.availability === 'string'
+  );
+}
+
+function isStudentSelectableModel(model: StudentSelectableModel): boolean {
+  if (typeof model.studentSelectable === 'boolean') return model.studentSelectable;
+  if (typeof model.isStudentSelectable === 'boolean') return model.isStudentSelectable;
+  if (typeof model.allowedForStudents === 'boolean') return model.allowedForStudents;
+  if (typeof model.isAllowed === 'boolean') return model.isAllowed;
+  if (typeof model.availability === 'string') return model.availability === 'allowed';
+  return true;
+}
 
 function getProviderFromModelId(modelId: string): string {
   return modelId.split(':')[0] || 'google';
@@ -139,6 +166,7 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
   const [selectedModelId, setSelectedModelId] = useState<string>(DEFAULT_MODEL_ID);
   const [modelsFetched, setModelsFetched] = useState(false);
   const [modelLoadError, setModelLoadError] = useState(false);
+  const [studentModelPolicyActive, setStudentModelPolicyActive] = useState(false);
 
   // API key state
   const [providerApiKeys, setProviderApiKeys] = useState<Record<string, string>>({});
@@ -229,19 +257,23 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
     let isMounted = true;
     (async () => {
       try {
-        const models = await api.listAiModels();
+        const models = (await api.listAiModels()) as StudentSelectableModel[];
         if (!isMounted) return;
-        setAvailableModels(models);
+        const policyActive = models.some(modelHasStudentPolicy);
+        const selectableModels = policyActive ? models.filter(isStudentSelectableModel) : models;
+        setAvailableModels(selectableModels);
+        setStudentModelPolicyActive(policyActive);
         setSelectedModelId((current) => {
-          if (models.some((m) => m.modelId === current)) return current;
-          const geminiModel = models.find((m) => m.modelId.includes('gemini-2.5-flash'));
-          return geminiModel?.modelId ?? models[0]?.modelId ?? DEFAULT_MODEL_ID;
+          if (selectableModels.some((model) => model.modelId === current)) return current;
+          const geminiModel = selectableModels.find((model) => model.modelId.includes('gemini-2.5-flash'));
+          return geminiModel?.modelId ?? selectableModels[0]?.modelId ?? DEFAULT_MODEL_ID;
         });
         setModelLoadError(false);
       } catch (error) {
         if (!isMounted) return;
         console.error('Failed to load AI models:', error);
         setModelLoadError(true);
+        setStudentModelPolicyActive(false);
       } finally {
         if (isMounted) setModelsFetched(true);
       }
@@ -831,6 +863,11 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
         )}
         {modelsFetched && !modelLoadError && !availableModels.length && (
           <div className="text-xs text-muted-foreground">No AI models configured.</div>
+        )}
+        {modelsFetched && !modelLoadError && studentModelPolicyActive && availableModels.length > 0 && (
+          <div className="text-xs text-muted-foreground">
+            Tutor model choices are limited by your course configuration.
+          </div>
         )}
       </div>
 

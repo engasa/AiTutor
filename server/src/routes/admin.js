@@ -7,6 +7,7 @@ import {
   getEduAiApiKeyStatus,
   setSystemSetting,
 } from '../services/systemSettings.js';
+import { getAiModelPolicyState, setAiModelPolicy } from '../services/aiModelPolicy.js';
 import { mapAdminUser, mapCourseOffering } from '../utils/mappers.js';
 
 const router = express.Router();
@@ -43,8 +44,16 @@ router.patch('/admin/users/:userId/role', requireRole('ADMIN'), async (req, res)
       return res.status(404).json({ error: 'User not found' });
     }
 
-    if (user.role !== 'STUDENT') {
-      return res.status(400).json({ error: 'Only students can be promoted in this phase' });
+    if (user.role === 'ADMIN') {
+      return res.status(400).json({ error: 'Admins do not have any higher promotion path' });
+    }
+
+    if (user.role === 'INSTRUCTOR' && nextRole !== 'ADMIN') {
+      return res.status(400).json({ error: 'Instructors can only be promoted to ADMIN' });
+    }
+
+    if (user.role === nextRole) {
+      return res.status(400).json({ error: `User already has role ${nextRole}` });
     }
 
     const updated = await prisma.user.update({
@@ -221,6 +230,29 @@ router.delete('/admin/settings/eduai-api-key', requireRole('ADMIN'), async (req,
     res.json(status);
   } catch (e) {
     res.status(500).json({ error: String(e) });
+  }
+});
+
+router.get('/admin/settings/ai-model-policy', requireRole('ADMIN'), async (_req, res) => {
+  try {
+    const state = await getAiModelPolicyState();
+    res.json(state);
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+router.put('/admin/settings/ai-model-policy', requireRole('ADMIN'), async (req, res) => {
+  try {
+    const state = await setAiModelPolicy(req.body || {});
+    res.json(state);
+  } catch (e) {
+    const status = Number.isInteger(e?.status)
+      ? e.status
+      : e?.message?.includes('must') || e?.message?.includes('At least one')
+      ? 400
+      : 500;
+    res.status(status).json({ error: String(e.message || e) });
   }
 });
 

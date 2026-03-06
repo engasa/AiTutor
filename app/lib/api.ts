@@ -1,6 +1,9 @@
 import type {
   AdminEnrollmentData,
+  AdminAiModelPolicy,
   AdminUser,
+  ActivityAnswerResult,
+  ActivityFeedbackResult,
   AiModel,
   Course,
   EduAiApiKeyStatus,
@@ -248,7 +251,15 @@ export const api = {
     http(`/api/questions/${activityId}/answer`, {
       method: "POST",
       body: JSON.stringify(payload),
-    }),
+    }) as Promise<ActivityAnswerResult>,
+  submitActivityFeedback: (
+    activityId: number,
+    payload: { rating: number; note?: string },
+  ) =>
+    http(`/api/activities/${activityId}/feedback`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }) as Promise<ActivityFeedbackResult>,
   sendTeachMessage: (
     activityId: number,
     params: {
@@ -306,6 +317,17 @@ export const api = {
     }) as Promise<{ valid: boolean; error?: string }>,
   getEduAiApiKeyStatus: () =>
     http("/api/admin/settings/eduai-api-key") as Promise<EduAiApiKeyStatus>,
+  getAdminAiModelPolicy: async () => {
+    const result = await http("/api/admin/settings/ai-model-policy");
+    return (result?.policy ?? result) as AdminAiModelPolicy;
+  },
+  setAdminAiModelPolicy: async (payload: AdminAiModelPolicy) => {
+    const result = await http("/api/admin/settings/ai-model-policy", {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+    return (result?.policy ?? result) as AdminAiModelPolicy;
+  },
   listAdminUsers: () => http("/api/admin/users") as Promise<AdminUser[]>,
   promoteUserRole: (userId: number, role: "INSTRUCTOR" | "ADMIN") =>
     http(`/api/admin/users/${userId}/role`, {

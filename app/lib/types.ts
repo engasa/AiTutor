@@ -29,6 +29,16 @@ export type EduAiApiKeyStatus = {
   updatedAt: string | null;
 };
 
+export type CostTier = 'LOW' | 'MEDIUM' | 'HIGH';
+
+export type AdminAiModelPolicy = {
+  allowedTutorModelIds: string[];
+  defaultTutorModelId: string | null;
+  defaultSupervisorModelId: string | null;
+  dualLoopEnabled: boolean;
+  maxSupervisorIterations: number;
+};
+
 export type Progress = {
   completed: number;
   total: number;
@@ -128,10 +138,35 @@ export type AiModel = {
   id: string;
   modelId: string;
   modelName: string;
+  provider?: string | null;
+  summary?: string | null;
+  costTier?: CostTier | null;
+  roleHint?: string | null;
+  studentSelectable?: boolean;
+  availability?: 'allowed' | 'admin-only' | 'blocked';
 };
 
 export type SuggestedPrompt = {
   id: number;
   mode: 'teach' | 'guide';
   text: string;
+};
+
+export type ActivityAnswerResult = {
+  ok: boolean;
+  isCorrect: boolean | null;
+  message: string;
+  submissionId?: number;
+  feedbackRequired?: boolean;
+  feedbackAlreadySubmitted?: boolean;
+};
+
+export type ActivityFeedbackResult = {
+  ok: boolean;
+  feedback?: {
+    id: number;
+    rating: number;
+    note: string | null;
+    createdAt: string;
+  };
 };
