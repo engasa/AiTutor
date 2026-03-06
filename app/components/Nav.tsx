@@ -9,6 +9,7 @@ export default function Nav() {
   const navigate = useNavigate();
   const loc = useLocation();
   const { user, logout } = useLocalUser();
+  const isAdminUser = user?.role === 'ADMIN';
 
   const handleLogout = async () => {
     await logout();
@@ -16,6 +17,13 @@ export default function Nav() {
   };
 
   useEffect(() => {
+    if (isAdminUser) {
+      // Admins are intentionally scoped away from non-admin endpoints,
+      // so skip the shared live-model probe that would otherwise 403.
+      setEduAiStatus('connected');
+      return;
+    }
+
     let mounted = true;
     api.listAiModels()
       .then(() => {
@@ -25,7 +33,7 @@ export default function Nav() {
         if (mounted) setEduAiStatus('disconnected');
       });
     return () => { mounted = false; };
-  }, []);
+  }, [isAdminUser]);
 
   const isStudent = loc.pathname.startsWith('/student');
   const isInstructor = loc.pathname.startsWith('/instructor');
