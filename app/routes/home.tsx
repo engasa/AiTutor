@@ -4,56 +4,89 @@ import { useNavigate } from 'react-router';
 import api from '../lib/api';
 import { useLocalUser } from '../hooks/useLocalUser';
 
+type AuthMode = 'login' | 'signup';
+type AuthRole = 'STUDENT' | 'INSTRUCTOR' | 'ADMIN';
+
 export function meta({}: Route.MetaArgs) {
   return [
-    { title: 'AI Tutor - Login' },
-    { name: 'description', content: 'Login to AI Tutor learning platform' },
+    { title: 'AI Tutor - Welcome' },
+    { name: 'description', content: 'Sign in or create an AI Tutor account' },
   ];
+}
+
+function routeForRole(role: AuthRole) {
+  return role === 'STUDENT' ? '/student' : role === 'INSTRUCTOR' ? '/instructor' : '/admin';
+}
+
+function extractErrorMessage(error: unknown, mode: AuthMode) {
+  if (!(error instanceof Error)) {
+    return mode === 'login' ? 'Invalid email or password' : 'Could not create account';
+  }
+
+  try {
+    const parsed = JSON.parse(error.message);
+    if (typeof parsed?.message === 'string' && parsed.message.trim()) {
+      return parsed.message;
+    }
+    if (typeof parsed?.error === 'string' && parsed.error.trim()) {
+      return parsed.error;
+    }
+  } catch {
+    // Fall back to the raw message when the backend returns plain text.
+  }
+
+  return error.message || (mode === 'login' ? 'Invalid email or password' : 'Could not create account');
 }
 
 export default function Home() {
   const navigate = useNavigate();
   const { saveAuth } = useLocalUser();
+  const [mode, setMode] = useState<AuthMode>('login');
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const onLogin = async (e: React.FormEvent) => {
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
 
     try {
-      const response = await api.login(email, password);
+      const response =
+        mode === 'login'
+          ? await api.login(email, password)
+          : await api.signUp({
+              name: name.trim(),
+              email,
+              password,
+            });
       const { user } = response;
+      if (!user) {
+        throw new Error(mode === 'login' ? 'Authentication failed' : 'Could not create account');
+      }
       saveAuth({ id: user.id, name: user.name, role: user.role });
-      navigate(
-        user.role === 'STUDENT'
-          ? '/student'
-          : user.role === 'INSTRUCTOR'
-            ? '/instructor'
-            : '/admin',
-      );
+      navigate(routeForRole(user.role));
     } catch (err) {
-      setError('Invalid email or password');
+      setError(extractErrorMessage(err, mode));
     } finally {
       setLoading(false);
     }
   };
 
+  const submitDisabled =
+    loading || !email.trim() || !password.trim() || (mode === 'signup' && !name.trim());
+
   return (
     <main className="relative min-h-dvh overflow-hidden bg-background">
-      {/* Background decoration */}
       <div className="absolute inset-0 dots-pattern" />
-      <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-      <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-accent/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
-      
-      <div className="relative container mx-auto px-6 py-12 min-h-dvh flex flex-col lg:flex-row items-center justify-center gap-12 lg:gap-24">
-        {/* Left side - Branding */}
-        <div className="flex-1 max-w-lg text-center lg:text-left animate-fade-up">
-          {/* Logo mark */}
-          <div className="inline-flex items-center justify-center mb-8">
+      <div className="absolute top-0 right-0 h-[600px] w-[600px] rounded-full bg-primary/5 blur-3xl -translate-y-1/2 translate-x-1/2" />
+      <div className="absolute bottom-0 left-0 h-[400px] w-[400px] rounded-full bg-accent/10 blur-3xl translate-y-1/2 -translate-x-1/2" />
+
+      <div className="relative container mx-auto flex min-h-dvh flex-col items-center justify-center gap-12 px-6 py-12 lg:flex-row lg:gap-24">
+        <div className="animate-fade-up flex-1 max-w-lg text-center lg:text-left">
+          <div className="mb-8 inline-flex items-center justify-center">
             <div className="relative flex h-20 w-20 items-center justify-center">
               <div className="absolute inset-0 rounded-2xl bg-primary/10" />
               <div className="relative flex flex-col items-center gap-1.5">
@@ -63,61 +96,89 @@ export default function Home() {
               </div>
             </div>
           </div>
-          
-          {/* Headline */}
-          <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-foreground mb-6">
+
+          <h1 className="mb-6 font-display text-4xl font-bold tracking-tight text-foreground sm:text-5xl lg:text-6xl">
             Learn with an
             <span className="block text-gradient">AI Study Buddy</span>
           </h1>
-          
-          <p className="text-lg text-muted-foreground max-w-md mx-auto lg:mx-0 mb-8">
-            Personalized guidance that adapts to your knowledge level. 
-            Get hints, not answers, and truly understand the material.
+
+          <p className="mx-auto mb-8 max-w-md text-lg text-muted-foreground lg:mx-0">
+            Personalized guidance that adapts to your knowledge level. Get hints, not answers, and
+            truly understand the material.
           </p>
-          
-          {/* Feature pills */}
-          <div className="flex flex-wrap justify-center lg:justify-start gap-3">
-            <div className="tag tag-primary">
-              <svg className="w-3.5 h-3.5 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
-              </svg>
-              Adaptive Learning
-            </div>
-            <div className="tag tag-accent">
-              <svg className="w-3.5 h-3.5 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342" />
-              </svg>
-              Instructor Curated
-            </div>
-            <div className="tag">
-              <svg className="w-3.5 h-3.5 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
-              </svg>
-              Real-time Feedback
-            </div>
+
+          <div className="flex flex-wrap justify-center gap-3 lg:justify-start">
+            <div className="tag tag-primary">Adaptive Learning</div>
+            <div className="tag tag-accent">Instructor Curated</div>
+            <div className="tag">Real-time Feedback</div>
           </div>
         </div>
 
-        {/* Right side - Login form */}
-        <div className="w-full max-w-md animate-fade-up delay-150">
+        <div className="animate-fade-up delay-150 w-full max-w-md">
           <div className="card-editorial p-8 sm:p-10">
-            {/* Form header */}
-            <div className="text-center mb-8">
-              <h2 className="font-display text-2xl font-bold text-foreground mb-2">
-                Welcome back
+            <div className="mb-8 text-center">
+              <h2 className="mb-2 font-display text-2xl font-bold text-foreground">
+                {mode === 'login' ? 'Welcome back' : 'Create your account'}
               </h2>
               <p className="text-sm text-muted-foreground">
-                Sign in to continue your learning journey
+                {mode === 'login'
+                  ? 'Sign in to continue your learning journey'
+                  : 'New accounts start as students and can be enrolled in courses by an admin.'}
               </p>
             </div>
 
-            <form onSubmit={onLogin} className="space-y-5">
-              {/* Email field */}
+            <div className="mb-6 grid grid-cols-2 rounded-xl bg-secondary p-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('login');
+                  setError('');
+                }}
+                className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                  mode === 'login'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Sign in
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('signup');
+                  setError('');
+                }}
+                className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                  mode === 'signup'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Create account
+              </button>
+            </div>
+
+            <form onSubmit={onSubmit} className="space-y-5">
+              {mode === 'signup' && (
+                <div className="space-y-2">
+                  <label htmlFor="name" className="block text-sm font-medium text-foreground">
+                    Full name
+                  </label>
+                  <input
+                    id="name"
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="input-field"
+                    placeholder="Ada Lovelace"
+                    required
+                    autoComplete="name"
+                  />
+                </div>
+              )}
+
               <div className="space-y-2">
-                <label 
-                  htmlFor="email" 
-                  className="block text-sm font-medium text-foreground"
-                >
+                <label htmlFor="email" className="block text-sm font-medium text-foreground">
                   Email address
                 </label>
                 <input
@@ -132,12 +193,8 @@ export default function Home() {
                 />
               </div>
 
-              {/* Password field */}
               <div className="space-y-2">
-                <label 
-                  htmlFor="password" 
-                  className="block text-sm font-medium text-foreground"
-                >
+                <label htmlFor="password" className="block text-sm font-medium text-foreground">
                   Password
                 </label>
                 <input
@@ -146,15 +203,14 @@ export default function Home() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="input-field"
-                  placeholder="Enter your password"
+                  placeholder={mode === 'login' ? 'Enter your password' : 'Create a password'}
                   required
-                  autoComplete="current-password"
+                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                 />
               </div>
 
-              {/* Error message */}
               {error && (
-                <div className="flex items-center gap-2 rounded-xl bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive animate-fade-in">
+                <div className="animate-fade-in flex items-center gap-2 rounded-xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
                   <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
                   </svg>
@@ -162,23 +218,18 @@ export default function Home() {
                 </div>
               )}
 
-              {/* Submit button */}
-              <button
-                type="submit"
-                disabled={loading || !email || !password}
-                className="btn-primary w-full text-base"
-              >
+              <button type="submit" disabled={submitDisabled} className="btn-primary w-full text-base">
                 {loading ? (
                   <>
                     <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                     </svg>
-                    Signing in...
+                    {mode === 'login' ? 'Signing in...' : 'Creating account...'}
                   </>
                 ) : (
                   <>
-                    Sign in
+                    {mode === 'login' ? 'Sign in' : 'Create account'}
                     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
                     </svg>
@@ -186,56 +237,6 @@ export default function Home() {
                 )}
               </button>
             </form>
-
-            {/* Demo credentials */}
-            <div className="mt-8 pt-6 border-t border-border">
-              <p className="text-xs font-medium text-muted-foreground text-center mb-3">
-                Demo Accounts
-              </p>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEmail('student@example.com');
-                    setPassword('student123');
-                  }}
-                  className="group rounded-xl border-2 border-dashed border-border hover:border-primary/50 p-3 text-left transition-colors"
-                >
-                  <div className="flex items-center gap-2 mb-1">
-                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-accent text-accent-foreground">
-                      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342" />
-                      </svg>
-                    </div>
-                    <span className="text-sm font-semibold text-foreground">Student</span>
-                  </div>
-                  <p className="text-[10px] font-mono text-muted-foreground group-hover:text-foreground/70 transition-colors">
-                    student@example.com
-                  </p>
-                </button>
-                
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEmail('instructor@example.com');
-                    setPassword('instructor123');
-                  }}
-                  className="group rounded-xl border-2 border-dashed border-border hover:border-primary/50 p-3 text-left transition-colors"
-                >
-                  <div className="flex items-center gap-2 mb-1">
-                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary">
-                      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-                      </svg>
-                    </div>
-                    <span className="text-sm font-semibold text-foreground">Instructor</span>
-                  </div>
-                  <p className="text-[10px] font-mono text-muted-foreground group-hover:text-foreground/70 transition-colors">
-                    instructor@example.com
-                  </p>
-                </button>
-              </div>
-            </div>
           </div>
         </div>
       </div>

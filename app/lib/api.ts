@@ -46,6 +46,19 @@ export const api = {
     // After sign-in, load the current user via our stable endpoint
     return http("/api/me");
   },
+  signUp: async (payload: { name: string; email: string; password: string }) => {
+    const res = await fetch(`${API_BASE}/api/auth/sign-up/email`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const msg = await res.text();
+      throw new Error(msg || "Could not create account");
+    }
+    return http("/api/me");
+  },
   listCourses: () => http("/api/courses"),
   listEduAiCourses: () => http("/api/eduai/courses") as Promise<EduAiCourse[]>,
   courseById: (courseId: number) => http(`/api/courses/${courseId}`),
