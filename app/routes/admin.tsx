@@ -1,17 +1,18 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Nav from '~/components/Nav';
 import api from '~/lib/api';
-import type { AdminUser, EduAiApiKeyStatus } from '~/lib/types';
+import type { AdminEnrollmentData, AdminUser, Course, EduAiApiKeyStatus } from '~/lib/types';
 import type { Route } from './+types/admin';
 import { requireClientUser } from '~/lib/client-auth';
 
 export async function clientLoader(_: Route.ClientLoaderArgs) {
   await requireClientUser('ADMIN');
-  const [status, users] = await Promise.all([
+  const [status, users, courses] = await Promise.all([
     api.getEduAiApiKeyStatus(),
     api.listAdminUsers(),
+    api.listAdminCourses(),
   ]);
-  return { status, users };
+  return { status, users, courses };
 }
 
 function formatTime(value: string | null) {
@@ -22,9 +23,17 @@ function formatTime(value: string | null) {
 }
 
 export default function AdminHome({ loaderData }: Route.ComponentProps) {
-  const [activeTab, setActiveTab] = useState<'users' | 'settings'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'enrollments' | 'settings'>('users');
   const [status, setStatus] = useState<EduAiApiKeyStatus>(loaderData.status);
   const [users, setUsers] = useState<AdminUser[]>(loaderData.users);
+  const [courses] = useState<Course[]>(loaderData.courses);
+  const [selectedCourseId, setSelectedCourseId] = useState<number | null>(
+    loaderData.courses[0]?.id ?? null,
+  );
+  const [courseEnrollments, setCourseEnrollments] = useState<AdminEnrollmentData | null>(null);
+  const [loadingEnrollments, setLoadingEnrollments] = useState(false);
+  const [updatingEnrollmentUserId, setUpdatingEnrollmentUserId] = useState<number | null>(null);
+  const [selectedStudentId, setSelectedStudentId] = useState<number | ''>('');
   const [apiKey, setApiKey] = useState('');
   const [showKey, setShowKey] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -42,6 +51,38 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
     return { label: 'Configured', className: 'tag' };
   })();
 
+  useEffect(() => {
+    if (activeTab !== 'enrollments' || !selectedCourseId) {
+      return;
+    }
+
+    let cancelled = false;
+    setLoadingEnrollments(true);
+    api
+      .getAdminCourseEnrollments(selectedCourseId)
+      .then((data) => {
+        if (!cancelled) {
+          setCourseEnrollments(data);
+          setSelectedStudentId(data.availableStudents[0]?.id ?? '');
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setError('Could not load course enrollments.');
+          setCourseEnrollments(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoadingEnrollments(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, selectedCourseId]);
+
   const promoteUser = async (userId: number, role: 'INSTRUCTOR' | 'ADMIN') => {
     setPromotingUserId(userId);
     setError(null);
@@ -58,6 +99,63 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
       setError('Could not update role. Please try again.');
     } finally {
       setPromotingUserId((current) => (current === userId ? null : current));
+    }
+  };
+
+  const refreshSelectedCourseEnrollments = async (courseId: number) => {
+    setLoadingEnrollments(true);
+    try {
+      const data = await api.getAdminCourseEnrollments(courseId);
+      setCourseEnrollments(data);
+      setSelectedStudentId((current) => {
+        if (typeof current === 'number' && data.availableStudents.some((student) => student.id === current)) {
+          return current;
+        }
+        return data.availableStudents[0]?.id ?? '';
+      });
+    } catch {
+      setError('Could not load course enrollments.');
+      setCourseEnrollments(null);
+    } finally {
+      setLoadingEnrollments(false);
+    }
+  };
+
+  const enrollStudent = async () => {
+    if (!selectedCourseId || typeof selectedStudentId !== 'number') {
+      return;
+    }
+
+    setUpdatingEnrollmentUserId(selectedStudentId);
+    setError(null);
+    setMessage(null);
+    try {
+      await api.enrollStudentInCourse(selectedCourseId, selectedStudentId);
+      await refreshSelectedCourseEnrollments(selectedCourseId);
+      setMessage('Student enrolled successfully.');
+    } catch {
+      setError('Could not enroll student. Please try again.');
+    } finally {
+      setUpdatingEnrollmentUserId(null);
+    }
+  };
+
+  const removeEnrollment = async (userId: number) => {
+    if (!selectedCourseId) {
+      return;
+    }
+
+    setUpdatingEnrollmentUserId(userId);
+    setError(null);
+    setMessage(null);
+    try {
+      await api.removeStudentFromCourse(selectedCourseId, userId);
+      await refreshSelectedCourseEnrollments(selectedCourseId);
+      setMessage('Student removed from course.');
+    } catch {
+      setError('Could not remove enrollment. Please try again.');
+    } finally {
+      setUpdatingEnrollmentUserId(null);
     }
   };
 
@@ -121,6 +219,13 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
             className={activeTab === 'users' ? 'btn-primary' : 'btn-secondary'}
           >
             User Management
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('enrollments')}
+            className={activeTab === 'enrollments' ? 'btn-primary' : 'btn-secondary'}
+          >
+            Enrollments
           </button>
           <button
             type="button"
@@ -199,6 +304,129 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
                 })
               )}
             </div>
+          </div>
+        ) : activeTab === 'enrollments' ? (
+          <div className="card-editorial p-6 sm:p-8 space-y-6 animate-fade-up delay-150">
+            <div className="space-y-2">
+              <h2 className="font-display text-xl font-bold text-foreground">Course Enrollments</h2>
+              <p className="text-sm text-muted-foreground max-w-2xl">
+                Students only see courses they are enrolled in. Use this tab to manage those
+                relationships directly.
+              </p>
+            </div>
+
+            {courses.length === 0 ? (
+              <div className="rounded-xl border border-border px-4 py-6 text-sm text-muted-foreground">
+                No courses found.
+              </div>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-foreground">Select course</label>
+                  <select
+                    value={selectedCourseId ?? ''}
+                    onChange={(e) => {
+                      const nextCourseId = Number(e.target.value);
+                      setSelectedCourseId(Number.isFinite(nextCourseId) ? nextCourseId : null);
+                    }}
+                    className="input-field"
+                  >
+                    {courses.map((course) => (
+                      <option key={course.id} value={course.id}>
+                        {course.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {loadingEnrollments ? (
+                  <div className="rounded-xl border border-border px-4 py-6 text-sm text-muted-foreground">
+                    Loading enrollments…
+                  </div>
+                ) : !courseEnrollments ? (
+                  <div className="rounded-xl border border-border px-4 py-6 text-sm text-muted-foreground">
+                    Choose a course to manage its enrollments.
+                  </div>
+                ) : (
+                  <div className="grid gap-6 lg:grid-cols-2">
+                    <div className="space-y-4 rounded-2xl border border-border/70 bg-card/80 p-5">
+                      <div className="space-y-1">
+                        <h3 className="font-semibold text-foreground">Add Student</h3>
+                        <p className="text-sm text-muted-foreground">
+                          Only student accounts can be enrolled in a course.
+                        </p>
+                      </div>
+
+                      <select
+                        value={selectedStudentId}
+                        onChange={(e) => {
+                          const nextUserId = Number(e.target.value);
+                          setSelectedStudentId(Number.isFinite(nextUserId) ? nextUserId : '');
+                        }}
+                        className="input-field"
+                        disabled={courseEnrollments.availableStudents.length === 0}
+                      >
+                        {courseEnrollments.availableStudents.length === 0 ? (
+                          <option value="">No students available</option>
+                        ) : (
+                          courseEnrollments.availableStudents.map((student) => (
+                            <option key={student.id} value={student.id}>
+                              {student.name} ({student.email})
+                            </option>
+                          ))
+                        )}
+                      </select>
+
+                      <button
+                        type="button"
+                        onClick={enrollStudent}
+                        disabled={typeof selectedStudentId !== 'number' || updatingEnrollmentUserId !== null}
+                        className="btn-primary"
+                      >
+                        Enroll student
+                      </button>
+                    </div>
+
+                    <div className="space-y-4 rounded-2xl border border-border/70 bg-card/80 p-5">
+                      <div className="space-y-1">
+                        <h3 className="font-semibold text-foreground">Enrolled Students</h3>
+                        <p className="text-sm text-muted-foreground">
+                          Removing an enrollment immediately removes course visibility for that student.
+                        </p>
+                      </div>
+
+                      {courseEnrollments.enrolledStudents.length === 0 ? (
+                        <div className="rounded-xl border border-border px-4 py-6 text-sm text-muted-foreground">
+                          No students are enrolled in this course yet.
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {courseEnrollments.enrolledStudents.map((student) => (
+                            <div
+                              key={student.id}
+                              className="flex flex-col gap-3 rounded-xl border border-border px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
+                            >
+                              <div className="space-y-1">
+                                <div className="font-medium text-foreground">{student.name}</div>
+                                <div className="text-sm text-muted-foreground">{student.email}</div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => removeEnrollment(student.id)}
+                                disabled={updatingEnrollmentUserId === student.id}
+                                className="btn-secondary text-sm"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         ) : (
           <div className="card-editorial p-6 sm:p-8 space-y-6 animate-fade-up delay-150">

@@ -15,6 +15,12 @@ export type AdminUser = {
   createdAt: string;
 };
 
+export type AdminEnrollmentData = {
+  courseId: number;
+  enrolledStudents: AdminUser[];
+  availableStudents: AdminUser[];
+};
+
 export type EduAiApiKeyStatus = {
   configured: boolean;
   source: 'ADMIN' | 'ENV' | 'NONE';

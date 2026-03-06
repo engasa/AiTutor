@@ -1,4 +1,13 @@
-import type { AdminUser, AiModel, EduAiApiKeyStatus, EduAiCourse, SuggestedPrompt, User } from "./types";
+import type {
+  AdminEnrollmentData,
+  AdminUser,
+  AiModel,
+  Course,
+  EduAiApiKeyStatus,
+  EduAiCourse,
+  SuggestedPrompt,
+  User,
+} from "./types";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
@@ -303,6 +312,18 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ role }),
     }) as Promise<AdminUser>,
+  listAdminCourses: () => http("/api/admin/courses") as Promise<Course[]>,
+  getAdminCourseEnrollments: (courseId: number) =>
+    http(`/api/admin/courses/${courseId}/enrollments`) as Promise<AdminEnrollmentData>,
+  enrollStudentInCourse: (courseId: number, userId: number) =>
+    http(`/api/admin/courses/${courseId}/enrollments`, {
+      method: "POST",
+      body: JSON.stringify({ userId }),
+    }) as Promise<{ ok: true }>,
+  removeStudentFromCourse: (courseId: number, userId: number) =>
+    http(`/api/admin/courses/${courseId}/enrollments/${userId}`, {
+      method: "DELETE",
+    }) as Promise<{ ok: true }>,
   setEduAiApiKey: (apiKey: string) =>
     http("/api/admin/settings/eduai-api-key", {
       method: "PUT",
