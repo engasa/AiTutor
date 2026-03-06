@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { prisma } from "./config/database.js";
+import { isBootstrapAdminEmail } from "./config/bootstrapAdmins.js";
 
 const isProd = process.env.NODE_ENV === "production";
 const baseURL = process.env.BETTER_AUTH_URL || "http://localhost:4000/api/auth";
@@ -25,9 +26,36 @@ export const auth = betterAuth({
     provider: "postgresql",
   }),
 
+  user: {
+    additionalFields: {
+      role: {
+        type: "string",
+        required: false,
+        input: false,
+        defaultValue: "STUDENT",
+      },
+    },
+  },
+
   // Enable simple email + password
   emailAndPassword: {
     enabled: true,
+  },
+
+  databaseHooks: {
+    user: {
+      create: {
+        before: async (user) => {
+          const role = isBootstrapAdminEmail(user.email) ? "ADMIN" : "STUDENT";
+          return {
+            data: {
+              ...user,
+              role,
+            },
+          };
+        },
+      },
+    },
   },
 
   // Cookie settings for sessions

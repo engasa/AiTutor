@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { hashPassword } from 'better-auth/crypto';
+import { getBootstrapAdminEmails, normalizeEmail } from '../src/config/bootstrapAdmins.js';
 
 const prisma = new PrismaClient();
 
@@ -61,15 +62,14 @@ async function createSuggestedPrompts() {
 
 
 async function createUsers() {
-  const [studentPw, student2Pw, instructorPw, assistantPw, adminPw] = await Promise.all([
+  const [studentPw, student2Pw, instructorPw, assistantPw] = await Promise.all([
     hashPassword('student123'),
     hashPassword('student456'),
     hashPassword('instructor123'),
     hashPassword('assistant123'),
-    hashPassword('admin123'),
   ]);
 
-  const [student, studentTwo, instructor, assistant, admin] = await Promise.all([
+  const [student, studentTwo, instructor, assistant] = await Promise.all([
     prisma.user.create({
       data: {
         name: 'Student One',
@@ -100,14 +100,6 @@ async function createUsers() {
         email: 'assistant@example.com',
         password: assistantPw,
         role: 'INSTRUCTOR',
-      },
-    }),
-    prisma.user.create({
-      data: {
-        name: 'Admin',
-        email: 'admin@example.com',
-        password: adminPw,
-        role: 'ADMIN',
       },
     }),
   ]);
@@ -146,17 +138,26 @@ async function createUsers() {
         password: assistantPw,
       },
     }),
-    prisma.account.create({
-      data: {
-        providerId: 'credential',
-        accountId: String(admin.id),
-        userId: admin.id,
-        password: adminPw,
-      },
-    }),
   ]);
 
-  return { student, studentTwo, instructor, assistant, admin };
+  return { student, studentTwo, instructor, assistant };
+}
+
+async function promoteBootstrapAdmins() {
+  const emails = getBootstrapAdminEmails();
+  if (emails.length === 0) return;
+
+  await prisma.user.updateMany({
+    where: {
+      email: {
+        in: emails.map((email) => normalizeEmail(email)),
+        mode: 'insensitive',
+      },
+    },
+    data: {
+      role: 'ADMIN',
+    },
+  });
 }
 
 async function createPromptTemplates() {
@@ -613,6 +614,7 @@ async function main() {
   await createSuggestedPrompts();
 
   const { student, studentTwo, instructor, assistant } = await createUsers();
+  await promoteBootstrapAdmins();
   const foundation = await createPromptTemplates();
 
   const algorithmsCourse = await createCourseWithContent(
