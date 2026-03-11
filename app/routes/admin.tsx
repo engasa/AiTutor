@@ -104,8 +104,8 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
   );
   const [courseEnrollments, setCourseEnrollments] = useState<AdminEnrollmentData | null>(null);
   const [loadingEnrollments, setLoadingEnrollments] = useState(false);
-  const [updatingEnrollmentUserId, setUpdatingEnrollmentUserId] = useState<number | null>(null);
-  const [selectedStudentId, setSelectedStudentId] = useState<number | ''>('');
+  const [updatingEnrollmentUserId, setUpdatingEnrollmentUserId] = useState<string | null>(null);
+  const [selectedStudentId, setSelectedStudentId] = useState<string | ''>('');
   const [apiKey, setApiKey] = useState('');
   const [showKey, setShowKey] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -166,7 +166,7 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
       const data = await api.getAdminCourseEnrollments(courseId);
       setCourseEnrollments(data);
       setSelectedStudentId((current) => {
-        if (typeof current === 'number' && data.availableStudents.some((student) => student.id === current)) {
+        if (typeof current === 'string' && data.availableStudents.some((student) => student.id === current)) {
           return current;
         }
         return data.availableStudents[0]?.id ?? '';
@@ -180,7 +180,7 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
   };
 
   const enrollStudent = async () => {
-    if (!selectedCourseId || typeof selectedStudentId !== 'number') {
+    if (!selectedCourseId || typeof selectedStudentId !== 'string' || !selectedStudentId) {
       return;
     }
 
@@ -198,7 +198,7 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
     }
   };
 
-  const removeEnrollment = async (userId: number) => {
+  const removeEnrollment = async (userId: string) => {
     if (!selectedCourseId) {
       return;
     }
@@ -437,8 +437,7 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
                       <select
                         value={selectedStudentId}
                         onChange={(e) => {
-                          const nextUserId = Number(e.target.value);
-                          setSelectedStudentId(Number.isFinite(nextUserId) ? nextUserId : '');
+                          setSelectedStudentId(e.target.value || '');
                         }}
                         className="input-field"
                         disabled={courseEnrollments.availableStudents.length === 0}
@@ -457,7 +456,7 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
                       <button
                         type="button"
                         onClick={enrollStudent}
-                        disabled={typeof selectedStudentId !== 'number' || updatingEnrollmentUserId !== null}
+                        disabled={!selectedStudentId || updatingEnrollmentUserId !== null}
                         className="btn-primary"
                       >
                         Enroll student

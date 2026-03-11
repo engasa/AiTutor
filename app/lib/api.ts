@@ -305,12 +305,12 @@ export const api = {
   listAdminCourses: () => http("/api/admin/courses") as Promise<Course[]>,
   getAdminCourseEnrollments: (courseId: number) =>
     http(`/api/admin/courses/${courseId}/enrollments`) as Promise<AdminEnrollmentData>,
-  enrollStudentInCourse: (courseId: number, userId: number) =>
+  enrollStudentInCourse: (courseId: number, userId: string) =>
     http(`/api/admin/courses/${courseId}/enrollments`, {
       method: "POST",
       body: JSON.stringify({ userId }),
     }) as Promise<{ ok: true }>,
-  removeStudentFromCourse: (courseId: number, userId: number) =>
+  removeStudentFromCourse: (courseId: number, userId: string) =>
     http(`/api/admin/courses/${courseId}/enrollments/${userId}`, {
       method: "DELETE",
     }) as Promise<{ ok: true }>,
