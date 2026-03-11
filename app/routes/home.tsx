@@ -1,26 +1,27 @@
 import type { Route } from './+types/home';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
-import api from '../lib/api';
 import { useLocalUser } from '../hooks/useLocalUser';
-
-type AuthMode = 'login' | 'signup';
-type AuthRole = 'STUDENT' | 'INSTRUCTOR' | 'ADMIN';
+import { signInWithEduAi } from '../lib/auth-client';
+import type { Role } from '../lib/types';
 
 export function meta({}: Route.MetaArgs) {
   return [
     { title: 'AI Tutor - Welcome' },
-    { name: 'description', content: 'Sign in or create an AI Tutor account' },
+    { name: 'description', content: 'Sign in to AI Tutor with your EduAI account' },
   ];
 }
 
-function routeForRole(role: AuthRole) {
-  return role === 'STUDENT' ? '/student' : role === 'INSTRUCTOR' ? '/instructor' : '/admin';
+function routeForRole(role: Role) {
+  if (role === 'STUDENT') return '/student';
+  if (role === 'INSTRUCTOR' || role === 'PROFESSOR') return '/instructor';
+  if (role === 'TA') return '/unsupported-role';
+  return '/admin';
 }
 
-function extractErrorMessage(error: unknown, mode: AuthMode) {
+function extractErrorMessage(error: unknown) {
   if (!(error instanceof Error)) {
-    return mode === 'login' ? 'Invalid email or password' : 'Could not create account';
+    return 'Could not start EduAI sign-in';
   }
 
   try {
@@ -35,48 +36,43 @@ function extractErrorMessage(error: unknown, mode: AuthMode) {
     // Fall back to the raw message when the backend returns plain text.
   }
 
-  return error.message || (mode === 'login' ? 'Invalid email or password' : 'Could not create account');
+  return error.message || 'Could not start EduAI sign-in';
 }
 
 export default function Home() {
   const navigate = useNavigate();
-  const { saveAuth } = useLocalUser();
-  const [mode, setMode] = useState<AuthMode>('login');
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const { user } = useLocalUser();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  useEffect(() => {
+    if (!user) return;
+    navigate(routeForRole(user.role), { replace: true });
+  }, [navigate, user]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('authError') === 'eduai_sign_in_failed') {
+      setError('EduAI sign-in did not complete. Please try again.');
+    }
+  }, []);
+
+  const onSignIn = async () => {
     setLoading(true);
     setError('');
 
     try {
-      const response =
-        mode === 'login'
-          ? await api.login(email, password)
-          : await api.signUp({
-              name: name.trim(),
-              email,
-              password,
-            });
-      const { user } = response;
-      if (!user) {
-        throw new Error(mode === 'login' ? 'Authentication failed' : 'Could not create account');
-      }
-      saveAuth({ id: user.id, name: user.name, role: user.role });
-      navigate(routeForRole(user.role));
+      await signInWithEduAi();
     } catch (err) {
-      setError(extractErrorMessage(err, mode));
+      setError(extractErrorMessage(err));
+      setLoading(false);
+      return;
     } finally {
+      // Full-page redirect keeps this from usually running, but it protects the button on failure.
       setLoading(false);
     }
   };
-
-  const submitDisabled =
-    loading || !email.trim() || !password.trim() || (mode === 'signup' && !name.trim());
 
   return (
     <main className="relative min-h-dvh overflow-hidden bg-background">
@@ -117,98 +113,14 @@ export default function Home() {
         <div className="animate-fade-up delay-150 w-full max-w-md">
           <div className="card-editorial p-8 sm:p-10">
             <div className="mb-8 text-center">
-              <h2 className="mb-2 font-display text-2xl font-bold text-foreground">
-                {mode === 'login' ? 'Welcome back' : 'Create your account'}
-              </h2>
+              <h2 className="mb-2 font-display text-2xl font-bold text-foreground">Sign in with EduAI</h2>
               <p className="text-sm text-muted-foreground">
-                {mode === 'login'
-                  ? 'Sign in to continue your learning journey'
-                  : 'New accounts start as students and can be enrolled in courses by an admin.'}
+                AI Tutor now uses your EduAI identity. Use the same account you already use across
+                the EduAI platform.
               </p>
             </div>
 
-            <div className="mb-6 grid grid-cols-2 rounded-xl bg-secondary p-1">
-              <button
-                type="button"
-                onClick={() => {
-                  setMode('login');
-                  setError('');
-                }}
-                className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                  mode === 'login'
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                Sign in
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setMode('signup');
-                  setError('');
-                }}
-                className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                  mode === 'signup'
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                Create account
-              </button>
-            </div>
-
-            <form onSubmit={onSubmit} className="space-y-5">
-              {mode === 'signup' && (
-                <div className="space-y-2">
-                  <label htmlFor="name" className="block text-sm font-medium text-foreground">
-                    Full name
-                  </label>
-                  <input
-                    id="name"
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="input-field"
-                    placeholder="Ada Lovelace"
-                    required
-                    autoComplete="name"
-                  />
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <label htmlFor="email" className="block text-sm font-medium text-foreground">
-                  Email address
-                </label>
-                <input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="input-field"
-                  placeholder="you@example.com"
-                  required
-                  autoComplete="email"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="password" className="block text-sm font-medium text-foreground">
-                  Password
-                </label>
-                <input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="input-field"
-                  placeholder={mode === 'login' ? 'Enter your password' : 'Create a password'}
-                  required
-                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-                />
-              </div>
-
+            <div className="space-y-5">
               {error && (
                 <div className="animate-fade-in flex items-center gap-2 rounded-xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
                   <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -218,25 +130,30 @@ export default function Home() {
                 </div>
               )}
 
-              <button type="submit" disabled={submitDisabled} className="btn-primary w-full text-base">
+              <button type="button" onClick={onSignIn} disabled={loading} className="btn-primary w-full text-base">
                 {loading ? (
                   <>
                     <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                     </svg>
-                    {mode === 'login' ? 'Signing in...' : 'Creating account...'}
+                    Redirecting to EduAI...
                   </>
                 ) : (
                   <>
-                    {mode === 'login' ? 'Sign in' : 'Create account'}
+                    Sign in with EduAI
                     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
                     </svg>
                   </>
                 )}
               </button>
-            </form>
+
+              <div className="rounded-xl bg-secondary/60 px-4 py-3 text-sm text-muted-foreground">
+                New accounts and role changes are managed in EduAI. After sign-in, AI Tutor will
+                load your local profile from <code>/api/me</code>.
+              </div>
+            </div>
           </div>
         </div>
       </div>

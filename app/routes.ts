@@ -11,4 +11,5 @@ export default [
   route("/instructor/courses/:courseId", "routes/instructor.course.tsx"),
   route("/instructor/module/:moduleId", "routes/instructor.topic.tsx"),
   route("/instructor/lesson/:lessonId", "routes/instructor.list.tsx"),
+  route("/unsupported-role", "routes/unsupported-role.tsx"),
 ] satisfies RouteConfig;

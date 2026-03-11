@@ -12,7 +12,7 @@ import type {
   User,
 } from "./types";
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
+export const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
 async function http(path: string, init?: RequestInit) {
   const headers: Record<string, string> = {
