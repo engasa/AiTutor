@@ -9,6 +9,10 @@ import { syncExternalCourseTopics } from '../services/topicSync.js';
 
 const router = express.Router();
 
+function isSupportedCourseRole(role) {
+  return role === 'PROFESSOR' || role === 'STUDENT';
+}
+
 router.get('/eduai/courses', requireRole('PROFESSOR'), async (req, res) => {
   try {
     // Fetch available courses from EduAI
@@ -42,6 +46,9 @@ router.get('/eduai/courses', requireRole('PROFESSOR'), async (req, res) => {
 router.get('/courses', async (req, res) => {
   const authUser = req.user;
   if (!authUser) return res.status(401).json({ error: 'Authentication required' });
+  if (!isSupportedCourseRole(authUser.role)) {
+    return res.status(403).json({ error: 'Role is not supported in AI Tutor' });
+  }
 
   try {
     if (authUser.role === 'PROFESSOR') {
@@ -161,6 +168,9 @@ router.post('/courses/import-external', requireRole('PROFESSOR'), async (req, re
 router.get('/courses/:courseId', async (req, res) => {
   const authUser = req.user;
   if (!authUser) return res.status(401).json({ error: 'Authentication required' });
+  if (!isSupportedCourseRole(authUser.role)) {
+    return res.status(403).json({ error: 'Role is not supported in AI Tutor' });
+  }
 
   const courseId = Number(req.params.courseId);
   if (!Number.isFinite(courseId)) {

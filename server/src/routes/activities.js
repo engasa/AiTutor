@@ -287,12 +287,54 @@ async function handleAiInteraction({
 
 router.get('/lessons/:lessonId/activities', async (req, res) => {
   const authUser = req.user;
+  if (!authUser) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
   const lessonId = Number(req.params.lessonId);
   if (!Number.isFinite(lessonId)) {
     return res.status(400).json({ error: 'Invalid lesson id' });
   }
 
   try {
+    const lesson = await prisma.lesson.findUnique({
+      where: { id: lessonId },
+      include: {
+        module: {
+          include: {
+            courseOffering: {
+              include: {
+                instructors: { select: { userId: true } },
+                enrollments: { select: { userId: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!lesson) {
+      return res.status(404).json({ error: 'Lesson not found' });
+    }
+
+    const isInstructor = lesson.module.courseOffering.instructors.some((assignment) => assignment.userId === authUser.id);
+    const isStudent = lesson.module.courseOffering.enrollments.some((enrollment) => enrollment.userId === authUser.id);
+
+    if (authUser.role === 'PROFESSOR' && !isInstructor) {
+      return res.status(403).json({ error: 'Not authorized for this lesson' });
+    }
+    if (authUser.role === 'STUDENT') {
+      if (!isStudent) {
+        return res.status(403).json({ error: 'Not authorized for this lesson' });
+      }
+      if (!lesson.isPublished) {
+        return res.status(403).json({ error: 'Lesson is not published' });
+      }
+    }
+    if (authUser.role !== 'PROFESSOR' && authUser.role !== 'STUDENT') {
+      return res.status(403).json({ error: 'Role is not supported in AI Tutor' });
+    }
+
     const activities = await prisma.activity.findMany({
       where: { lessonId },
       orderBy: { position: 'asc' },
@@ -306,7 +348,7 @@ router.get('/lessons/:lessonId/activities', async (req, res) => {
     });
 
     // For students, add completion status to each activity
-    if (authUser && authUser.role === 'STUDENT') {
+    if (authUser.role === 'STUDENT') {
       const activityIds = activities.map((a) => a.id);
       const statusMap = await getActivityCompletionStatuses(activityIds, authUser.id);
 

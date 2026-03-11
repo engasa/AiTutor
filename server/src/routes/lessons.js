@@ -8,15 +8,47 @@ const router = express.Router();
 
 router.get('/modules/:moduleId/lessons', async (req, res) => {
   const authUser = req.user;
+  if (!authUser) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
   const moduleId = Number(req.params.moduleId);
   if (!Number.isFinite(moduleId)) {
     return res.status(400).json({ error: 'Invalid module id' });
   }
 
   try {
-    // Students only see published lessons
+    const module = await prisma.module.findUnique({
+      where: { id: moduleId },
+      include: {
+        courseOffering: {
+          include: {
+            instructors: { select: { userId: true } },
+            enrollments: { select: { userId: true } },
+          },
+        },
+      },
+    });
+
+    if (!module) {
+      return res.status(404).json({ error: 'Module not found' });
+    }
+
+    const isInstructor = module.courseOffering.instructors.some((assignment) => assignment.userId === authUser.id);
+    const isStudent = module.courseOffering.enrollments.some((enrollment) => enrollment.userId === authUser.id);
+
+    if (authUser.role === 'PROFESSOR' && !isInstructor) {
+      return res.status(403).json({ error: 'Not authorized for this module' });
+    }
+    if (authUser.role === 'STUDENT' && !isStudent) {
+      return res.status(403).json({ error: 'Not authorized for this module' });
+    }
+    if (authUser.role !== 'PROFESSOR' && authUser.role !== 'STUDENT') {
+      return res.status(403).json({ error: 'Role is not supported in AI Tutor' });
+    }
+
     const whereClause =
-      authUser && authUser.role === 'STUDENT'
+      authUser.role === 'STUDENT'
         ? { moduleId, isPublished: true }
         : { moduleId };
 
@@ -26,7 +58,7 @@ router.get('/modules/:moduleId/lessons', async (req, res) => {
     });
 
     // For students, add progress to each lesson
-    if (authUser && authUser.role === 'STUDENT') {
+    if (authUser.role === 'STUDENT') {
       const lessonsWithProgress = await Promise.all(
         lessons.map(async (lesson) => {
           const progress = await calculateLessonProgress(lesson.id, authUser.id);
@@ -70,6 +102,11 @@ router.post('/modules/:moduleId/lessons', requireRole('PROFESSOR'), async (req, 
 });
 
 router.get('/lessons/:lessonId', async (req, res) => {
+  const authUser = req.user;
+  if (!authUser) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
   const lessonId = Number(req.params.lessonId);
   if (!Number.isFinite(lessonId)) {
     return res.status(400).json({ error: 'Invalid lesson id' });
@@ -78,9 +115,39 @@ router.get('/lessons/:lessonId', async (req, res) => {
   try {
     const lesson = await prisma.lesson.findUnique({
       where: { id: lessonId },
-      include: { module: true },
+      include: {
+        module: {
+          include: {
+            courseOffering: {
+              include: {
+                instructors: { select: { userId: true } },
+                enrollments: { select: { userId: true } },
+              },
+            },
+          },
+        },
+      },
     });
     if (!lesson) return res.status(404).json({ error: 'Lesson not found' });
+
+    const isInstructor = lesson.module.courseOffering.instructors.some((assignment) => assignment.userId === authUser.id);
+    const isStudent = lesson.module.courseOffering.enrollments.some((enrollment) => enrollment.userId === authUser.id);
+
+    if (authUser.role === 'PROFESSOR' && !isInstructor) {
+      return res.status(403).json({ error: 'Not authorized for this lesson' });
+    }
+    if (authUser.role === 'STUDENT') {
+      if (!isStudent) {
+        return res.status(403).json({ error: 'Not authorized for this lesson' });
+      }
+      if (!lesson.isPublished) {
+        return res.status(403).json({ error: 'Lesson is not published' });
+      }
+    }
+    if (authUser.role !== 'PROFESSOR' && authUser.role !== 'STUDENT') {
+      return res.status(403).json({ error: 'Role is not supported in AI Tutor' });
+    }
+
     res.json(mapLesson(lesson));
   } catch (e) {
     res.status(500).json({ error: String(e) });
