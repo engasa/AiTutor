@@ -1,7 +1,7 @@
 import { betterAuth } from "better-auth";
 import { genericOAuth } from "better-auth/plugins";
+import { prismaAdapter } from "better-auth/adapters/prisma";
 import { prisma } from "./config/database.js";
-import { prismaAdapter } from "./lib/prisma-adapter.js";
 
 const isProd = process.env.NODE_ENV === "production";
 const baseURL = process.env.BETTER_AUTH_URL || "http://localhost:4000/api/auth";
@@ -34,13 +34,6 @@ function normalizeEduAiRole(value) {
   return "STUDENT";
 }
 
-function coerceNumericId(value) {
-  if (typeof value === "number") return value;
-  if (typeof value !== "string" || value.length === 0) return value;
-  const numericValue = Number(value);
-  return Number.isNaN(numericValue) ? value : numericValue;
-}
-
 export const auth = betterAuth({
   secret: authSecret,
   // Base URL of the API server hosting the auth handler
@@ -49,27 +42,9 @@ export const auth = betterAuth({
   // Allow the frontend dev origin to call auth endpoints
   trustedOrigins: ["http://localhost:5173", "https://aitutor.ok.ubc.ca"],
 
-  // IDs are numeric in our Prisma schema (User.id, Account.userId are Int)
-  advanced: {
-    database: {
-      generateId: false,
-    },
-  },
-
   // Use Prisma as the database adapter (PostgreSQL in this repo)
   database: prismaAdapter(prisma, {
     provider: "postgresql",
-    customTransformInput: ({ action, model, field, data }) => {
-      if (field === "id" && model === "user") {
-        return action === "create" ? undefined : coerceNumericId(data);
-      }
-
-      if (field === "userId") {
-        return coerceNumericId(data);
-      }
-
-      return data;
-    },
   }),
 
   user: {

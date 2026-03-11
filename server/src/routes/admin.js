@@ -84,13 +84,16 @@ router.get('/admin/courses/:courseId/enrollments', requireRole('ADMIN'), async (
 
 router.post('/admin/courses/:courseId/enrollments', requireRole('ADMIN'), async (req, res) => {
   const courseId = Number(req.params.courseId);
-  const userId = Number(req.body?.userId);
+  const userId =
+    typeof req.body?.userId === 'string' && req.body.userId.trim().length > 0
+      ? req.body.userId.trim()
+      : null;
 
   if (!Number.isFinite(courseId)) {
     return res.status(400).json({ error: 'Invalid course id' });
   }
 
-  if (!Number.isFinite(userId)) {
+  if (!userId) {
     return res.status(400).json({ error: 'Invalid user id' });
   }
 
@@ -130,13 +133,13 @@ router.post('/admin/courses/:courseId/enrollments', requireRole('ADMIN'), async 
 
 router.delete('/admin/courses/:courseId/enrollments/:userId', requireRole('ADMIN'), async (req, res) => {
   const courseId = Number(req.params.courseId);
-  const userId = Number(req.params.userId);
+  const userId = typeof req.params.userId === 'string' ? req.params.userId.trim() : '';
 
   if (!Number.isFinite(courseId)) {
     return res.status(400).json({ error: 'Invalid course id' });
   }
 
-  if (!Number.isFinite(userId)) {
+  if (!userId) {
     return res.status(400).json({ error: 'Invalid user id' });
   }
 

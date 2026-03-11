@@ -8,10 +8,9 @@ export async function attachSession(req, res, next) {
     const headers = fromNodeHeaders(req.headers);
     const data = await auth.api.getSession({ headers });
     if (data && data.user) {
-      const id = typeof data.user.id === 'string' ? parseInt(data.user.id, 10) : data.user.id;
       // Hydrate full user (including role) from our DB for RBAC
       const dbUser = await prisma.user.findUnique({
-        where: { id },
+        where: { id: data.user.id },
       });
       req.user = dbUser ?? null;
     } else {
