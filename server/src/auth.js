@@ -1,7 +1,7 @@
 import { betterAuth } from "better-auth";
-import { prismaAdapter } from "better-auth/adapters/prisma";
 import { genericOAuth } from "better-auth/plugins";
 import { prisma } from "./config/database.js";
+import { prismaAdapter } from "./lib/prisma-adapter.js";
 
 const isProd = process.env.NODE_ENV === "production";
 const baseURL = process.env.BETTER_AUTH_URL || "http://localhost:4000/api/auth";
@@ -12,6 +12,12 @@ const eduAiDiscoveryUrl =
 const eduAiClientId = process.env.EDUAI_CLIENT_ID || "aitutor-local";
 const eduAiClientSecret =
   process.env.EDUAI_CLIENT_SECRET || "aitutor-local-secret";
+const eduAiUserInfoUrl =
+  process.env.EDUAI_USERINFO_URL ||
+  eduAiDiscoveryUrl.replace(
+    "/.well-known/openid-configuration",
+    "/oauth2/userinfo",
+  );
 const authSecret =
   process.env.BETTER_AUTH_SECRET ||
   process.env.JWT_SECRET ||
@@ -28,6 +34,13 @@ function normalizeEduAiRole(value) {
   return "STUDENT";
 }
 
+function coerceNumericId(value) {
+  if (typeof value === "number") return value;
+  if (typeof value !== "string" || value.length === 0) return value;
+  const numericValue = Number(value);
+  return Number.isNaN(numericValue) ? value : numericValue;
+}
+
 export const auth = betterAuth({
   secret: authSecret,
   // Base URL of the API server hosting the auth handler
@@ -39,13 +52,24 @@ export const auth = betterAuth({
   // IDs are numeric in our Prisma schema (User.id, Account.userId are Int)
   advanced: {
     database: {
-      useNumberId: true,
+      generateId: false,
     },
   },
 
   // Use Prisma as the database adapter (PostgreSQL in this repo)
   database: prismaAdapter(prisma, {
     provider: "postgresql",
+    customTransformInput: ({ action, model, field, data }) => {
+      if (field === "id" && model === "user") {
+        return action === "create" ? undefined : coerceNumericId(data);
+      }
+
+      if (field === "userId") {
+        return coerceNumericId(data);
+      }
+
+      return data;
+    },
   }),
 
   user: {
@@ -87,9 +111,28 @@ export const auth = betterAuth({
           pkce: true,
           requireIssuerValidation: true,
           overrideUserInfo: true,
-          mapProfileToUser: async (profile) => ({
-            role: normalizeEduAiRole(profile["https://eduai.app/role"]),
-          }),
+          getUserInfo: async (tokens) => {
+            const response = await fetch(eduAiUserInfoUrl, {
+              headers: {
+                Authorization: `Bearer ${tokens.accessToken}`,
+              },
+            });
+
+            if (!response.ok) {
+              throw new Error(`Failed to fetch EduAI user info: ${response.status}`);
+            }
+
+            const profile = await response.json();
+
+            return {
+              id: String(profile.sub),
+              email: String(profile.email || "").toLowerCase(),
+              name: String(profile.name || profile.email || "EduAI User"),
+              image: typeof profile.picture === "string" ? profile.picture : undefined,
+              emailVerified: Boolean(profile.email_verified),
+              role: normalizeEduAiRole(profile["https://eduai.app/role"]),
+            };
+          },
         },
       ],
     }),
