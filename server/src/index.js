@@ -19,6 +19,15 @@ import adminRoutes from './routes/admin.js';
 import suggestedPromptRoutes from './routes/suggested-prompts.js';
 const app = express();
 
+function isAllowedAdminPath(path) {
+  return (
+    path === '/me' ||
+    path.startsWith('/admin/') ||
+    path === '/ai-models' ||
+    path.startsWith('/ai-models/')
+  );
+}
+
 app.use(cors({ origin: true, credentials: true }));
 
 // Mount Better Auth handler BEFORE json parser
@@ -60,7 +69,7 @@ app.use('/api', (req, res, next) => {
   }
 
   if (req.user.role === 'ADMIN') {
-    if (req.path === '/me' || req.path.startsWith('/admin/')) {
+    if (isAllowedAdminPath(req.path)) {
       return next();
     }
     return res.status(403).json({ error: 'Admins can only access admin endpoints' });
