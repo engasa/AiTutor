@@ -16,8 +16,9 @@ export function getEduAiChatUrl() {
 }
 
 async function requestEduAi(path, options = {}) {
-  const apiKey = await getEffectiveEduAiApiKey();
-  if (!apiKey) {
+  const useApiKey = options.useApiKey !== false;
+  const apiKey = useApiKey ? await getEffectiveEduAiApiKey() : null;
+  if (useApiKey && !apiKey) {
     throw new Error('EDUAI_API_KEY is not configured');
   }
 
@@ -26,7 +27,7 @@ async function requestEduAi(path, options = {}) {
     method: options.method ?? 'GET',
     headers: {
       'Content-Type': 'application/json',
-      'x-api-key': apiKey,
+      ...(apiKey ? { 'x-api-key': apiKey } : {}),
       ...(options.headers ?? {}),
     },
     body: options.body ? JSON.stringify(options.body) : undefined,
@@ -82,7 +83,7 @@ export async function listEduAiCourseTopics(externalCourseId) {
 }
 
 export async function listEduAiModels() {
-  const data = await requestEduAi('/ai-models');
+  const data = await requestEduAi('/ai-models', { useApiKey: false });
   if (!Array.isArray(data)) {
     throw new Error('Invalid response from EduAI models endpoint');
   }
