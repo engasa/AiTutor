@@ -9,7 +9,7 @@ import { syncExternalCourseTopics } from '../services/topicSync.js';
 
 const router = express.Router();
 
-router.get('/eduai/courses', requireRole('INSTRUCTOR'), async (req, res) => {
+router.get('/eduai/courses', requireRole('PROFESSOR'), async (req, res) => {
   try {
     // Fetch available courses from EduAI
     const courses = await listEduAiCourses();
@@ -44,7 +44,7 @@ router.get('/courses', async (req, res) => {
   if (!authUser) return res.status(401).json({ error: 'Authentication required' });
 
   try {
-    if (authUser.role === 'INSTRUCTOR') {
+    if (authUser.role === 'PROFESSOR') {
       // Instructors see all their courses regardless of publish status (no progress)
       const courses = await prisma.courseOffering.findMany({
         where: { instructors: { some: { userId: authUser.id } } },
@@ -79,7 +79,7 @@ router.get('/courses', async (req, res) => {
   }
 });
 
-router.post('/courses/import-external', requireRole('INSTRUCTOR'), async (req, res) => {
+router.post('/courses/import-external', requireRole('PROFESSOR'), async (req, res) => {
   const instructor = req.user;
   const { externalCourseId } = req.body || {};
 
@@ -193,7 +193,7 @@ router.get('/courses/:courseId', async (req, res) => {
   }
 });
 
-router.post('/courses', requireRole('INSTRUCTOR'), async (req, res) => {
+router.post('/courses', requireRole('PROFESSOR'), async (req, res) => {
   const instructor = req.user;
   const {
     title,
@@ -266,7 +266,7 @@ router.post('/courses', requireRole('INSTRUCTOR'), async (req, res) => {
   }
 });
 
-router.patch('/courses/:courseId', requireRole('INSTRUCTOR'), async (req, res) => {
+router.patch('/courses/:courseId', requireRole('PROFESSOR'), async (req, res) => {
   const instructor = req.user;
   const courseId = Number(req.params.courseId);
   if (!Number.isFinite(courseId)) {
@@ -303,7 +303,7 @@ router.patch('/courses/:courseId', requireRole('INSTRUCTOR'), async (req, res) =
   }
 });
 
-router.post('/courses/:courseId/import', requireRole('INSTRUCTOR'), async (req, res) => {
+router.post('/courses/:courseId/import', requireRole('PROFESSOR'), async (req, res) => {
   const instructor = req.user;
   const courseId = Number(req.params.courseId);
   if (!Number.isFinite(courseId)) {
@@ -446,7 +446,7 @@ router.post('/courses/:courseId/import', requireRole('INSTRUCTOR'), async (req, 
 });
 
 // Publish a course (no restrictions, no cascading)
-router.patch('/courses/:courseId/publish', requireRole('INSTRUCTOR'), async (req, res) => {
+router.patch('/courses/:courseId/publish', requireRole('PROFESSOR'), async (req, res) => {
   const instructor = req.user;
   const courseId = Number(req.params.courseId);
   if (!Number.isFinite(courseId)) {
@@ -473,7 +473,7 @@ router.patch('/courses/:courseId/publish', requireRole('INSTRUCTOR'), async (req
 });
 
 // Unpublish a course (cascades to all modules and lessons)
-router.patch('/courses/:courseId/unpublish', requireRole('INSTRUCTOR'), async (req, res) => {
+router.patch('/courses/:courseId/unpublish', requireRole('PROFESSOR'), async (req, res) => {
   const instructor = req.user;
   const courseId = Number(req.params.courseId);
   if (!Number.isFinite(courseId)) {

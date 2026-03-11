@@ -14,7 +14,7 @@ export function meta({}: Route.MetaArgs) {
 
 function routeForRole(role: Role) {
   if (role === 'STUDENT') return '/student';
-  if (role === 'INSTRUCTOR' || role === 'PROFESSOR') return '/instructor';
+  if (role === 'PROFESSOR') return '/instructor';
   if (role === 'TA') return '/unsupported-role';
   return '/admin';
 }

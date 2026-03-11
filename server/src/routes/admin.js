@@ -24,47 +24,7 @@ router.get('/admin/users', requireRole('ADMIN'), async (_req, res) => {
 });
 
 router.patch('/admin/users/:userId/role', requireRole('ADMIN'), async (req, res) => {
-  const userId = Number(req.params.userId);
-  const nextRole = req.body?.role;
-
-  if (!Number.isFinite(userId)) {
-    return res.status(400).json({ error: 'Invalid user id' });
-  }
-
-  if (nextRole !== 'INSTRUCTOR' && nextRole !== 'ADMIN') {
-    return res.status(400).json({ error: 'role must be INSTRUCTOR or ADMIN' });
-  }
-
-  try {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-    });
-
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    if (user.role === 'ADMIN') {
-      return res.status(400).json({ error: 'Admins do not have any higher promotion path' });
-    }
-
-    if (user.role === 'INSTRUCTOR' && nextRole !== 'ADMIN') {
-      return res.status(400).json({ error: 'Instructors can only be promoted to ADMIN' });
-    }
-
-    if (user.role === nextRole) {
-      return res.status(400).json({ error: `User already has role ${nextRole}` });
-    }
-
-    const updated = await prisma.user.update({
-      where: { id: userId },
-      data: { role: nextRole },
-    });
-
-    res.json(mapAdminUser(updated));
-  } catch (e) {
-    res.status(500).json({ error: String(e) });
-  }
+  return res.status(410).json({ error: 'Roles are managed in EduAI' });
 });
 
 router.get('/admin/courses', requireRole('ADMIN'), async (_req, res) => {

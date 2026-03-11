@@ -8,7 +8,7 @@ import type { Route } from './+types/instructor';
 import { requireClientUser } from '~/lib/client-auth';
 
 export async function clientLoader(_: Route.ClientLoaderArgs) {
-  await requireClientUser('INSTRUCTOR');
+  await requireClientUser('PROFESSOR');
   const courses = (await api.listCourses()) as Course[];
   return { courses };
 }

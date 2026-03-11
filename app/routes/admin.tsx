@@ -111,7 +111,6 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
   const [saving, setSaving] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [savingAiPolicy, setSavingAiPolicy] = useState(false);
-  const [promotingUserId, setPromotingUserId] = useState<number | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(loaderData.aiPolicyError);
 
@@ -160,25 +159,6 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
       cancelled = true;
     };
   }, [activeTab, selectedCourseId]);
-
-  const promoteUser = async (userId: number, role: 'INSTRUCTOR' | 'ADMIN') => {
-    setPromotingUserId(userId);
-    setError(null);
-    setMessage(null);
-    try {
-      const updated = await api.promoteUserRole(userId, role);
-      setUsers((prev) => prev.map((user) => (user.id === userId ? updated : user)));
-      setMessage(
-        role === 'ADMIN'
-          ? 'User promoted to admin.'
-          : 'User promoted to instructor.',
-      );
-    } catch (e) {
-      setError('Could not update role. Please try again.');
-    } finally {
-      setPromotingUserId((current) => (current === userId ? null : current));
-    }
-  };
 
   const refreshSelectedCourseEnrollments = async (courseId: number) => {
     setLoadingEnrollments(true);
@@ -372,9 +352,8 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
             <div className="space-y-2">
               <h2 className="font-display text-xl font-bold text-foreground">User Management</h2>
               <p className="text-sm text-muted-foreground max-w-2xl">
-                Students can be promoted to instructor or admin. Instructors can be promoted to
-                admin. Admin accounts do not show any promotion controls. Demotions are still out
-                of scope for this phase.
+                User roles are now read-only in AI Tutor. Identity and role changes are managed in
+                EduAI and synced on sign-in.
               </p>
             </div>
 
@@ -385,11 +364,6 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
                 </div>
               ) : (
                 users.map((user) => {
-                  const canPromoteToInstructor = user.role === 'STUDENT';
-                  const canPromoteToAdmin = user.role === 'STUDENT' || user.role === 'INSTRUCTOR';
-                  const showActions = canPromoteToInstructor || canPromoteToAdmin;
-                  const isBusy = promotingUserId === user.id;
-
                   return (
                     <div
                       key={user.id}
@@ -402,31 +376,6 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
                         </div>
                         <p className="text-sm text-muted-foreground">{user.email}</p>
                       </div>
-
-                      {showActions ? (
-                        <div className="flex flex-wrap gap-2">
-                          {canPromoteToInstructor ? (
-                            <button
-                              type="button"
-                              onClick={() => promoteUser(user.id, 'INSTRUCTOR')}
-                              disabled={isBusy}
-                              className="btn-secondary text-sm"
-                            >
-                              Promote to Instructor
-                            </button>
-                          ) : null}
-                          {canPromoteToAdmin ? (
-                            <button
-                              type="button"
-                              onClick={() => promoteUser(user.id, 'ADMIN')}
-                              disabled={isBusy}
-                              className="btn-primary text-sm"
-                            >
-                              Promote to Admin
-                            </button>
-                          ) : null}
-                        </div>
-                      ) : null}
                     </div>
                   );
                 })

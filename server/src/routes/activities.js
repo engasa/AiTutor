@@ -324,7 +324,7 @@ router.get('/lessons/:lessonId/activities', async (req, res) => {
   }
 });
 
-router.post('/lessons/:lessonId/activities', requireRole('INSTRUCTOR'), async (req, res) => {
+router.post('/lessons/:lessonId/activities', requireRole('PROFESSOR'), async (req, res) => {
   const lessonId = Number(req.params.lessonId);
   if (!Number.isFinite(lessonId)) {
     return res.status(400).json({ error: 'Invalid lesson id' });
@@ -427,7 +427,7 @@ router.post('/lessons/:lessonId/activities', requireRole('INSTRUCTOR'), async (r
   }
 });
 
-router.patch('/activities/:activityId', requireRole('INSTRUCTOR'), async (req, res) => {
+router.patch('/activities/:activityId', requireRole('PROFESSOR'), async (req, res) => {
   const instructor = req.user;
   const activityId = Number(req.params.activityId);
   if (!Number.isFinite(activityId)) {
@@ -685,7 +685,7 @@ router.patch('/activities/:activityId', requireRole('INSTRUCTOR'), async (req, r
   }
 });
 
-router.delete('/activities/:activityId', requireRole('INSTRUCTOR'), async (req, res) => {
+router.delete('/activities/:activityId', requireRole('PROFESSOR'), async (req, res) => {
   const instructor = req.user;
   const activityId = Number(req.params.activityId);
   if (!Number.isFinite(activityId)) {

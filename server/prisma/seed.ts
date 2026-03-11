@@ -1,6 +1,5 @@
 import { PrismaClient } from '@prisma/client';
 import { hashPassword } from 'better-auth/crypto';
-import { getBootstrapAdminEmails, normalizeEmail } from '../src/config/bootstrapAdmins.js';
 
 const prisma = new PrismaClient();
 
@@ -91,7 +90,7 @@ async function createUsers() {
         name: 'Lead Instructor',
         email: 'instructor@example.com',
         password: instructorPw,
-        role: 'INSTRUCTOR',
+        role: 'PROFESSOR',
       },
     }),
     prisma.user.create({
@@ -99,7 +98,7 @@ async function createUsers() {
         name: 'Assistant Instructor',
         email: 'assistant@example.com',
         password: assistantPw,
-        role: 'INSTRUCTOR',
+        role: 'PROFESSOR',
       },
     }),
   ]);
@@ -141,23 +140,6 @@ async function createUsers() {
   ]);
 
   return { student, studentTwo, instructor, assistant };
-}
-
-async function promoteBootstrapAdmins() {
-  const emails = getBootstrapAdminEmails();
-  if (emails.length === 0) return;
-
-  await prisma.user.updateMany({
-    where: {
-      email: {
-        in: emails.map((email) => normalizeEmail(email)),
-        mode: 'insensitive',
-      },
-    },
-    data: {
-      role: 'ADMIN',
-    },
-  });
 }
 
 async function createPromptTemplates() {
@@ -614,7 +596,6 @@ async function main() {
   await createSuggestedPrompts();
 
   const { student, studentTwo, instructor, assistant } = await createUsers();
-  await promoteBootstrapAdmins();
   const foundation = await createPromptTemplates();
 
   const algorithmsCourse = await createCourseWithContent(

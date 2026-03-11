@@ -9,7 +9,8 @@ datasource db {
 
 enum Role {
   STUDENT
-  INSTRUCTOR
+  PROFESSOR
+  TA
   ADMIN
 }
 
@@ -27,17 +28,17 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  instructorOf   CourseInstructor[]
-  enrolledIn     CourseEnrollment[]
-  submissions    Submission[]
-  sessions       Session[]
-  accounts       Account[]
-  emailVerified  Boolean            @default(false)
-  image          String?
-  aiChatSessions AiChatSession[]
-  activityFeedback ActivityFeedback[]
+  instructorOf           CourseInstructor[]
+  enrolledIn             CourseEnrollment[]
+  submissions            Submission[]
+  sessions               Session[]
+  accounts               Account[]
+  emailVerified          Boolean                 @default(false)
+  image                  String?
+  aiChatSessions         AiChatSession[]
+  activityFeedback       ActivityFeedback[]
   activityStudentMetrics ActivityStudentMetric[]
-  aiInteractionTraces AiInteractionTrace[]
+  aiInteractionTraces    AiInteractionTrace[]
 
   @@map("User")
 }
@@ -141,48 +142,48 @@ model Lesson {
 }
 
 model Activity {
-  id               Int             @id @default(autoincrement())
-  title            String?
-  instructionsMd   String
-  config           Json?
-  position         Int             @default(0)
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
-  lesson           Lesson          @relation(fields: [lessonId], references: [id], onDelete: Cascade)
-  lessonId         Int
-  promptTemplate   PromptTemplate? @relation(fields: [promptTemplateId], references: [id])
-  promptTemplateId   Int?
-  customPrompt       String?
-  customPromptTitle  String?
+  id                Int             @id @default(autoincrement())
+  title             String?
+  instructionsMd    String
+  config            Json?
+  position          Int             @default(0)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  lesson            Lesson          @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  lessonId          Int
+  promptTemplate    PromptTemplate? @relation(fields: [promptTemplateId], references: [id])
+  promptTemplateId  Int?
+  customPrompt      String?
+  customPromptTitle String?
 
   mainTopic       Topic                    @relation("ActivityMainTopic", fields: [mainTopicId], references: [id])
   mainTopicId     Int
   secondaryTopics ActivitySecondaryTopic[]
 
-  enableTeachMode Boolean @default(true)
-  enableGuideMode Boolean @default(true)
+  enableTeachMode  Boolean @default(true)
+  enableGuideMode  Boolean @default(true)
   enableCustomMode Boolean @default(false)
 
-  submissions    Submission[]
-  aiChatSessions AiChatSession[]
-  activityFeedback ActivityFeedback[]
-  activityAnalytics ActivityAnalytics?
+  submissions            Submission[]
+  aiChatSessions         AiChatSession[]
+  activityFeedback       ActivityFeedback[]
+  activityAnalytics      ActivityAnalytics?
   activityStudentMetrics ActivityStudentMetric[]
-  aiInteractionTraces AiInteractionTrace[]
+  aiInteractionTraces    AiInteractionTrace[]
 }
 
 model Submission {
-  id            Int      @id @default(autoincrement())
-  attemptNumber Int      @default(1)
-  response      Json?
-  aiFeedback    Json?
-  score         Float?
-  isCorrect     Boolean?
-  createdAt     DateTime @default(now())
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId        Int
-  activity      Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
-  activityId    Int
+  id               Int                @id @default(autoincrement())
+  attemptNumber    Int                @default(1)
+  response         Json?
+  aiFeedback       Json?
+  score            Float?
+  isCorrect        Boolean?
+  createdAt        DateTime           @default(now())
+  user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId           Int
+  activity         Activity           @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  activityId       Int
   activityFeedback ActivityFeedback[]
 }
 
@@ -211,57 +212,57 @@ model SystemSetting {
 }
 
 model ActivityFeedback {
-  id         Int      @id @default(autoincrement())
-  rating     Int
-  note       String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId     Int
-  activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
-  activityId Int
-  submission Submission? @relation(fields: [submissionId], references: [id], onDelete: SetNull)
+  id           Int         @id @default(autoincrement())
+  rating       Int
+  note         String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       Int
+  activity     Activity    @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  activityId   Int
+  submission   Submission? @relation(fields: [submissionId], references: [id], onDelete: SetNull)
   submissionId Int?
 
   @@unique([userId, activityId])
 }
 
 model ActivityStudentMetric {
-  id                      Int      @id @default(autoincrement())
-  helpRequestCount        Int      @default(0)
-  submissionCount         Int      @default(0)
-  incorrectSubmissionCount Int     @default(0)
-  correctSubmissionCount  Int      @default(0)
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
-  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId                  Int
-  activity                Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
-  activityId              Int
+  id                       Int      @id @default(autoincrement())
+  helpRequestCount         Int      @default(0)
+  submissionCount          Int      @default(0)
+  incorrectSubmissionCount Int      @default(0)
+  correctSubmissionCount   Int      @default(0)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+  user                     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId                   Int
+  activity                 Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  activityId               Int
 
   @@unique([userId, activityId])
 }
 
 model ActivityAnalytics {
-  id                      Int      @id @default(autoincrement())
-  helpRequestCount        Int      @default(0)
-  submissionCount         Int      @default(0)
-  incorrectSubmissionCount Int     @default(0)
-  correctSubmissionCount  Int      @default(0)
-  studentCount            Int      @default(0)
-  feedbackCount           Int      @default(0)
-  averageRating           Float?
-  difficultyScore         Int      @default(0)
-  difficultyLabel         String   @default("LOW")
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
-  activity                Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
-  activityId              Int      @unique
+  id                       Int      @id @default(autoincrement())
+  helpRequestCount         Int      @default(0)
+  submissionCount          Int      @default(0)
+  incorrectSubmissionCount Int      @default(0)
+  correctSubmissionCount   Int      @default(0)
+  studentCount             Int      @default(0)
+  feedbackCount            Int      @default(0)
+  averageRating            Float?
+  difficultyScore          Int      @default(0)
+  difficultyLabel          String   @default("LOW")
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+  activity                 Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  activityId               Int      @unique
 }
 
 model SuggestedPrompt {
   id        Int      @id @default(autoincrement())
-  mode      String   // 'teach' or 'guide'
+  mode      String // 'teach' or 'guide'
   text      String
   position  Int      @default(0)
   isActive  Boolean  @default(true)
@@ -270,40 +271,40 @@ model SuggestedPrompt {
 }
 
 model AiChatSession {
-  id         Int      @id @default(autoincrement())
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId     Int
-  activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
-  activityId Int
-  mode       String
-  chatId     String
-  modelId    String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id                  Int                  @id @default(autoincrement())
+  user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId              Int
+  activity            Activity             @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  activityId          Int
+  mode                String
+  chatId              String
+  modelId             String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
   aiInteractionTraces AiInteractionTrace[]
 
   @@unique([userId, activityId, mode])
 }
 
 model AiInteractionTrace {
-  id                 Int      @id @default(autoincrement())
-  mode               String
-  knowledgeLevel     String?
-  chatId             String?
-  tutorModelId       String?
-  supervisorModelId  String?
-  userMessage        String
-  finalResponse      String
-  finalOutcome       String
-  iterationCount     Int      @default(0)
-  trace              Json
-  createdAt          DateTime @default(now())
-  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId             Int
-  activity           Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
-  activityId         Int
-  aiChatSession      AiChatSession? @relation(fields: [aiChatSessionId], references: [id], onDelete: SetNull)
-  aiChatSessionId    Int?
+  id                Int            @id @default(autoincrement())
+  mode              String
+  knowledgeLevel    String?
+  chatId            String?
+  tutorModelId      String?
+  supervisorModelId String?
+  userMessage       String
+  finalResponse     String
+  finalOutcome      String
+  iterationCount    Int            @default(0)
+  trace             Json
+  createdAt         DateTime       @default(now())
+  user              User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId            Int
+  activity          Activity       @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  activityId        Int
+  aiChatSession     AiChatSession? @relation(fields: [aiChatSessionId], references: [id], onDelete: SetNull)
+  aiChatSessionId   Int?
 }
 
 // Better Auth tables (minimal)

@@ -44,33 +44,6 @@ async function http(path: string, init?: RequestInit) {
 
 export const api = {
   me: () => http("/api/me") as Promise<{ user: User | null }>,
-  login: async (email: string, password: string) => {
-    const res = await fetch(`${API_BASE}/api/auth/sign-in/email`, {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    });
-    if (!res.ok) {
-      const msg = await res.text();
-      throw new Error(msg || "Invalid credentials");
-    }
-    // After sign-in, load the current user via our stable endpoint
-    return http("/api/me");
-  },
-  signUp: async (payload: { name: string; email: string; password: string }) => {
-    const res = await fetch(`${API_BASE}/api/auth/sign-up/email`, {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) {
-      const msg = await res.text();
-      throw new Error(msg || "Could not create account");
-    }
-    return http("/api/me");
-  },
   listCourses: () => http("/api/courses"),
   listEduAiCourses: () => http("/api/eduai/courses") as Promise<EduAiCourse[]>,
   courseById: (courseId: number) => http(`/api/courses/${courseId}`),
@@ -329,11 +302,6 @@ export const api = {
     return (result?.policy ?? result) as AdminAiModelPolicy;
   },
   listAdminUsers: () => http("/api/admin/users") as Promise<AdminUser[]>,
-  promoteUserRole: (userId: number, role: "INSTRUCTOR" | "ADMIN") =>
-    http(`/api/admin/users/${userId}/role`, {
-      method: "PATCH",
-      body: JSON.stringify({ role }),
-    }) as Promise<AdminUser>,
   listAdminCourses: () => http("/api/admin/courses") as Promise<Course[]>,
   getAdminCourseEnrollments: (courseId: number) =>
     http(`/api/admin/courses/${courseId}/enrollments`) as Promise<AdminEnrollmentData>,

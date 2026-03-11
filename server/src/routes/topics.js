@@ -55,7 +55,7 @@ router.get('/courses/:courseId/topics', async (req, res) => {
   }
 });
 
-router.post('/courses/:courseId/topics', requireRole('INSTRUCTOR'), async (req, res) => {
+router.post('/courses/:courseId/topics', requireRole('PROFESSOR'), async (req, res) => {
   const instructor = req.user;
   const courseId = Number(req.params.courseId);
   if (!Number.isFinite(courseId)) {
@@ -102,7 +102,7 @@ router.post('/courses/:courseId/topics', requireRole('INSTRUCTOR'), async (req, 
 export default router;
 
 // Sync topics from EduAI for an imported course (instructor only)
-router.post('/courses/:courseId/topics/sync', requireRole('INSTRUCTOR'), async (req, res) => {
+router.post('/courses/:courseId/topics/sync', requireRole('PROFESSOR'), async (req, res) => {
   const instructor = req.user;
   const courseId = Number(req.params.courseId);
   if (!Number.isFinite(courseId)) {
@@ -148,7 +148,7 @@ router.post('/courses/:courseId/topics/sync', requireRole('INSTRUCTOR'), async (
 });
 
 // Remap activities from one topic to another and remove the old topic
-router.post('/courses/:courseId/topics/remap', requireRole('INSTRUCTOR'), async (req, res) => {
+router.post('/courses/:courseId/topics/remap', requireRole('PROFESSOR'), async (req, res) => {
   const instructor = req.user;
   const courseId = Number(req.params.courseId);
   if (!Number.isFinite(courseId)) {

@@ -1,7 +1,6 @@
 import { auth } from '../auth.js';
 import { fromNodeHeaders } from 'better-auth/node';
 import { prisma } from '../config/database.js';
-import { isBootstrapAdminEmail } from '../config/bootstrapAdmins.js';
 
 // Attach session user from Better Auth to req.user for downstream handlers
 export async function attachSession(req, res, next) {
@@ -14,14 +13,7 @@ export async function attachSession(req, res, next) {
       const dbUser = await prisma.user.findUnique({
         where: { id },
       });
-      if (dbUser && dbUser.role !== 'ADMIN' && isBootstrapAdminEmail(dbUser.email)) {
-        req.user = await prisma.user.update({
-          where: { id: dbUser.id },
-          data: { role: 'ADMIN' },
-        });
-      } else {
-        req.user = dbUser ?? null;
-      }
+      req.user = dbUser ?? null;
     } else {
       req.user = null;
     }

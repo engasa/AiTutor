@@ -45,7 +45,7 @@ router.get('/courses/:courseId/modules', async (req, res) => {
   }
 });
 
-router.post('/courses/:courseId/modules', requireRole('INSTRUCTOR'), async (req, res) => {
+router.post('/courses/:courseId/modules', requireRole('PROFESSOR'), async (req, res) => {
   const courseId = Number(req.params.courseId);
   if (!Number.isFinite(courseId)) {
     return res.status(400).json({ error: 'Invalid course id' });
@@ -88,7 +88,7 @@ router.get('/modules/:moduleId', async (req, res) => {
 });
 
 // Publish a module (requires parent course to be published)
-router.patch('/modules/:moduleId/publish', requireRole('INSTRUCTOR'), async (req, res) => {
+router.patch('/modules/:moduleId/publish', requireRole('PROFESSOR'), async (req, res) => {
   const instructor = req.user;
   const moduleId = Number(req.params.moduleId);
   if (!Number.isFinite(moduleId)) {
@@ -131,7 +131,7 @@ router.patch('/modules/:moduleId/publish', requireRole('INSTRUCTOR'), async (req
 });
 
 // Unpublish a module (cascades to all lessons)
-router.patch('/modules/:moduleId/unpublish', requireRole('INSTRUCTOR'), async (req, res) => {
+router.patch('/modules/:moduleId/unpublish', requireRole('PROFESSOR'), async (req, res) => {
   const instructor = req.user;
   const moduleId = Number(req.params.moduleId);
   if (!Number.isFinite(moduleId)) {

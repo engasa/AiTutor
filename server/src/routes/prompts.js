@@ -4,7 +4,7 @@ import { requireRole } from '../middleware/auth.js';
 
 const router = express.Router();
 
-router.get('/prompts', requireRole('INSTRUCTOR'), async (req, res) => {
+router.get('/prompts', requireRole('PROFESSOR'), async (req, res) => {
   try {
     const prompts = await prisma.promptTemplate.findMany({
       orderBy: { updatedAt: 'desc' },
@@ -15,7 +15,7 @@ router.get('/prompts', requireRole('INSTRUCTOR'), async (req, res) => {
   }
 });
 
-router.post('/prompts', requireRole('INSTRUCTOR'), async (req, res) => {
+router.post('/prompts', requireRole('PROFESSOR'), async (req, res) => {
   const {
     name,
     systemPrompt,

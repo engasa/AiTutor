@@ -17,7 +17,7 @@ import type { Route } from './+types/instructor.topic';
 import { requireClientUser } from '~/lib/client-auth';
 
 export async function clientLoader({ params }: Route.ClientLoaderArgs) {
-  await requireClientUser('INSTRUCTOR');
+  await requireClientUser('PROFESSOR');
   const moduleId = Number(params.moduleId);
   if (!Number.isFinite(moduleId)) {
     throw new Response('Invalid module id', { status: 400 });
