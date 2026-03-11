@@ -1,6 +1,9 @@
 .DS_Store
 /node_modules/
+/.env
+/.env.local
 server/.env
+server/.env.local
 .codex/
 # React Router
 /.react-router/
