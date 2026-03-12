@@ -6,6 +6,7 @@ export type AuthUser = Pick<User, "id" | "name" | "role">;
 
 type AuthContextValue = {
   user: AuthUser | null;
+  isInitializing: boolean;
   saveAuth: (userData: AuthUser) => void;
   logout: () => Promise<void>;
   setUser: (user: AuthUser | null) => void;
@@ -20,16 +21,20 @@ type AuthProviderProps = {
 
 export function AuthProvider({ initialUser, children }: AuthProviderProps) {
   const [user, setUser] = useState<AuthUser | null>(initialUser);
-  const [bootstrapped, setBootstrapped] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(!initialUser);
 
   useEffect(() => {
-    if (bootstrapped) return;
-    setBootstrapped(true);
-    if (initialUser) return;
+    if (initialUser) {
+      setIsInitializing(false);
+      return;
+    }
+
+    let cancelled = false;
 
     api
       .me()
       .then((data) => {
+        if (cancelled) return;
         const nextUser = data?.user ?? null;
         if (nextUser) {
           setUser({ id: nextUser.id, name: nextUser.name, role: nextUser.role });
@@ -38,9 +43,18 @@ export function AuthProvider({ initialUser, children }: AuthProviderProps) {
         }
       })
       .catch(() => {
+        if (cancelled) return;
         setUser(null);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setIsInitializing(false);
       });
-  }, [bootstrapped, initialUser]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [initialUser]);
 
   const saveAuth = (userData: AuthUser) => {
     setUser(userData);
@@ -58,11 +72,12 @@ export function AuthProvider({ initialUser, children }: AuthProviderProps) {
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
+      isInitializing,
       saveAuth,
       logout,
       setUser,
     }),
-    [user],
+    [isInitializing, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
