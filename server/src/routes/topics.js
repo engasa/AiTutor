@@ -1,6 +1,7 @@
 import express from 'express';
 import { prisma } from '../config/database.js';
 import { requireRole } from '../middleware/auth.js';
+import { getEduAiAccessTokenForUser } from '../services/eduaiAuth.js';
 import { syncExternalCourseTopics } from '../services/topicSync.js';
 
 const router = express.Router();
@@ -128,7 +129,10 @@ router.post('/courses/:courseId/topics/sync', requireRole('PROFESSOR'), async (r
 
     let upstreamNames = [];
     try {
-      const { topics: synced, upstreamNames: upstream } = await syncExternalCourseTopics(courseId);
+      const eduAiAccessToken = await getEduAiAccessTokenForUser(instructor.id);
+      const { topics: synced, upstreamNames: upstream } = await syncExternalCourseTopics(courseId, {
+        accessToken: eduAiAccessToken,
+      });
       upstreamNames = upstream || [];
     } catch (e) {
       const status = Number.isInteger(e?.status) ? e.status : 502;

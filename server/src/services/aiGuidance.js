@@ -1,7 +1,6 @@
 import { randomUUID } from 'crypto';
 import { prisma } from '../config/database.js';
 import { getEduAiChatUrl } from './eduaiClient.js';
-import { getEffectiveEduAiApiKey } from './systemSettings.js';
 
 const SUPERVISOR_ERROR_MESSAGE = 'AI study buddy encountered an issue reviewing the response. Please try again.';
 const FALLBACK_MESSAGE =
@@ -11,24 +10,27 @@ async function callEduAI({
   systemPrompt,
   userMessage,
   modelId = null,
+  eduAiAccessToken,
   userApiKey,
   chatId = null,
   messageId = null,
-  proxyUser = null,
   courseCode = null,
 }) {
-  const apiKey = await getEffectiveEduAiApiKey();
   const endpoint = getEduAiChatUrl();
   const model = modelId || process.env.EDUAI_MODEL || 'google:gemini-2.5-flash';
 
-  if (!apiKey) {
-    console.error('[aiGuidance] Missing EDUAI_API_KEY in environment variables');
-    throw new Error('AI API configuration missing');
+  if (!eduAiAccessToken) {
+    console.error('[aiGuidance] Missing EduAI OAuth access token');
+    const error = new Error('EduAI OAuth access token is required');
+    error.status = 401;
+    throw error;
   }
 
   if (!userApiKey) {
     console.error('[aiGuidance] Missing user API key');
-    throw new Error('API key is required');
+    const error = new Error('API key is required');
+    error.status = 400;
+    throw error;
   }
 
   const [provider] = model.split(':');
@@ -52,7 +54,6 @@ async function callEduAI({
     apiKeys,
     streaming: false,
     ...(chatId ? { chatId } : {}),
-    ...(proxyUser ? { proxyUser } : {}),
     ...(courseCode ? { courseCode } : {}),
   };
 
@@ -61,7 +62,7 @@ async function callEduAI({
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': apiKey,
+        Authorization: `Bearer ${eduAiAccessToken}`,
       },
       body: JSON.stringify(requestBody),
     });
@@ -69,7 +70,9 @@ async function callEduAI({
     if (!response.ok) {
       const errorText = await response.text();
       console.error('[aiGuidance] API error:', response.status, errorText);
-      throw new Error(`AI API returned status ${response.status}`);
+      const error = new Error(`AI API returned status ${response.status}`);
+      error.status = response.status;
+      throw error;
     }
 
     const data = await response.json();
@@ -120,6 +123,7 @@ async function callSupervisor({
   hiddenContext,
   tutorResponse,
   supervisorModelId,
+  eduAiAccessToken,
   userApiKey,
 }) {
   const template = await getPromptTemplateBySlug('supervisor-prompt');
@@ -153,6 +157,7 @@ RESPOND WITH ONLY VALID JSON.`;
       systemPrompt: template.systemPrompt,
       userMessage: buildUserMessage(parseErrorDetails),
       modelId: supervisorModelId,
+      eduAiAccessToken,
       userApiKey,
     });
 
@@ -339,6 +344,7 @@ async function supervisedGenerate(generateFn, context) {
         hiddenContext: context.hiddenContext,
         tutorResponse: tutorResult.message,
         supervisorModelId: context.supervisorModelId,
+        eduAiAccessToken: context.eduAiAccessToken,
         userApiKey: context.userApiKey,
       });
 
@@ -388,10 +394,10 @@ async function generateWithSupervisor({
   supervisorModelId,
   dualLoopEnabled,
   maxSupervisorIterations,
+  eduAiAccessToken,
   apiKey,
   chatId,
   messageId,
-  proxyUser,
   courseCode,
 }) {
   const context = {
@@ -400,6 +406,7 @@ async function generateWithSupervisor({
     hiddenContext,
     tutorModelId,
     supervisorModelId,
+    eduAiAccessToken,
     userApiKey: apiKey,
     chatId,
     dualLoopEnabled,
@@ -418,10 +425,10 @@ async function generateWithSupervisor({
       systemPrompt,
       userMessage,
       modelId: tutorModelId,
+      eduAiAccessToken,
       userApiKey: apiKey,
       chatId: currentChatId,
       messageId: isRevision ? randomUUID() : messageId,
-      proxyUser,
       courseCode,
     });
   };
@@ -438,10 +445,10 @@ export async function generateTeachResponse({
   supervisorModelId = null,
   dualLoopEnabled = true,
   maxSupervisorIterations = 3,
+  eduAiAccessToken,
   apiKey,
   chatId = null,
   messageId = null,
-  proxyUser = null,
   courseCode = null,
 }) {
   try {
@@ -471,10 +478,10 @@ export async function generateTeachResponse({
       supervisorModelId,
       dualLoopEnabled,
       maxSupervisorIterations,
+      eduAiAccessToken,
       apiKey,
       chatId,
       messageId,
-      proxyUser,
       courseCode,
     });
   } catch (error) {
@@ -504,10 +511,10 @@ export async function generateGuideResponse({
   supervisorModelId = null,
   dualLoopEnabled = true,
   maxSupervisorIterations = 3,
+  eduAiAccessToken,
   apiKey,
   chatId = null,
   messageId = null,
-  proxyUser = null,
   courseCode = null,
 }) {
   try {
@@ -536,10 +543,10 @@ export async function generateGuideResponse({
       supervisorModelId,
       dualLoopEnabled,
       maxSupervisorIterations,
+      eduAiAccessToken,
       apiKey,
       chatId,
       messageId,
-      proxyUser,
       courseCode,
     });
   } catch (error) {
@@ -570,10 +577,10 @@ export async function generateCustomResponse({
   supervisorModelId = null,
   dualLoopEnabled = true,
   maxSupervisorIterations = 3,
+  eduAiAccessToken,
   apiKey,
   chatId = null,
   messageId = null,
-  proxyUser = null,
   courseCode = null,
 }) {
   try {
@@ -602,10 +609,10 @@ export async function generateCustomResponse({
       supervisorModelId,
       dualLoopEnabled,
       maxSupervisorIterations,
+      eduAiAccessToken,
       apiKey,
       chatId,
       messageId,
-      proxyUser,
       courseCode,
     });
   } catch (error) {

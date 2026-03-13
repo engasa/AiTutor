@@ -20,6 +20,7 @@ import {
   generateGuideResponse,
   generateTeachResponse,
 } from '../services/aiGuidance.js';
+import { getEduAiAccessTokenForUser } from '../services/eduaiAuth.js';
 import {
   ActivityFeedbackRequestSchema,
   CustomRequestSchema,
@@ -50,14 +51,6 @@ function getCourseCode(course) {
       course.externalMetadata.code) ||
     (typeof course.externalId === 'string' ? course.externalId : null)
   );
-}
-
-function getProxyUser(authUser) {
-  return {
-    provider: 'aitutor',
-    id: String(authUser.id),
-    email: authUser.email,
-  };
 }
 
 function getActivityAccess(course, authUser) {
@@ -228,6 +221,7 @@ async function handleAiInteraction({
     const { dualLoopEnabled, maxSupervisorIterations, supervisorModelId } =
       await resolveSupervisorSettings();
     const tutorModelId = await resolveTutorModelSelection(payload.modelId);
+    const eduAiAccessToken = await getEduAiAccessTokenForUser(authUser.id);
     const chatId = payload.chatId || existingSession?.chatId || null;
     const messageId = payload.messageId || randomUUID();
 
@@ -236,9 +230,9 @@ async function handleAiInteraction({
       supervisorModelId,
       dualLoopEnabled,
       maxSupervisorIterations,
+      eduAiAccessToken,
       chatId,
       messageId,
-      proxyUser: getProxyUser(authUser),
       courseCode: getCourseCode(course),
     });
 

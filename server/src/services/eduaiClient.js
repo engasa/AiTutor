@@ -1,5 +1,4 @@
 import { EduAiCourseListSchema, EduAiTopicListSchema } from '../schemas/eduai.js';
-import { getEffectiveEduAiApiKey } from './systemSettings.js';
 const DEFAULT_BASE_URL = 'http://localhost:5174/api';
 
 function normalizeBaseUrl(rawUrl) {
@@ -16,10 +15,14 @@ export function getEduAiChatUrl() {
 }
 
 async function requestEduAi(path, options = {}) {
-  const useApiKey = options.useApiKey !== false;
-  const apiKey = useApiKey ? await getEffectiveEduAiApiKey() : null;
-  if (useApiKey && !apiKey) {
-    throw new Error('EDUAI_API_KEY is not configured');
+  const accessToken =
+    typeof options.accessToken === 'string' ? options.accessToken.trim() : null;
+  const requireAuth = options.requireAuth === true;
+
+  if (requireAuth && !accessToken) {
+    const err = new Error('EduAI access token is required');
+    err.status = 401;
+    throw err;
   }
 
   const url = `${getEduAiBaseUrl()}${path}`;
@@ -27,7 +30,7 @@ async function requestEduAi(path, options = {}) {
     method: options.method ?? 'GET',
     headers: {
       'Content-Type': 'application/json',
-      ...(apiKey ? { 'x-api-key': apiKey } : {}),
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       ...(options.headers ?? {}),
     },
     body: options.body ? JSON.stringify(options.body) : undefined,
@@ -48,8 +51,11 @@ async function requestEduAi(path, options = {}) {
   return response.json();
 }
 
-export async function listEduAiCourses() {
-  const data = await requestEduAi('/courses');
+export async function listEduAiCourses(accessToken) {
+  const data = await requestEduAi('/courses', {
+    accessToken,
+    requireAuth: true,
+  });
   try {
     const parsed = EduAiCourseListSchema.parse(data);
     return parsed.courses;
@@ -61,16 +67,19 @@ export async function listEduAiCourses() {
   }
 }
 
-export async function findEduAiCourseById(courseId) {
+export async function findEduAiCourseById(courseId, accessToken) {
   if (!courseId) return null;
-  const courses = await listEduAiCourses();
+  const courses = await listEduAiCourses(accessToken);
   return courses.find((course) => course.id === courseId) ?? null;
 }
 
 // Fetch topics for a specific EduAI course by external id
-export async function listEduAiCourseTopics(externalCourseId) {
+export async function listEduAiCourseTopics(externalCourseId, accessToken) {
   if (!externalCourseId) return [];
-  const data = await requestEduAi(`/courses/${externalCourseId}/topics`);
+  const data = await requestEduAi(`/courses/${externalCourseId}/topics`, {
+    accessToken,
+    requireAuth: true,
+  });
   try {
     const parsed = EduAiTopicListSchema.parse(data);
     return parsed.topics;
@@ -83,7 +92,7 @@ export async function listEduAiCourseTopics(externalCourseId) {
 }
 
 export async function listEduAiModels() {
-  const data = await requestEduAi('/ai-models', { useApiKey: false });
+  const data = await requestEduAi('/ai-models');
   if (!Array.isArray(data)) {
     throw new Error('Invalid response from EduAI models endpoint');
   }

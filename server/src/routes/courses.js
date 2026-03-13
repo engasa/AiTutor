@@ -5,6 +5,7 @@ import { mapCourseOffering, mapProgressData } from '../utils/mappers.js';
 import { cloneCourseContent, cloneLessonsFromOffering } from '../services/courseCloning.js';
 import { calculateCourseProgress } from '../services/progressCalculation.js';
 import { findEduAiCourseById, listEduAiCourses } from '../services/eduaiClient.js';
+import { getEduAiAccessTokenForUser } from '../services/eduaiAuth.js';
 import { syncExternalCourseTopics } from '../services/topicSync.js';
 
 const router = express.Router();
@@ -15,8 +16,10 @@ function isSupportedCourseRole(role) {
 
 router.get('/eduai/courses', requireRole('PROFESSOR'), async (req, res) => {
   try {
+    const eduAiAccessToken = await getEduAiAccessTokenForUser(req.user?.id);
+
     // Fetch available courses from EduAI
-    const courses = await listEduAiCourses();
+    const courses = await listEduAiCourses(eduAiAccessToken);
 
     // Exclude any EduAI course already imported by this instructor
     // We identify imported ones via CourseOffering.externalId (source id) scoped to the instructor
@@ -95,7 +98,8 @@ router.post('/courses/import-external', requireRole('PROFESSOR'), async (req, re
   }
 
   try {
-    const externalCourse = await findEduAiCourseById(externalCourseId);
+    const eduAiAccessToken = await getEduAiAccessTokenForUser(instructor.id);
+    const externalCourse = await findEduAiCourseById(externalCourseId, eduAiAccessToken);
     if (!externalCourse) {
       return res.status(404).json({ error: 'EduAI course not found' });
     }
@@ -151,7 +155,7 @@ router.post('/courses/import-external', requireRole('PROFESSOR'), async (req, re
 
     // After creation, sync topics from EduAI into local DB
     try {
-      await syncExternalCourseTopics(created.id);
+      await syncExternalCourseTopics(created.id, { accessToken: eduAiAccessToken });
     } catch (e) {
       console.error('[eduai] Failed to sync topics for imported course', e);
       // Do not fail the import due to topic sync issues

@@ -7,7 +7,7 @@ import { listEduAiCourseTopics } from './eduaiClient.js';
  * - Returns the up-to-date list of local topics for the course.
  * @param {number} courseOfferingId
  */
-export async function syncExternalCourseTopics(courseOfferingId) {
+export async function syncExternalCourseTopics(courseOfferingId, options = {}) {
   if (!Number.isFinite(courseOfferingId)) return [];
 
   const course = await prisma.courseOffering.findUnique({ where: { id: courseOfferingId } });
@@ -22,7 +22,10 @@ export async function syncExternalCourseTopics(courseOfferingId) {
   }
 
   // Fetch topics from EduAI
-  const externalTopics = await listEduAiCourseTopics(course.externalId);
+  const externalTopics = await listEduAiCourseTopics(
+    course.externalId,
+    options.accessToken,
+  );
   const upstreamNames = Array.from(
     new Set(
       externalTopics
