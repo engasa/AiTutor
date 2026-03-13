@@ -4,12 +4,20 @@ export function evaluateQuestion(activity, payload) {
   let isCorrect = null;
 
   if (questionType === 'MCQ') {
-    const expected = config.answer?.correctIndex;
+    const expected =
+      typeof config.answer === 'number'
+        ? config.answer
+        : config.answer?.correctIndex;
     if (typeof expected === 'number' && typeof payload.answerOption === 'number') {
       isCorrect = expected === payload.answerOption;
     }
   } else if (questionType === 'SHORT_TEXT') {
-    const expected = config.answer?.text ? String(config.answer.text) : '';
+    const expected =
+      typeof config.answer === 'string'
+        ? config.answer
+        : config.answer?.text
+          ? String(config.answer.text)
+          : '';
     if (typeof payload.answerText === 'string') { 
       isCorrect =
         expected &&
