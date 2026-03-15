@@ -6,7 +6,8 @@
     "build": "react-router build",
     "dev": "react-router dev",
     "start": "vite preview --outDir build/client",
-    "typecheck": "react-router typegen && tsc"
+    "typecheck": "react-router typegen && tsc",
+    "e2e:oauth-matrix": "bash ./scripts/e2e/oauth-matrix.sh"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.10",
