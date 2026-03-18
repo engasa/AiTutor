@@ -14,7 +14,7 @@ import {
   BreadcrumbSeparator,
 } from '../components/ui/breadcrumb';
 import api from '../lib/api';
-import type { Activity, Course, Lesson, ModuleDetail } from '../lib/types';
+import type { Activity, Course, Lesson, ModuleDetail, Topic } from '../lib/types';
 import { CourseTopicsProvider, useCourseTopics } from '../hooks/useCourseTopics';
 import type { Route } from './+types/instructor.list';
 import { requireClientUser } from '~/lib/client-auth';
@@ -434,7 +434,9 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
         activity.id === activityId
           ? {
               ...activity,
-              secondaryTopics: nextSecondary.toSorted((a, b) => a.name.localeCompare(b.name)),
+              secondaryTopics: nextSecondary.toSorted((a: Topic, b: Topic) =>
+                a.name.localeCompare(b.name),
+              ),
             }
           : activity,
       ),
