@@ -55,6 +55,14 @@ cd server && npm run dev                      # Start API server (http://localho
 npm run typecheck                             # Type check both frontend and backend
 ```
 
+**Testing:**
+```bash
+cd server && npm test                         # Run all tests (unit + integration)
+cd server && npm run test:unit                # Run unit tests only (no DB needed)
+cd server && npm run test:integration         # Run integration tests only (requires PostgreSQL)
+cd server && npm run test:watch               # Watch mode for development
+```
+
 **Production:**
 ```bash
 npm run build                                  # Build for production
@@ -259,35 +267,50 @@ RESTful API with JWT-based authentication and role-based protection:
 - JWT tokens expire after 24 hours
 - All API endpoints except `/api/health` and `/api/login` require authentication
 
-## Testing Strategy
+## Testing
 
-No test framework is currently configured. When adding tests:
-- Frontend: Use Vitest + React Testing Library under `app/__tests__/`
-- Backend: Use Vitest/Jest + Supertest under `server/test/`
-- Focus testing on route loaders, API endpoints, and critical user flows
-- **Modular Architecture Benefits**: Each service and utility can be tested independently
-- Test business logic in `services/` separately from HTTP handling in `routes/`
-- Mock database connections using `config/database.js` for unit tests
+**Framework:** Vitest + Supertest (173 tests across 12 files)
 
-**Authentication Testing Priorities:**
-- JWT token generation and validation
-- Password hashing and verification with bcrypt
-- Protected route access control (401/403 responses)
-- Role-based authorization (STUDENT vs INSTRUCTOR)
-- Token expiration and automatic logout
-- SSR compatibility for authentication hooks
+**Test Structure:**
+```
+server/test/
+  setup.js                        # Loads .env.test, enforces connection_limit=1
+  globalSetup.js                  # Creates test DB + runs migrations (once)
+  helpers.js                      # Factories (makeProfessor/Student/Admin), truncateAll, seedMinimalCourse
+  unit/
+    mappers.test.js               # 47 tests — all 7 mapper functions
+    activityEvaluation.test.js    # 12 tests — MCQ + SHORT_TEXT evaluation
+    activityAnalytics.test.js     # 8 tests  — difficulty scoring formula
+    aiModelPolicy.test.js         # 31 tests — policy normalization + resolution
+  integration/
+    smoke.test.js                 # 1 test   — health check
+    topics.test.js                # 12 tests — CRUD + remap + authorization
+    activities.test.js            # 20 tests — CRUD + answers + feedback + AI modes
+    courses.test.js               # 12 tests — CRUD + publish/unpublish cascade
+    modules.test.js               # 8 tests  — CRUD + publish gating + cascade
+    lessons.test.js               # 8 tests  — CRUD + 2-level publish gating
+    admin.test.js                 # 10 tests — users/courses/enrollment/settings
+    auth.test.js                  # 4 tests  — /me + admin isolation
+```
 
-**Business Logic Testing Priorities:**
-- Course cloning functionality in `services/courseCloning.js` with topic mapping
-- Activity evaluation logic in `services/activityEvaluation.js`
-- Data mapping and sanitization in `utils/mappers.js`
-- **Topic Classification System**:
-  - Topic creation with course-scoped uniqueness constraints
-  - Activity-topic assignment validation (main + secondary)
-  - Cross-course topic isolation and access control
-  - Junction table operations for secondary topic relationships
-- **Complex Activity Creation**: Required main topic + optional secondary topics
-- **Content Import Logic**: Automatic topic mapping during cross-course imports
+**Architecture:**
+- `server/src/app.js` exports `createApp({ mockUser })` — tests inject a mock user to bypass Better Auth entirely
+- Unit tests import pure functions directly — no DB, no mocking
+- Integration tests use Supertest against the Express app with real PostgreSQL
+- `truncateAll()` cleans the DB between tests using Prisma's `deleteMany` in FK-safe order
+- `seedMinimalCourse(professorId)` creates a minimal course hierarchy (user + course + instructor + module + lesson + topic)
+- `.env.test` points to `aitutor_test` database; `setup.js` enforces `connection_limit=1` to prevent Prisma pool races
+
+**Writing New Tests:**
+- Unit tests: import the function, test it. No setup needed.
+- Integration tests: use `beforeEach(async () => { await truncateAll(); ... })` to reset state
+- Use `makeProfessor()` / `makeStudent()` / `makeAdmin()` for mock user objects
+- Create the app with `await createApp({ mockUser: prof })` — this injects `req.user` on every request
+- For student access, create the user in DB AND enroll them via `prisma.courseEnrollment.create()`
+
+**Prerequisites:**
+- Docker PostgreSQL running on port 54321 (`docker compose up -d db`)
+- The test DB is created automatically by `globalSetup.js` on first run
 
 ## Authentication System
 
