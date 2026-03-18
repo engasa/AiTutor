@@ -80,7 +80,6 @@ export const auth = betterAuth({
           clientSecret: eduAiClientSecret,
           discoveryUrl: eduAiDiscoveryUrl,
           scopes: ["openid", "profile", "email", "offline_access"],
-          prompt: "consent",
           pkce: true,
           requireIssuerValidation: true,
           overrideUserInfo: true,
