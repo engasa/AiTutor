@@ -632,3 +632,15 @@ export async function generateCustomResponse({
     };
   }
 }
+
+// Exposed for unit testing only — not part of the public API.
+export const _testExports = {
+  stripMarkdownFence,
+  normalizeSupervisorVerdict,
+  buildSystemPrompt,
+  buildTeachUserMessage,
+  buildGuideUserMessage,
+  formatAnswerKey,
+  buildTeachSupervisorContexts,
+  buildGuideSupervisorContexts,
+};
