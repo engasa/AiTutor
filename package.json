@@ -15,7 +15,9 @@
     "lint": "oxlint app/ shared/ server/src/ server/test/",
     "lint:fix": "oxlint --fix app/ shared/ server/src/ server/test/",
     "format": "oxfmt app/ shared/ server/src/ server/test/",
-    "format:check": "oxfmt --check app/ shared/ server/src/ server/test/"
+    "format:check": "oxfmt --check app/ shared/ server/src/ server/test/",
+    "knip": "knip",
+    "typecheck:fast": "react-router typegen && tsgo"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.10",
@@ -55,9 +57,11 @@
     "@types/node": "^20",
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.1.2",
+    "@typescript/native-preview": "^7.0.0-dev.20260318.1",
     "baseline-browser-mapping": "^2.8.29",
     "bun-types": "^1.3.11",
     "jsdom": "^29.0.0",
+    "knip": "^5.88.0",
     "oxfmt": "^0.41.0",
     "oxlint": "^1.56.0",
     "tailwindcss": "^4.1.4",

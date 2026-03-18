@@ -11,7 +11,8 @@ export type CourseTopicsState = {
   createTopic: (name: string) => Promise<Topic>;
 };
 
-const sortTopics = (items: Topic[]) => [...items].toSorted((a, b) => a.name.localeCompare(b.name));
+const sortTopics = (items: Topic[]) =>
+  [...items].toSorted((a: Topic, b: Topic) => a.name.localeCompare(b.name));
 
 export function useCourseTopics(courseOfferingId: number | null): CourseTopicsState {
   const [topics, setTopics] = useState<Topic[]>([]);
