@@ -5,12 +5,14 @@ import { requireRole } from '../middleware/auth.js';
 const router = express.Router();
 
 function createPromptSlug(name) {
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 48) || 'prompt';
+  return (
+    name
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 48) || 'prompt'
+  );
 }
 
 async function resolveUniquePromptSlug(name) {
@@ -49,12 +51,7 @@ router.get('/prompts', requireRole('PROFESSOR'), async (req, res) => {
 });
 
 router.post('/prompts', requireRole('PROFESSOR'), async (req, res) => {
-  const {
-    name,
-    systemPrompt,
-    temperature,
-    topP,
-  } = req.body || {};
+  const { name, systemPrompt, temperature, topP } = req.body || {};
 
   if (!name || !systemPrompt) {
     return res.status(400).json({ error: 'name and systemPrompt are required' });

@@ -1,0 +1,20 @@
+#!/bin/sh
+# Pre-commit hook: lint, format check, and tests before every commit.
+# Skip with: git commit --no-verify
+
+set -e
+
+echo "Checking formatting (oxfmt)..."
+npx oxfmt --check app/ shared/ server/src/ server/test/ 2>&1
+
+echo "Linting (oxlint)..."
+npx oxlint app/ shared/ server/src/ server/test/ --quiet 2>&1
+
+echo "Running backend tests..."
+cd server && npx vitest run --reporter=dot 2>&1
+cd ..
+
+echo "Running frontend tests..."
+npx vitest run --reporter=dot 2>&1
+
+echo "All checks passed."

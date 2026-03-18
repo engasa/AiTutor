@@ -65,7 +65,14 @@ describe('mapAdminUser', () => {
   });
 
   it('does not include password or unknown fields', () => {
-    const result = mapAdminUser({ id: 1, name: 'X', email: 'x', role: 'STUDENT', createdAt: null, password: 'pw' });
+    const result = mapAdminUser({
+      id: 1,
+      name: 'X',
+      email: 'x',
+      role: 'STUDENT',
+      createdAt: null,
+      password: 'pw',
+    });
     expect(result).not.toHaveProperty('password');
   });
 });
@@ -90,7 +97,14 @@ describe('mapCourseOffering', () => {
   });
 
   it('defaults externalId, externalSource, externalMetadata to null when undefined', () => {
-    const offering = { id: 1, title: 't', description: 'd', isPublished: false, startDate: null, endDate: null };
+    const offering = {
+      id: 1,
+      title: 't',
+      description: 'd',
+      isPublished: false,
+      startDate: null,
+      endDate: null,
+    };
     const result = mapCourseOffering(offering);
     expect(result.externalId).toBeNull();
     expect(result.externalSource).toBeNull();
@@ -99,9 +113,15 @@ describe('mapCourseOffering', () => {
 
   it('preserves explicit null external fields', () => {
     const offering = {
-      id: 1, title: 't', description: 'd', isPublished: false,
-      startDate: null, endDate: null,
-      externalId: null, externalSource: null, externalMetadata: null,
+      id: 1,
+      title: 't',
+      description: 'd',
+      isPublished: false,
+      startDate: null,
+      endDate: null,
+      externalId: null,
+      externalSource: null,
+      externalMetadata: null,
     };
     const result = mapCourseOffering(offering);
     expect(result.externalId).toBeNull();
@@ -115,12 +135,27 @@ describe('mapCourseOffering', () => {
 // ---------------------------------------------------------------------------
 describe('mapModule', () => {
   it('maps all 6 fields', () => {
-    const mod = { id: 3, title: 'Mod1', description: 'First', position: 1, isPublished: true, courseOfferingId: 10 };
+    const mod = {
+      id: 3,
+      title: 'Mod1',
+      description: 'First',
+      position: 1,
+      isPublished: true,
+      courseOfferingId: 10,
+    };
     expect(mapModule(mod)).toEqual(mod);
   });
 
   it('drops extra fields from the input', () => {
-    const mod = { id: 1, title: 't', description: 'd', position: 0, isPublished: false, courseOfferingId: 5, extra: 'nope' };
+    const mod = {
+      id: 1,
+      title: 't',
+      description: 'd',
+      position: 0,
+      isPublished: false,
+      courseOfferingId: 5,
+      extra: 'nope',
+    };
     const result = mapModule(mod);
     expect(result).not.toHaveProperty('extra');
     expect(Object.keys(result)).toHaveLength(6);
@@ -132,21 +167,44 @@ describe('mapModule', () => {
 // ---------------------------------------------------------------------------
 describe('mapLesson', () => {
   it('resolves courseOfferingId from nested module', () => {
-    const lesson = { id: 1, title: 'L1', contentMd: 'md', position: 1, isPublished: true, module: { id: 7, courseOfferingId: 99 } };
+    const lesson = {
+      id: 1,
+      title: 'L1',
+      contentMd: 'md',
+      position: 1,
+      isPublished: true,
+      module: { id: 7, courseOfferingId: 99 },
+    };
     const result = mapLesson(lesson);
     expect(result.courseOfferingId).toBe(99);
     expect(result.moduleId).toBe(7);
   });
 
   it('resolves courseOfferingId from flat field when module is absent', () => {
-    const lesson = { id: 2, title: 'L2', contentMd: '', position: 2, isPublished: false, courseOfferingId: 42, moduleId: 8 };
+    const lesson = {
+      id: 2,
+      title: 'L2',
+      contentMd: '',
+      position: 2,
+      isPublished: false,
+      courseOfferingId: 42,
+      moduleId: 8,
+    };
     const result = mapLesson(lesson);
     expect(result.courseOfferingId).toBe(42);
     expect(result.moduleId).toBe(8);
   });
 
   it('prefers nested module.courseOfferingId over flat courseOfferingId', () => {
-    const lesson = { id: 3, title: 'L3', contentMd: '', position: 0, isPublished: true, courseOfferingId: 1, module: { id: 5, courseOfferingId: 2 } };
+    const lesson = {
+      id: 3,
+      title: 'L3',
+      contentMd: '',
+      position: 0,
+      isPublished: true,
+      courseOfferingId: 1,
+      module: { id: 5, courseOfferingId: 2 },
+    };
     expect(mapLesson(lesson).courseOfferingId).toBe(2);
   });
 
@@ -158,7 +216,15 @@ describe('mapLesson', () => {
   });
 
   it('resolves moduleId from flat field over module.id', () => {
-    const lesson = { id: 5, title: 'L5', contentMd: '', position: 0, isPublished: true, moduleId: 11, module: { id: 22, courseOfferingId: 1 } };
+    const lesson = {
+      id: 5,
+      title: 'L5',
+      contentMd: '',
+      position: 0,
+      isPublished: true,
+      moduleId: 11,
+      module: { id: 22, courseOfferingId: 1 },
+    };
     // moduleId ?? module.id => 11 wins
     expect(mapLesson(lesson).moduleId).toBe(11);
   });
@@ -171,7 +237,9 @@ describe('mapActivity', () => {
   // -- question fallback chain --
   describe('question fallback chain', () => {
     it('uses config.question when present', () => {
-      const activity = baseActivity({ config: { question: 'Q?', prompt: 'P?', questionType: 'MCQ' } });
+      const activity = baseActivity({
+        config: { question: 'Q?', prompt: 'P?', questionType: 'MCQ' },
+      });
       expect(mapActivity(activity).question).toBe('Q?');
     });
 
@@ -256,10 +324,7 @@ describe('mapActivity', () => {
 
   it('maps secondaryTopics from relation objects', () => {
     const activity = baseActivity({
-      secondaryTopics: [
-        { topic: { id: 2, name: 'Geometry' } },
-        { topic: { id: 3, name: 'Trig' } },
-      ],
+      secondaryTopics: [{ topic: { id: 2, name: 'Geometry' } }, { topic: { id: 3, name: 'Trig' } }],
     });
     expect(mapActivity(activity).secondaryTopics).toEqual([
       { id: 2, name: 'Geometry' },
@@ -269,11 +334,7 @@ describe('mapActivity', () => {
 
   it('filters out null relation entries in secondaryTopics', () => {
     const activity = baseActivity({
-      secondaryTopics: [
-        { topic: { id: 2, name: 'Geo' } },
-        { topic: null },
-        null,
-      ],
+      secondaryTopics: [{ topic: { id: 2, name: 'Geo' } }, { topic: null }, null],
     });
     const result = mapActivity(activity).secondaryTopics;
     expect(result).toEqual([{ id: 2, name: 'Geo' }]);
@@ -293,7 +354,11 @@ describe('mapActivity', () => {
   });
 
   it('respects explicit feature flag overrides', () => {
-    const activity = baseActivity({ enableTeachMode: false, enableGuideMode: false, enableCustomMode: true });
+    const activity = baseActivity({
+      enableTeachMode: false,
+      enableGuideMode: false,
+      enableCustomMode: true,
+    });
     const result = mapActivity(activity);
     expect(result.enableTeachMode).toBe(false);
     expect(result.enableGuideMode).toBe(false);

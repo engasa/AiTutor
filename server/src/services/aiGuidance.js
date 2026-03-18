@@ -2,7 +2,8 @@ import { randomUUID } from 'crypto';
 import { prisma } from '../config/database.js';
 import { getEduAiChatUrl } from './eduaiClient.js';
 
-const SUPERVISOR_ERROR_MESSAGE = 'AI study buddy encountered an issue reviewing the response. Please try again.';
+const SUPERVISOR_ERROR_MESSAGE =
+  'AI study buddy encountered an issue reviewing the response. Please try again.';
 const FALLBACK_MESSAGE =
   "I'm having trouble formulating a helpful response right now. Please try rephrasing your question, or ask your instructor for guidance.";
 
@@ -98,7 +99,10 @@ async function getPromptTemplateBySlug(slug) {
 function stripMarkdownFence(rawText) {
   let value = rawText.trim();
   if (value.startsWith('```')) {
-    value = value.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+    value = value
+      .replace(/```json?\n?/g, '')
+      .replace(/```/g, '')
+      .trim();
   }
   return value;
 }
@@ -183,7 +187,8 @@ RESPOND WITH ONLY VALID JSON.`;
   return {
     approved: false,
     reason: 'Supervisor response invalid after retry',
-    feedbackToTutor: 'Revise the reply to avoid revealing the answer and stay focused on a single helpful hint.',
+    feedbackToTutor:
+      'Revise the reply to avoid revealing the answer and stay focused on a single helpful hint.',
     safeResponseToStudent:
       'Let’s slow down and focus on one clue at a time. Think about which concept the question is really testing before choosing your next step.',
     parseFailed: true,
@@ -223,8 +228,8 @@ function buildGuideUserMessage(activity, { message, studentAnswer }) {
     const options = Array.isArray(config.options)
       ? config.options
       : config.options && Array.isArray(config.options.choices)
-      ? config.options.choices
-      : [];
+        ? config.options.choices
+        : [];
 
     if (options.length > 0) {
       base += '\n\nOptions:\n';
@@ -256,8 +261,8 @@ function formatAnswerKey(activity, studentAnswer) {
     const options = Array.isArray(config.options)
       ? config.options
       : config.options && Array.isArray(config.options.choices)
-      ? config.options.choices
-      : [];
+        ? config.options.choices
+        : [];
 
     if (typeof correctIndex === 'number') {
       const label = String.fromCharCode(65 + correctIndex);
@@ -266,7 +271,11 @@ function formatAnswerKey(activity, studentAnswer) {
     }
   }
 
-  if (questionType === 'SHORT_TEXT' && typeof config.answer?.text === 'string' && config.answer.text.trim()) {
+  if (
+    questionType === 'SHORT_TEXT' &&
+    typeof config.answer?.text === 'string' &&
+    config.answer.text.trim()
+  ) {
     return `Correct answer: ${config.answer.text.trim()}`;
   }
 
@@ -368,7 +377,7 @@ async function supervisedGenerate(generateFn, context) {
       context.lastFeedback = verdict.feedbackToTutor;
     } catch (supervisorError) {
       console.error('[supervisor] Error during review:', supervisorError);
-      throw new Error(SUPERVISOR_ERROR_MESSAGE);
+      throw new Error(SUPERVISOR_ERROR_MESSAGE, { cause: supervisorError });
     }
   }
 

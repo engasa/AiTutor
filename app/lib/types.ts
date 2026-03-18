@@ -120,7 +120,6 @@ export type Activity = {
   completionStatus?: CompletionStatus;
 };
 
-
 export type PromptTemplate = {
   id: number;
   name: string;

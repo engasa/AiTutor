@@ -164,9 +164,7 @@ describe('Courses routes', () => {
     });
 
     it('returns 400 when nothing to update', async () => {
-      const res = await request(profApp)
-        .patch(`/api/courses/${seed.course.id}`)
-        .send({});
+      const res = await request(profApp).patch(`/api/courses/${seed.course.id}`).send({});
 
       expect(res.status).toBe(400);
       expect(res.body.error).toMatch(/nothing to update/i);
@@ -194,9 +192,7 @@ describe('Courses routes', () => {
 
   describe('PATCH /api/courses/:id/unpublish', () => {
     it('unpublishes a course and cascades to modules and lessons', async () => {
-      const res = await request(profApp).patch(
-        `/api/courses/${seed.course.id}/unpublish`,
-      );
+      const res = await request(profApp).patch(`/api/courses/${seed.course.id}/unpublish`);
 
       expect(res.status).toBe(200);
       expect(res.body.isPublished).toBe(false);

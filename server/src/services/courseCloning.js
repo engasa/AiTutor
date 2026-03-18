@@ -1,7 +1,8 @@
 import { prisma } from '../config/database.js';
 
 async function ensureTopicMapping(tx, options) {
-  const { sourceTopicId, sourceTopicById, topicIdMap, targetTopicsByName, targetCourseId } = options;
+  const { sourceTopicId, sourceTopicById, topicIdMap, targetTopicsByName, targetCourseId } =
+    options;
   if (!sourceTopicId) return null;
   if (topicIdMap.has(sourceTopicId)) {
     return topicIdMap.get(sourceTopicId);
@@ -33,9 +34,7 @@ export async function cloneCourseContent(sourceCourseId, targetCourseId, options
   const sourceModules = await prisma.module.findMany({
     where: {
       courseOfferingId: sourceCourseId,
-      ...(Array.isArray(moduleIds) && moduleIds.length > 0
-        ? { id: { in: moduleIds } }
-        : {}),
+      ...(Array.isArray(moduleIds) && moduleIds.length > 0 ? { id: { in: moduleIds } } : {}),
     },
     orderBy: { position: 'asc' },
     include: {
@@ -166,7 +165,9 @@ export async function cloneLessonsFromOffering(sourceLessonIds, targetModuleId) 
   if (lessons.length === 0) return;
 
   const sourceCourseIds = new Set(
-    lessons.map((lesson) => lesson.module.courseOfferingId).filter((value) => Number.isInteger(value)),
+    lessons
+      .map((lesson) => lesson.module.courseOfferingId)
+      .filter((value) => Number.isInteger(value)),
   );
 
   const sourceTopicById = new Map();

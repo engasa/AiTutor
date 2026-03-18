@@ -50,7 +50,9 @@ export function requireRoles(roles) {
     }
 
     if (!roles.includes(req.user.role)) {
-      return res.status(403).json({ error: `One of the following roles required: ${roles.join(', ')}` });
+      return res
+        .status(403)
+        .json({ error: `One of the following roles required: ${roles.join(', ')}` });
     }
 
     next();

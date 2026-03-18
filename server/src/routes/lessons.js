@@ -34,8 +34,12 @@ router.get('/modules/:moduleId/lessons', async (req, res) => {
       return res.status(404).json({ error: 'Module not found' });
     }
 
-    const isInstructor = module.courseOffering.instructors.some((assignment) => assignment.userId === authUser.id);
-    const isStudent = module.courseOffering.enrollments.some((enrollment) => enrollment.userId === authUser.id);
+    const isInstructor = module.courseOffering.instructors.some(
+      (assignment) => assignment.userId === authUser.id,
+    );
+    const isStudent = module.courseOffering.enrollments.some(
+      (enrollment) => enrollment.userId === authUser.id,
+    );
 
     if (authUser.role === 'PROFESSOR' && !isInstructor) {
       return res.status(403).json({ error: 'Not authorized for this module' });
@@ -48,9 +52,7 @@ router.get('/modules/:moduleId/lessons', async (req, res) => {
     }
 
     const whereClause =
-      authUser.role === 'STUDENT'
-        ? { moduleId, isPublished: true }
-        : { moduleId };
+      authUser.role === 'STUDENT' ? { moduleId, isPublished: true } : { moduleId };
 
     const lessons = await prisma.lesson.findMany({
       where: whereClause,
@@ -130,8 +132,12 @@ router.get('/lessons/:lessonId', async (req, res) => {
     });
     if (!lesson) return res.status(404).json({ error: 'Lesson not found' });
 
-    const isInstructor = lesson.module.courseOffering.instructors.some((assignment) => assignment.userId === authUser.id);
-    const isStudent = lesson.module.courseOffering.enrollments.some((enrollment) => enrollment.userId === authUser.id);
+    const isInstructor = lesson.module.courseOffering.instructors.some(
+      (assignment) => assignment.userId === authUser.id,
+    );
+    const isStudent = lesson.module.courseOffering.enrollments.some(
+      (enrollment) => enrollment.userId === authUser.id,
+    );
 
     if (authUser.role === 'PROFESSOR' && !isInstructor) {
       return res.status(403).json({ error: 'Not authorized for this lesson' });
@@ -180,7 +186,9 @@ router.patch('/lessons/:lessonId/publish', requireRole('PROFESSOR'), async (req,
       return res.status(404).json({ error: 'Lesson not found' });
     }
 
-    const isInstructor = lesson.module.courseOffering.instructors.some((i) => i.userId === instructor.id);
+    const isInstructor = lesson.module.courseOffering.instructors.some(
+      (i) => i.userId === instructor.id,
+    );
     if (!isInstructor) {
       return res.status(403).json({ error: 'Not authorized for this lesson' });
     }
@@ -188,14 +196,14 @@ router.patch('/lessons/:lessonId/publish', requireRole('PROFESSOR'), async (req,
     // Validate parent course is published
     if (!lesson.module.courseOffering.isPublished) {
       return res.status(400).json({
-        error: 'Cannot publish lesson: parent course is not published'
+        error: 'Cannot publish lesson: parent course is not published',
       });
     }
 
     // Validate parent module is published
     if (!lesson.module.isPublished) {
       return res.status(400).json({
-        error: 'Cannot publish lesson: parent module is not published'
+        error: 'Cannot publish lesson: parent module is not published',
       });
     }
 
@@ -236,7 +244,9 @@ router.patch('/lessons/:lessonId/unpublish', requireRole('PROFESSOR'), async (re
       return res.status(404).json({ error: 'Lesson not found' });
     }
 
-    const isInstructor = lesson.module.courseOffering.instructors.some((i) => i.userId === instructor.id);
+    const isInstructor = lesson.module.courseOffering.instructors.some(
+      (i) => i.userId === instructor.id,
+    );
     if (!isInstructor) {
       return res.status(403).json({ error: 'Not authorized for this lesson' });
     }

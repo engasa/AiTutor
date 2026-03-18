@@ -92,7 +92,8 @@ export function mapActivity(activity) {
     enableGuideMode: activity.enableGuideMode ?? true,
     enableCustomMode: activity.enableCustomMode ?? false,
     customPrompt: typeof activity.customPrompt === 'string' ? activity.customPrompt : null,
-    customPromptTitle: typeof activity.customPromptTitle === 'string' ? activity.customPromptTitle : null,
+    customPromptTitle:
+      typeof activity.customPromptTitle === 'string' ? activity.customPromptTitle : null,
     completionStatus: activity.completionStatus ?? undefined,
   };
 }

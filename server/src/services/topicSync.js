@@ -22,10 +22,7 @@ export async function syncExternalCourseTopics(courseOfferingId, options = {}) {
   }
 
   // Fetch topics from EduAI
-  const externalTopics = await listEduAiCourseTopics(
-    course.externalId,
-    options.accessToken,
-  );
+  const externalTopics = await listEduAiCourseTopics(course.externalId, options.accessToken);
   const upstreamNames = Array.from(
     new Set(
       externalTopics

@@ -35,12 +35,24 @@ export default function UnsupportedRolePage() {
       <div className="relative container mx-auto flex min-h-dvh items-center justify-center px-6 py-12">
         <div className="card-editorial w-full max-w-xl p-8 sm:p-10">
           <div className="mb-6 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-accent/15 text-accent">
-            <svg className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+            <svg
+              className="h-7 w-7"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
+              />
             </svg>
           </div>
 
-          <h1 className="mb-3 font-display text-3xl font-bold text-foreground">TA access is not available yet</h1>
+          <h1 className="mb-3 font-display text-3xl font-bold text-foreground">
+            TA access is not available yet
+          </h1>
           <p className="mb-4 text-base text-muted-foreground">
             Your EduAI account was authenticated successfully, but AI Tutor does not support TA
             access in this first release.

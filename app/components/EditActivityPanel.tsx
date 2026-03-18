@@ -24,7 +24,13 @@ type EditActivityPanelProps = {
   onCancel: () => void;
 };
 
-export default function EditActivityPanel({ activity, busy, error, onSubmit, onCancel }: EditActivityPanelProps) {
+export default function EditActivityPanel({
+  activity,
+  busy,
+  error,
+  onSubmit,
+  onCancel,
+}: EditActivityPanelProps) {
   const [values, setValues] = useState<ActivityFormValues>(() => activityToFormValues(activity));
   const [formError, setFormError] = useState<string | null>(null);
   const [prevActivity, setPrevActivity] = useState(activity);
@@ -70,9 +76,7 @@ export default function EditActivityPanel({ activity, busy, error, onSubmit, onC
       </div>
 
       <div className="space-y-2">
-        <label className="text-xs font-semibold text-muted-foreground">
-          Question prompt
-        </label>
+        <label className="text-xs font-semibold text-muted-foreground">Question prompt</label>
         <textarea
           value={values.question}
           onChange={(event) => setValues((prev) => ({ ...prev, question: event.target.value }))}
@@ -84,7 +88,9 @@ export default function EditActivityPanel({ activity, busy, error, onSubmit, onC
       <div className="flex gap-2 text-sm">
         <label
           className={`px-3 py-1 rounded-full cursor-pointer transition ${
-            values.type === 'MCQ' ? 'bg-primary/20 text-primary font-medium' : 'bg-secondary text-muted-foreground hover:bg-secondary/80'
+            values.type === 'MCQ'
+              ? 'bg-primary/20 text-primary font-medium'
+              : 'bg-secondary text-muted-foreground hover:bg-secondary/80'
           }`}
         >
           <input
@@ -215,9 +221,7 @@ export default function EditActivityPanel({ activity, busy, error, onSubmit, onC
         </div>
       ) : (
         <div className="space-y-2">
-          <label className="text-xs font-semibold text-muted-foreground">
-            Expected answer
-          </label>
+          <label className="text-xs font-semibold text-muted-foreground">Expected answer</label>
           <input
             value={values.textAnswer}
             onChange={(event) => setValues((prev) => ({ ...prev, textAnswer: event.target.value }))}
@@ -233,16 +237,16 @@ export default function EditActivityPanel({ activity, busy, error, onSubmit, onC
         </label>
         <textarea
           value={values.instructionsMd}
-          onChange={(event) => setValues((prev) => ({ ...prev, instructionsMd: event.target.value }))}
+          onChange={(event) =>
+            setValues((prev) => ({ ...prev, instructionsMd: event.target.value }))
+          }
           rows={3}
           className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
         />
       </div>
 
       <div className="space-y-2">
-        <label className="text-xs font-semibold text-muted-foreground">
-          Hints (one per line)
-        </label>
+        <label className="text-xs font-semibold text-muted-foreground">Hints (one per line)</label>
         <textarea
           value={values.hintsText}
           onChange={(event) => setValues((prev) => ({ ...prev, hintsText: event.target.value }))}
@@ -251,9 +255,7 @@ export default function EditActivityPanel({ activity, busy, error, onSubmit, onC
         />
       </div>
 
-      {(formError || error) && (
-        <p className="text-xs text-destructive">{formError || error}</p>
-      )}
+      {(formError || error) && <p className="text-xs text-destructive">{formError || error}</p>}
 
       <div className="flex justify-end gap-2">
         <button

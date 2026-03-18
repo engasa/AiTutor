@@ -15,8 +15,7 @@ export function getEduAiChatUrl() {
 }
 
 async function requestEduAi(path, options = {}) {
-  const accessToken =
-    typeof options.accessToken === 'string' ? options.accessToken.trim() : null;
+  const accessToken = typeof options.accessToken === 'string' ? options.accessToken.trim() : null;
   const requireAuth = options.requireAuth === true;
 
   if (requireAuth && !accessToken) {
@@ -31,7 +30,7 @@ async function requestEduAi(path, options = {}) {
     headers: {
       'Content-Type': 'application/json',
       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-      ...(options.headers ?? {}),
+      ...options.headers,
     },
     body: options.body ? JSON.stringify(options.body) : undefined,
   });

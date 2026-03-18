@@ -166,7 +166,10 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
       const data = await api.getAdminCourseEnrollments(courseId);
       setCourseEnrollments(data);
       setSelectedStudentId((current) => {
-        if (typeof current === 'string' && data.availableStudents.some((student) => student.id === current)) {
+        if (
+          typeof current === 'string' &&
+          data.availableStudents.some((student) => student.id === current)
+        ) {
           return current;
         }
         return data.availableStudents[0]?.id ?? '';
@@ -240,7 +243,9 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
     try {
       const next = await api.clearEduAiApiKey();
       setStatus(next);
-      setMessage('Cleared admin override. The server will fall back to EDUAI_API_KEY from the environment.');
+      setMessage(
+        'Cleared admin override. The server will fall back to EDUAI_API_KEY from the environment.',
+      );
     } catch {
       setError('Could not clear override. Please try again.');
     } finally {
@@ -257,7 +262,7 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
       const fallbackTutor =
         current.defaultTutorModelId && nextAllowed.includes(current.defaultTutorModelId)
           ? current.defaultTutorModelId
-          : nextAllowed[0] ?? null;
+          : (nextAllowed[0] ?? null);
 
       return {
         ...current,
@@ -467,7 +472,8 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
                       <div className="space-y-1">
                         <h3 className="font-semibold text-foreground">Enrolled Students</h3>
                         <p className="text-sm text-muted-foreground">
-                          Removing an enrollment immediately removes course visibility for that student.
+                          Removing an enrollment immediately removes course visibility for that
+                          student.
                         </p>
                       </div>
 
@@ -513,9 +519,10 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
                   <InfoBadge copy="A loop is the handoff between the student-facing tutor and the internal supervisor that checks each draft before it is shown." />
                 </div>
                 <p className="text-sm text-muted-foreground max-w-3xl">
-                  Configure the safe defaults for how student help responses are generated. Students can
-                  still bring their own provider keys, but they will only be able to choose tutor models
-                  from the allowlist you approve here. The supervisor remains fully admin-controlled.
+                  Configure the safe defaults for how student help responses are generated. Students
+                  can still bring their own provider keys, but they will only be able to choose
+                  tutor models from the allowlist you approve here. The supervisor remains fully
+                  admin-controlled.
                 </p>
               </div>
 
@@ -544,16 +551,17 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
                     <InfoBadge copy="Costs are qualitative here on purpose. Use these labels to weigh speed and quality without depending on fragile exact vendor pricing." />
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    Low-cost models are best for routine hints. Higher-cost models are better when you want
-                    more careful supervision or stronger reasoning.
+                    Low-cost models are best for routine hints. Higher-cost models are better when
+                    you want more careful supervision or stronger reasoning.
                   </p>
                 </div>
               </div>
 
               {!aiPolicyAvailable ? (
                 <div className="rounded-2xl border border-dashed border-border px-4 py-5 text-sm text-muted-foreground">
-                  AI model policy endpoints are not wired into the client API yet. This UI is ready for the
-                  contract, but saving is temporarily disabled until the shared client layer lands.
+                  AI model policy endpoints are not wired into the client API yet. This UI is ready
+                  for the contract, but saving is temporarily disabled until the shared client layer
+                  lands.
                 </div>
               ) : null}
 
@@ -575,7 +583,8 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
                       {aiModels.map((model) => {
                         const isAllowed = aiPolicy.allowedTutorModelIds.includes(model.modelId);
                         const isTutorDefault = aiPolicy.defaultTutorModelId === model.modelId;
-                        const isSupervisorDefault = aiPolicy.defaultSupervisorModelId === model.modelId;
+                        const isSupervisorDefault =
+                          aiPolicy.defaultSupervisorModelId === model.modelId;
 
                         return (
                           <label
@@ -595,12 +604,18 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
                               />
                               <div className="space-y-2">
                                 <div className="flex flex-wrap items-center gap-2">
-                                  <span className="font-semibold text-foreground">{model.modelName}</span>
-                                  <span className="tag">{model.provider ?? inferProvider(model.modelId)}</span>
+                                  <span className="font-semibold text-foreground">
+                                    {model.modelName}
+                                  </span>
+                                  <span className="tag">
+                                    {model.provider ?? inferProvider(model.modelId)}
+                                  </span>
                                   <span className={costTierClassName(model.costTier)}>
                                     {formatCostTier(model.costTier)}
                                   </span>
-                                  {isTutorDefault ? <span className="tag tag-primary">Tutor default</span> : null}
+                                  {isTutorDefault ? (
+                                    <span className="tag tag-primary">Tutor default</span>
+                                  ) : null}
                                   {isSupervisorDefault ? (
                                     <span className="tag tag-accent">Supervisor default</span>
                                   ) : null}
@@ -608,7 +623,9 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
                                 <p className="text-sm text-muted-foreground">
                                   {model.summary ?? buildFallbackSummary(model)}
                                 </p>
-                                <p className="text-xs text-muted-foreground font-mono">{model.modelId}</p>
+                                <p className="text-xs text-muted-foreground font-mono">
+                                  {model.modelId}
+                                </p>
                               </div>
                             </div>
                           </label>
@@ -622,7 +639,8 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
                   <div className="space-y-1">
                     <h3 className="font-semibold text-foreground">Loop defaults</h3>
                     <p className="text-sm text-muted-foreground">
-                      These defaults apply across teach, guide, and custom activity modes in this phase.
+                      These defaults apply across teach, guide, and custom activity modes in this
+                      phase.
                     </p>
                   </div>
 
@@ -660,7 +678,9 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="block text-sm font-medium text-foreground">Default tutor model</label>
+                    <label className="block text-sm font-medium text-foreground">
+                      Default tutor model
+                    </label>
                     <select
                       value={aiPolicy.defaultTutorModelId ?? ''}
                       onChange={(e) =>
@@ -717,7 +737,9 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="block text-sm font-medium text-foreground">Max revision passes</label>
+                    <label className="block text-sm font-medium text-foreground">
+                      Max revision passes
+                    </label>
                     <input
                       type="number"
                       min={1}
@@ -732,16 +754,17 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
                       className="input-field"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Three passes is a good default: enough room for correction without producing a slow
-                      experience.
+                      Three passes is a good default: enough room for correction without producing a
+                      slow experience.
                     </p>
                   </div>
 
                   <div className="rounded-xl border border-border/70 bg-background/60 p-4 text-sm text-muted-foreground space-y-2">
                     <p className="font-medium text-foreground">Before you save</p>
                     <p>
-                      Choose at least one tutor model, then set a tutor default and a supervisor default.
-                      Tutor defaults shape the student experience. Supervisor defaults shape safety.
+                      Choose at least one tutor model, then set a tutor default and a supervisor
+                      default. Tutor defaults shape the student experience. Supervisor defaults
+                      shape safety.
                     </p>
                   </div>
 
@@ -780,14 +803,16 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
                 <p className="text-sm text-muted-foreground max-w-2xl">
                   {status.envConfigured ? (
                     <>
-                      <span className="font-mono">EDUAI_API_KEY</span> is already configured in your server environment
-                      (for example via <span className="font-mono">.env</span>). Saving a key here will override it.
-                      Clear the override to fall back to the environment value.
+                      <span className="font-mono">EDUAI_API_KEY</span> is already configured in your
+                      server environment (for example via <span className="font-mono">.env</span>).
+                      Saving a key here will override it. Clear the override to fall back to the
+                      environment value.
                     </>
                   ) : (
                     <>
-                      No <span className="font-mono">EDUAI_API_KEY</span> is configured in your server environment (for
-                      example via <span className="font-mono">.env</span>). You can set one here.
+                      No <span className="font-mono">EDUAI_API_KEY</span> is configured in your
+                      server environment (for example via <span className="font-mono">.env</span>).
+                      You can set one here.
                     </>
                   )}
                 </p>
@@ -848,7 +873,9 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
 
 function normalizePolicy(raw: unknown, models: AdminAiModelOption[]): AdminAiModelPolicy {
   const fallbackTutor = models[0]?.modelId ?? null;
-  const allowedTutorModelIds = Array.isArray((raw as { allowedTutorModelIds?: unknown })?.allowedTutorModelIds)
+  const allowedTutorModelIds = Array.isArray(
+    (raw as { allowedTutorModelIds?: unknown })?.allowedTutorModelIds,
+  )
     ? (raw as { allowedTutorModelIds: unknown[] }).allowedTutorModelIds.filter(
         (value): value is string => typeof value === 'string',
       )
@@ -859,25 +886,28 @@ function normalizePolicy(raw: unknown, models: AdminAiModelOption[]): AdminAiMod
   const defaultTutorModelId =
     typeof (raw as { defaultTutorModelId?: unknown })?.defaultTutorModelId === 'string'
       ? (raw as { defaultTutorModelId: string }).defaultTutorModelId
-      : allowedTutorModelIds[0] ?? null;
+      : (allowedTutorModelIds[0] ?? null);
 
   return {
     allowedTutorModelIds,
     defaultTutorModelId:
       defaultTutorModelId && allowedTutorModelIds.includes(defaultTutorModelId)
         ? defaultTutorModelId
-        : allowedTutorModelIds[0] ?? null,
+        : (allowedTutorModelIds[0] ?? null),
     defaultSupervisorModelId:
       typeof (raw as { defaultSupervisorModelId?: unknown })?.defaultSupervisorModelId === 'string'
         ? (raw as { defaultSupervisorModelId: string }).defaultSupervisorModelId
-        : models[0]?.modelId ?? null,
+        : (models[0]?.modelId ?? null),
     dualLoopEnabled:
       typeof (raw as { dualLoopEnabled?: unknown })?.dualLoopEnabled === 'boolean'
         ? (raw as { dualLoopEnabled: boolean }).dualLoopEnabled
         : true,
     maxSupervisorIterations:
       typeof (raw as { maxSupervisorIterations?: unknown })?.maxSupervisorIterations === 'number'
-        ? Math.max(1, Math.min(5, (raw as { maxSupervisorIterations: number }).maxSupervisorIterations))
+        ? Math.max(
+            1,
+            Math.min(5, (raw as { maxSupervisorIterations: number }).maxSupervisorIterations),
+          )
         : DEFAULT_POLICY.maxSupervisorIterations,
   };
 }
@@ -893,7 +923,8 @@ async function loadAdminAiPolicy(settingsApi: AdminSettingsApi) {
   } catch {
     return {
       policy: null,
-      error: 'AI model settings could not be loaded. The rest of the admin tools are still available.',
+      error:
+        'AI model settings could not be loaded. The rest of the admin tools are still available.',
     };
   }
 }
@@ -932,8 +963,7 @@ function normalizeModelOption(raw: unknown, index: number): AdminAiModelOption |
     return null;
   }
 
-  const provider =
-    typeof record.provider === 'string' ? record.provider : inferProvider(modelId);
+  const provider = typeof record.provider === 'string' ? record.provider : inferProvider(modelId);
   const costTier =
     record.costTier === 'LOW' || record.costTier === 'MEDIUM' || record.costTier === 'HIGH'
       ? record.costTier
@@ -967,8 +997,10 @@ function inferProvider(modelId: string) {
 
 function inferCostTier(modelId: string, modelName: string): CostTier {
   const haystack = `${modelId} ${modelName}`.toLowerCase();
-  if (haystack.includes('flash') || haystack.includes('mini') || haystack.includes('nano')) return 'LOW';
-  if (haystack.includes('pro') || haystack.includes('4.1') || haystack.includes('ultra')) return 'HIGH';
+  if (haystack.includes('flash') || haystack.includes('mini') || haystack.includes('nano'))
+    return 'LOW';
+  if (haystack.includes('pro') || haystack.includes('4.1') || haystack.includes('ultra'))
+    return 'HIGH';
   return 'MEDIUM';
 }
 

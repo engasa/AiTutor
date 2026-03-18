@@ -73,7 +73,10 @@ export default function StudentActivityFeedbackCard({
         </div>
 
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-foreground" htmlFor="activity-feedback-note">
+          <label
+            className="block text-sm font-medium text-foreground"
+            htmlFor="activity-feedback-note"
+          >
             Optional note
           </label>
           <textarea
@@ -100,7 +103,9 @@ export default function StudentActivityFeedbackCard({
           >
             {saving ? 'Saving...' : 'Send feedback'}
           </button>
-          <p className="text-xs text-muted-foreground">Your response stays internal and helps us tune the course.</p>
+          <p className="text-xs text-muted-foreground">
+            Your response stays internal and helps us tune the course.
+          </p>
         </div>
       </div>
     </div>

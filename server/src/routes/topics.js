@@ -79,9 +79,9 @@ router.post('/courses/:courseId/topics', requireRole('PROFESSOR'), async (req, r
 
     // Block manual topic creation for imported (external) courses
     if (course.externalId) {
-      return res
-        .status(403)
-        .json({ error: 'Topics for imported courses are managed by EduAI and cannot be added here' });
+      return res.status(403).json({
+        error: 'Topics for imported courses are managed by EduAI and cannot be added here',
+      });
     }
 
     const topic = await prisma.topic.create({
@@ -162,7 +162,12 @@ router.post('/courses/:courseId/topics/remap', requireRole('PROFESSOR'), async (
   const mappings = Array.isArray(req.body?.mappings) ? req.body.mappings : [];
   const normalized = mappings
     .map((m) => ({ fromTopicId: Number(m?.fromTopicId), toTopicId: Number(m?.toTopicId) }))
-    .filter((m) => Number.isFinite(m.fromTopicId) && Number.isFinite(m.toTopicId) && m.fromTopicId !== m.toTopicId);
+    .filter(
+      (m) =>
+        Number.isFinite(m.fromTopicId) &&
+        Number.isFinite(m.toTopicId) &&
+        m.fromTopicId !== m.toTopicId,
+    );
 
   if (normalized.length === 0) {
     return res.status(400).json({ error: 'No valid mappings provided' });

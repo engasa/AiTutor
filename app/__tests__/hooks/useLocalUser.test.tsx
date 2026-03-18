@@ -15,9 +15,7 @@ const testUser: AuthUser = { id: 'test-1', name: 'Test User', role: 'STUDENT' };
 
 function makeWrapper(initialUser: AuthUser | null) {
   return function Wrapper({ children }: { children: React.ReactNode }) {
-    return (
-      <AuthProvider initialUser={initialUser}>{children}</AuthProvider>
-    );
+    return <AuthProvider initialUser={initialUser}>{children}</AuthProvider>;
   };
 }
 

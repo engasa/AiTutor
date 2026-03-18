@@ -90,7 +90,9 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
   const [tempKnowledgeLevel, setTempKnowledgeLevel] = useState('');
   const [knowledgeLevels, setKnowledgeLevels] = useState<Record<number, string>>({});
   const [topicSelection, setTopicSelection] = useState<Record<number, number>>({});
-  const [feedbackByActivity, setFeedbackByActivity] = useState<Record<number, StudentFeedbackState>>({});
+  const [feedbackByActivity, setFeedbackByActivity] = useState<
+    Record<number, StudentFeedbackState>
+  >({});
   const chatRef = useRef<StudentAiChatHandle>(null);
 
   // Adjust state during render when loader data changes
@@ -109,16 +111,14 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
     [activity?.question],
   );
 
-  const currentKnowledgeLevel = activity ? knowledgeLevels[activity.id] ?? null : null;
+  const currentKnowledgeLevel = activity ? (knowledgeLevels[activity.id] ?? null) : null;
   const currentTopicId = activity
-    ? topicSelection[activity.id] ?? activity.mainTopic?.id ?? null
+    ? (topicSelection[activity.id] ?? activity.mainTopic?.id ?? null)
     : null;
-  const currentFeedback = activity ? feedbackByActivity[activity.id] ?? createFeedbackState() : createFeedbackState();
-  const studentAnswer = activity
-    ? activity.type === 'MCQ'
-      ? mcq
-      : text
-    : null;
+  const currentFeedback = activity
+    ? (feedbackByActivity[activity.id] ?? createFeedbackState())
+    : createFeedbackState();
+  const studentAnswer = activity ? (activity.type === 'MCQ' ? mcq : text) : null;
   const isUserReady = Boolean(user);
 
   const currentActivityId = activity?.id ?? null;
@@ -144,8 +144,10 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
 
       setOrderedActivities((prev) =>
         prev.map((a, i) =>
-          i === idx ? { ...a, completionStatus: res.isCorrect ? ('correct' as const) : undefined } : a
-        )
+          i === idx
+            ? { ...a, completionStatus: res.isCorrect ? ('correct' as const) : undefined }
+            : a,
+        ),
       );
 
       if (res.isCorrect) {
@@ -309,7 +311,9 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
 
   const topicOptions = activity
     ? [
-        ...(activity.mainTopic ? [{ label: activity.mainTopic.name, value: activity.mainTopic.id }] : []),
+        ...(activity.mainTopic
+          ? [{ label: activity.mainTopic.name, value: activity.mainTopic.id }]
+          : []),
         ...activity.secondaryTopics.map((topic) => ({ label: topic.name, value: topic.id })),
       ]
     : [];
@@ -317,20 +321,23 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
   return (
     <div className="min-h-dvh bg-background">
       <Nav />
-      
+
       {/* Background decoration */}
       <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
         <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-primary/3 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
         <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-accent/5 rounded-full blur-3xl translate-y-1/2 -translate-x-1/3" />
       </div>
-      
+
       <div className="container mx-auto px-6 py-8">
         {/* Breadcrumb */}
         <Breadcrumb className="mb-6 animate-fade-in">
           <BreadcrumbList>
             <BreadcrumbItem>
               <BreadcrumbLink asChild>
-                <Link to="/student" className="text-muted-foreground hover:text-foreground transition-colors">
+                <Link
+                  to="/student"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                >
                   My Courses
                 </Link>
               </BreadcrumbLink>
@@ -339,7 +346,10 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
             <BreadcrumbItem>
               {course && module ? (
                 <BreadcrumbLink asChild>
-                  <Link to={`/student/courses/${module.courseOfferingId}`} className="text-muted-foreground hover:text-foreground transition-colors">
+                  <Link
+                    to={`/student/courses/${module.courseOfferingId}`}
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                  >
                     {course.title}
                   </Link>
                 </BreadcrumbLink>
@@ -351,7 +361,10 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
             <BreadcrumbItem>
               {module && lesson ? (
                 <BreadcrumbLink asChild>
-                  <Link to={`/student/module/${lesson.moduleId}`} className="text-muted-foreground hover:text-foreground transition-colors">
+                  <Link
+                    to={`/student/module/${lesson.moduleId}`}
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                  >
                     {module.title}
                   </Link>
                 </BreadcrumbLink>
@@ -374,8 +387,18 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
             <div className="card-editorial p-5">
               <div className="flex items-center gap-4 mb-3">
                 <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342" />
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342"
+                    />
                   </svg>
                 </div>
                 <div className="flex-1">
@@ -430,7 +453,7 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
             {/* Answer card */}
             <div className="card-editorial p-6 space-y-5">
               <h2 className="font-display text-lg font-bold text-foreground">Your Answer</h2>
-              
+
               {activity?.type === 'MCQ' ? (
                 Array.isArray(activity?.options?.choices) ? (
                   <div className="space-y-3">
@@ -450,11 +473,13 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
                           checked={mcq === i}
                           onChange={() => setMcq(i)}
                         />
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0 ${
-                          mcq === i 
-                            ? 'bg-primary text-primary-foreground' 
-                            : 'bg-secondary text-muted-foreground'
-                        }`}>
+                        <div
+                          className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0 ${
+                            mcq === i
+                              ? 'bg-primary text-primary-foreground'
+                              : 'bg-secondary text-muted-foreground'
+                          }`}
+                        >
                           {String.fromCharCode(65 + i)}
                         </div>
                         <span className="text-foreground pt-1">{choice}</span>
@@ -480,42 +505,72 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
                 <button
                   onClick={submit}
                   disabled={
-                    submitting ||
-                    (activity?.type === 'MCQ' ? mcq === null : text.trim() === '')
+                    submitting || (activity?.type === 'MCQ' ? mcq === null : text.trim() === '')
                   }
                   className="btn-primary"
                 >
                   {submitting ? (
                     <>
                       <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        />
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        />
                       </svg>
                       Submitting...
                     </>
                   ) : (
                     <>
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
                       </svg>
                       Submit Answer
                     </>
                   )}
                 </button>
-                
+
                 <button
                   onClick={handleGuideMe}
                   disabled={wasCorrect || !currentKnowledgeLevel || !isUserReady}
                   className="btn-secondary"
                 >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"
+                    />
                   </svg>
                   Guide me
                 </button>
 
                 <div className="flex-1" />
-                
+
                 <div className="flex items-center gap-2">
                   <button
                     disabled={!canPrev}
@@ -525,8 +580,18 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
                     }}
                     className="btn-ghost"
                   >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"
+                      />
                     </svg>
                     Prev
                   </button>
@@ -539,8 +604,18 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
                     className="btn-ghost"
                   >
                     Next
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"
+                      />
                     </svg>
                   </button>
                 </div>
@@ -548,18 +623,40 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
 
               {/* Result feedback */}
               {result && (
-                <div className={`rounded-xl p-4 flex items-center gap-3 animate-scale-in ${
-                  wasCorrect 
-                    ? 'bg-accent/20 border border-accent text-accent-foreground' 
-                    : 'bg-secondary border border-border text-foreground'
-                }`}>
+                <div
+                  className={`rounded-xl p-4 flex items-center gap-3 animate-scale-in ${
+                    wasCorrect
+                      ? 'bg-accent/20 border border-accent text-accent-foreground'
+                      : 'bg-secondary border border-border text-foreground'
+                  }`}
+                >
                   {wasCorrect ? (
-                    <svg className="w-5 h-5 text-accent-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    <svg
+                      className="w-5 h-5 text-accent-foreground"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
                     </svg>
                   ) : (
-                    <svg className="w-5 h-5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                    <svg
+                      className="w-5 h-5 text-muted-foreground"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
+                      />
                     </svg>
                   )}
                   <span className="font-medium">{result}</span>
@@ -570,18 +667,18 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
                 currentFeedback.promptShown &&
                 !currentFeedback.dismissed &&
                 (currentFeedback.promptVisible || currentFeedback.submitted) && (
-                <StudentActivityFeedbackCard
-                  rating={currentFeedback.rating}
-                  note={currentFeedback.note}
-                  saving={currentFeedback.saving}
-                  submitted={currentFeedback.submitted}
-                  error={currentFeedback.error}
-                  onSelectRating={handleFeedbackRating}
-                  onNoteChange={handleFeedbackNote}
-                  onSubmit={handleSubmitFeedback}
-                  onDismiss={handleDismissFeedback}
-                />
-              )}
+                  <StudentActivityFeedbackCard
+                    rating={currentFeedback.rating}
+                    note={currentFeedback.note}
+                    saving={currentFeedback.saving}
+                    submitted={currentFeedback.submitted}
+                    error={currentFeedback.error}
+                    onSelectRating={handleFeedbackRating}
+                    onNoteChange={handleFeedbackNote}
+                    onSubmit={handleSubmitFeedback}
+                    onDismiss={handleDismissFeedback}
+                  />
+                )}
             </div>
           </div>
 
@@ -609,8 +706,18 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
             <div className="max-w-lg w-full card-editorial p-8 space-y-6 animate-scale-in">
               <div>
                 <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary mb-4">
-                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+                  <svg
+                    className="w-6 h-6"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"
+                    />
                   </svg>
                 </div>
                 <h2 className="font-display text-2xl font-bold text-foreground">
@@ -651,10 +758,7 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
 
               {/* Action Buttons */}
               <div className="flex gap-3 pt-2">
-                <button
-                  onClick={handleCancelKnowledge}
-                  className="btn-secondary flex-1"
-                >
+                <button onClick={handleCancelKnowledge} className="btn-secondary flex-1">
                   Cancel
                 </button>
                 <button

@@ -1,13 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../../src/app.js';
-import {
-  makeProfessor,
-  makeStudent,
-  truncateAll,
-  seedMinimalCourse,
-  prisma,
-} from '../helpers.js';
+import { makeProfessor, makeStudent, truncateAll, seedMinimalCourse, prisma } from '../helpers.js';
 
 describe('Activities routes', () => {
   let prof;
@@ -123,12 +117,10 @@ describe('Activities routes', () => {
 
   describe('POST /api/lessons/:lessonId/activities', () => {
     it('creates an activity with mainTopicId', async () => {
-      const res = await request(profApp)
-        .post(`/api/lessons/${seed.lesson.id}/activities`)
-        .send({
-          question: 'What is gravity?',
-          mainTopicId: seed.topic.id,
-        });
+      const res = await request(profApp).post(`/api/lessons/${seed.lesson.id}/activities`).send({
+        question: 'What is gravity?',
+        mainTopicId: seed.topic.id,
+      });
 
       expect(res.status).toBe(201);
       expect(res.body).toMatchObject({
@@ -151,27 +143,23 @@ describe('Activities routes', () => {
         data: { name: 'Alien Topic', courseOfferingId: otherCourse.id },
       });
 
-      const res = await request(profApp)
-        .post(`/api/lessons/${seed.lesson.id}/activities`)
-        .send({
-          question: 'Cross course?',
-          mainTopicId: otherTopic.id,
-        });
+      const res = await request(profApp).post(`/api/lessons/${seed.lesson.id}/activities`).send({
+        question: 'Cross course?',
+        mainTopicId: otherTopic.id,
+      });
 
       expect(res.status).toBe(400);
       expect(res.body.error).toMatch(/mainTopicId/i);
     });
 
     it('returns 400 when all AI modes disabled', async () => {
-      const res = await request(profApp)
-        .post(`/api/lessons/${seed.lesson.id}/activities`)
-        .send({
-          question: 'No modes?',
-          mainTopicId: seed.topic.id,
-          enableTeachMode: false,
-          enableGuideMode: false,
-          enableCustomMode: false,
-        });
+      const res = await request(profApp).post(`/api/lessons/${seed.lesson.id}/activities`).send({
+        question: 'No modes?',
+        mainTopicId: seed.topic.id,
+        enableTeachMode: false,
+        enableGuideMode: false,
+        enableCustomMode: false,
+      });
 
       expect(res.status).toBe(400);
       expect(res.body.error).toMatch(/AI mode/i);
@@ -228,22 +216,18 @@ describe('Activities routes', () => {
     });
 
     it('returns 400 when all modes disabled', async () => {
-      const res = await request(profApp)
-        .patch(`/api/activities/${activity.id}`)
-        .send({
-          enableTeachMode: false,
-          enableGuideMode: false,
-          enableCustomMode: false,
-        });
+      const res = await request(profApp).patch(`/api/activities/${activity.id}`).send({
+        enableTeachMode: false,
+        enableGuideMode: false,
+        enableCustomMode: false,
+      });
 
       expect(res.status).toBe(400);
       expect(res.body.error).toMatch(/AI mode/i);
     });
 
     it('returns 400 with nothing to update', async () => {
-      const res = await request(profApp)
-        .patch(`/api/activities/${activity.id}`)
-        .send({});
+      const res = await request(profApp).patch(`/api/activities/${activity.id}`).send({});
 
       expect(res.status).toBe(400);
       expect(res.body.error).toMatch(/nothing to update/i);

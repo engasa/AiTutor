@@ -34,4 +34,3 @@ export const EduAiTopicListSchema = z
     topics: z.array(EduAiTopicSchema),
   })
   .passthrough();
-

@@ -3,7 +3,7 @@ import type { Topic } from '~/lib/types';
 
 type MissingTopic = { id: number; name: string };
 
-type Mapping = { fromTopicId: number; toTopicId: string; };
+type Mapping = { fromTopicId: number; toTopicId: string };
 
 export default function TopicSyncMappingDialog({
   open,
@@ -73,14 +73,16 @@ export default function TopicSyncMappingDialog({
       <div className="w-[min(720px,95vw)] rounded-2xl bg-white dark:bg-gray-950 p-6 shadow-xl border border-gray-200 dark:border-gray-800">
         <div className="text-lg font-semibold">Review topic changes</div>
         <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
-          Some topics in this course are no longer present in EduAI. Please map them to existing topics so activities remain correctly tagged.
+          Some topics in this course are no longer present in EduAI. Please map them to existing
+          topics so activities remain correctly tagged.
         </p>
 
         <div className="mt-4 space-y-3 max-h-[50vh] overflow-y-auto pr-1">
           {missing.map((m) => (
             <div key={m.id} className="rounded-xl border border-gray-200 dark:border-gray-800 p-3">
               <div className="text-sm">
-                <span className="font-semibold">{m.name}</span> no longer exists. Choose a replacement topic:
+                <span className="font-semibold">{m.name}</span> no longer exists. Choose a
+                replacement topic:
               </div>
               <div className="mt-2">
                 <select
