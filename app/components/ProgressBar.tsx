@@ -31,19 +31,13 @@ export function ProgressBar({
           <span className="text-muted-foreground font-medium">
             {completed} of {total} completed
           </span>
-          <span className="font-bold tabular-nums text-foreground">
-            {percentage}%
-          </span>
+          <span className="font-bold tabular-nums text-foreground">{percentage}%</span>
         </div>
       )}
-      <div
-        className={`relative w-full bg-secondary rounded-full overflow-hidden ${heights[size]}`}
-      >
+      <div className={`relative w-full bg-secondary rounded-full overflow-hidden ${heights[size]}`}>
         {/* Track glow on completion */}
-        {isComplete && (
-          <div className="absolute inset-0 bg-primary/30 animate-pulse-soft" />
-        )}
-        
+        {isComplete && <div className="absolute inset-0 bg-primary/30 animate-pulse-soft" />}
+
         {/* Progress fill */}
         <div
           className="h-full rounded-full transition-all duration-700 ease-out relative bg-primary"

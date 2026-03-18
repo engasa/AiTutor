@@ -1,14 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import {
-  makeProfessor,
-  truncateAll,
-  seedMinimalCourse,
-  prisma,
-} from '../helpers.js';
-import {
-  cloneCourseContent,
-  cloneLessonsFromOffering,
-} from '../../src/services/courseCloning.js';
+import { makeProfessor, truncateAll, seedMinimalCourse, prisma } from '../helpers.js';
+import { cloneCourseContent, cloneLessonsFromOffering } from '../../src/services/courseCloning.js';
 
 describe('courseCloning service', () => {
   let sourceProf;
@@ -59,7 +51,9 @@ describe('courseCloning service', () => {
       // target already had 1 module from seed, cloning adds 1 more
       expect(targetModules.length).toBe(2);
 
-      const clonedModule = targetModules.find((m) => m.title === 'Test Module' && m.id !== target.module.id);
+      const clonedModule = targetModules.find(
+        (m) => m.title === 'Test Module' && m.id !== target.module.id,
+      );
       expect(clonedModule).toBeDefined();
       expect(clonedModule.lessons.length).toBe(1);
       expect(clonedModule.lessons[0].activities.length).toBe(1);
@@ -245,10 +239,7 @@ describe('courseCloning service', () => {
       });
 
       // Target lesson already at position 0
-      await cloneLessonsFromOffering(
-        [source.lesson.id, sourceLesson2.id],
-        target.module.id,
-      );
+      await cloneLessonsFromOffering([source.lesson.id, sourceLesson2.id], target.module.id);
 
       const targetLessons = await prisma.lesson.findMany({
         where: { moduleId: target.module.id },

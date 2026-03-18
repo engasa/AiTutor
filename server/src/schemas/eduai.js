@@ -51,4 +51,3 @@ export const EduAiEnrollmentListSchema = z
     enrollments: z.array(EduAiEnrollmentSchema),
   })
   .passthrough();
-

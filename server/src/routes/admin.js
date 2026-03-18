@@ -75,7 +75,7 @@ router.get('/admin/courses/:courseId/enrollments', requireRole('ADMIN'), async (
       courseId,
       enrolledStudents: course.enrollments
         .map((enrollment) => enrollment.user)
-        .sort((a, b) => a.name.localeCompare(b.name))
+        .toSorted((a, b) => a.name.localeCompare(b.name))
         .map(mapAdminUser),
       availableStudents: availableStudents.map(mapAdminUser),
     });
@@ -133,31 +133,35 @@ router.post('/admin/courses/:courseId/enrollments', requireRole('ADMIN'), async 
   }
 });
 
-router.delete('/admin/courses/:courseId/enrollments/:userId', requireRole('ADMIN'), async (req, res) => {
-  const courseId = Number(req.params.courseId);
-  const userId = typeof req.params.userId === 'string' ? req.params.userId.trim() : '';
+router.delete(
+  '/admin/courses/:courseId/enrollments/:userId',
+  requireRole('ADMIN'),
+  async (req, res) => {
+    const courseId = Number(req.params.courseId);
+    const userId = typeof req.params.userId === 'string' ? req.params.userId.trim() : '';
 
-  if (!Number.isFinite(courseId)) {
-    return res.status(400).json({ error: 'Invalid course id' });
-  }
+    if (!Number.isFinite(courseId)) {
+      return res.status(400).json({ error: 'Invalid course id' });
+    }
 
-  if (!userId) {
-    return res.status(400).json({ error: 'Invalid user id' });
-  }
+    if (!userId) {
+      return res.status(400).json({ error: 'Invalid user id' });
+    }
 
-  try {
-    await prisma.courseEnrollment.deleteMany({
-      where: {
-        courseOfferingId: courseId,
-        userId,
-      },
-    });
+    try {
+      await prisma.courseEnrollment.deleteMany({
+        where: {
+          courseOfferingId: courseId,
+          userId,
+        },
+      });
 
-    res.json({ ok: true });
-  } catch (e) {
-    res.status(500).json({ error: String(e) });
-  }
-});
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(500).json({ error: String(e) });
+    }
+  },
+);
 
 router.get('/admin/settings/eduai-api-key', requireRole('ADMIN'), async (req, res) => {
   try {
@@ -215,8 +219,8 @@ router.put('/admin/settings/ai-model-policy', requireRole('ADMIN'), async (req, 
     const status = Number.isInteger(e?.status)
       ? e.status
       : e?.message?.includes('must') || e?.message?.includes('At least one')
-      ? 400
-      : 500;
+        ? 400
+        : 500;
     res.status(status).json({ error: String(e.message || e) });
   }
 });

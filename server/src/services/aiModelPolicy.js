@@ -32,20 +32,30 @@ function inferSummary(modelId = '', modelName = '') {
 export function clampSupervisorIterations(value) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return DEFAULT_MAX_SUPERVISOR_ITERATIONS;
-  return Math.max(MIN_SUPERVISOR_ITERATIONS, Math.min(MAX_SUPERVISOR_ITERATIONS, Math.trunc(numeric)));
+  return Math.max(
+    MIN_SUPERVISOR_ITERATIONS,
+    Math.min(MAX_SUPERVISOR_ITERATIONS, Math.trunc(numeric)),
+  );
 }
 
 export function normalizeStoredAiModelPolicy(rawPolicy = {}) {
   return {
     allowedTutorModelIds: Array.isArray(rawPolicy.allowedTutorModelIds)
-      ? Array.from(new Set(rawPolicy.allowedTutorModelIds.filter((value) => typeof value === 'string' && value.trim())))
+      ? Array.from(
+          new Set(
+            rawPolicy.allowedTutorModelIds.filter(
+              (value) => typeof value === 'string' && value.trim(),
+            ),
+          ),
+        )
       : [],
     defaultTutorModelId:
       typeof rawPolicy.defaultTutorModelId === 'string' && rawPolicy.defaultTutorModelId.trim()
         ? rawPolicy.defaultTutorModelId.trim()
         : null,
     defaultSupervisorModelId:
-      typeof rawPolicy.defaultSupervisorModelId === 'string' && rawPolicy.defaultSupervisorModelId.trim()
+      typeof rawPolicy.defaultSupervisorModelId === 'string' &&
+      rawPolicy.defaultSupervisorModelId.trim()
         ? rawPolicy.defaultSupervisorModelId.trim()
         : null,
     dualLoopEnabled: rawPolicy.dualLoopEnabled !== false,
@@ -59,18 +69,25 @@ export function resolveAiModelPolicy(rawPolicy = {}, availableModelIds = []) {
 
   const allowedTutorModelIds =
     normalized.allowedTutorModelIds.length > 0
-      ? normalized.allowedTutorModelIds.filter((modelId) => normalizedModelIds.length === 0 || normalizedModelIds.includes(modelId))
+      ? normalized.allowedTutorModelIds.filter(
+          (modelId) => normalizedModelIds.length === 0 || normalizedModelIds.includes(modelId),
+        )
       : normalizedModelIds;
 
   const fallbackTutorModelId = getPreferredDefaultModelId(allowedTutorModelIds);
   const defaultTutorModelId =
-    normalized.defaultTutorModelId && (normalizedModelIds.length === 0 || allowedTutorModelIds.includes(normalized.defaultTutorModelId))
+    normalized.defaultTutorModelId &&
+    (normalizedModelIds.length === 0 ||
+      allowedTutorModelIds.includes(normalized.defaultTutorModelId))
       ? normalized.defaultTutorModelId
       : fallbackTutorModelId;
 
-  const fallbackSupervisorModelId = defaultTutorModelId ?? getPreferredDefaultModelId(normalizedModelIds);
+  const fallbackSupervisorModelId =
+    defaultTutorModelId ?? getPreferredDefaultModelId(normalizedModelIds);
   const defaultSupervisorModelId =
-    normalized.defaultSupervisorModelId && (normalizedModelIds.length === 0 || normalizedModelIds.includes(normalized.defaultSupervisorModelId))
+    normalized.defaultSupervisorModelId &&
+    (normalizedModelIds.length === 0 ||
+      normalizedModelIds.includes(normalized.defaultSupervisorModelId))
       ? normalized.defaultSupervisorModelId
       : fallbackSupervisorModelId;
 
@@ -105,7 +122,7 @@ export async function loadAiModelCatalog() {
   return eduAiModels
     .filter((model) => model.isActive)
     .map(mapCatalogModel)
-    .sort((a, b) => a.modelName.localeCompare(b.modelName));
+    .toSorted((a, b) => a.modelName.localeCompare(b.modelName));
 }
 
 export async function getStoredAiModelPolicy() {
@@ -125,7 +142,10 @@ export async function getAiModelPolicyState() {
 
   try {
     const availableModels = await loadAiModelCatalog();
-    const policy = resolveAiModelPolicy(storedPolicy, availableModels.map((model) => model.modelId));
+    const policy = resolveAiModelPolicy(
+      storedPolicy,
+      availableModels.map((model) => model.modelId),
+    );
 
     return {
       policy,
@@ -156,11 +176,17 @@ export async function setAiModelPolicy(policyInput) {
     throw new Error('At least one tutor model must be allowed');
   }
 
-  if (!nextPolicy.defaultTutorModelId || !nextPolicy.allowedTutorModelIds.includes(nextPolicy.defaultTutorModelId)) {
+  if (
+    !nextPolicy.defaultTutorModelId ||
+    !nextPolicy.allowedTutorModelIds.includes(nextPolicy.defaultTutorModelId)
+  ) {
     throw new Error('defaultTutorModelId must be one of the allowed tutor models');
   }
 
-  if (!nextPolicy.defaultSupervisorModelId || !availableModelIds.includes(nextPolicy.defaultSupervisorModelId)) {
+  if (
+    !nextPolicy.defaultSupervisorModelId ||
+    !availableModelIds.includes(nextPolicy.defaultSupervisorModelId)
+  ) {
     throw new Error('defaultSupervisorModelId must reference an available model');
   }
 
@@ -172,7 +198,11 @@ export async function resolveTutorModelSelection(requestedModelId) {
   const storedPolicy = await getStoredAiModelPolicy();
   const allowedTutorModelIds = storedPolicy.allowedTutorModelIds;
 
-  if (requestedModelId && allowedTutorModelIds.length > 0 && !allowedTutorModelIds.includes(requestedModelId)) {
+  if (
+    requestedModelId &&
+    allowedTutorModelIds.length > 0 &&
+    !allowedTutorModelIds.includes(requestedModelId)
+  ) {
     const error = new Error('Selected tutor model is not allowed');
     error.status = 403;
     throw error;
@@ -187,6 +217,8 @@ export async function resolveSupervisorSettings() {
     dualLoopEnabled: storedPolicy.dualLoopEnabled,
     maxSupervisorIterations: storedPolicy.maxSupervisorIterations,
     supervisorModelId:
-      storedPolicy.defaultSupervisorModelId || storedPolicy.defaultTutorModelId || DEFAULT_TUTOR_MODEL,
+      storedPolicy.defaultSupervisorModelId ||
+      storedPolicy.defaultTutorModelId ||
+      DEFAULT_TUTOR_MODEL,
   };
 }

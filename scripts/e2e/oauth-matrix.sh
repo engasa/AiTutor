@@ -207,11 +207,14 @@ oauth_login_aitutor() {
         --data 'accept=true' "$callback_url" >/dev/null
       callback_url="$(extract_location "$TMPDIR/consent-headers.txt")"
     elif [[ "$callback_url" == *"/auth/login"* ]]; then
-      curl -s -D "$TMPDIR/provider-redirect-headers.txt" -o /dev/null -c "$provider_jar" -b "$provider_jar" \
-        -H "Origin: $EDUAI" -H "Referer: $callback_url" -H 'Content-Type: application/x-www-form-urlencoded' \
-        --data-urlencode "email=$email" \
-        --data-urlencode "password=$password" \
-        "$callback_url" >/dev/null
+      # EduAI redirected to its frontend login page, meaning the session
+      # cookie was not recognised.  Re-authenticate via the Better Auth API
+      # and retry the authorize URL so we get a consent redirect instead.
+      curl -s -c "$provider_jar" -b "$provider_jar" -H "Origin: $EDUAI" -H 'Content-Type: application/json' \
+        -d "{\"email\":\"$email\",\"password\":\"$password\",\"rememberMe\":false}" \
+        "$EDUAI/api/auth/sign-in/email" >/dev/null
+      sleep 1
+      curl -s -D "$TMPDIR/provider-redirect-headers.txt" -o /dev/null -c "$provider_jar" -b "$provider_jar" "$auth_url" >/dev/null
       callback_url="$(abs_redirect_url "$(extract_location "$TMPDIR/provider-redirect-headers.txt")")"
     else
       curl -s -D "$TMPDIR/provider-redirect-headers.txt" -o /dev/null -c "$provider_jar" -b "$provider_jar" \
@@ -257,7 +260,7 @@ need_cmd python3
 need_cmd bun
 
 curl -fsS "$BASE/api/health" >/dev/null
-curl -fsS "$EDUAI/api/courses" >/dev/null
+curl -fsS "$EDUAI/api/ai-models" >/dev/null
 
 EDUAI_ADMIN_JAR="$TMPDIR/eduai-admin.cookies"
 curl -s -c "$EDUAI_ADMIN_JAR" -b "$EDUAI_ADMIN_JAR" -H "Origin: $EDUAI" -H 'Content-Type: application/json' \
@@ -273,6 +276,24 @@ status=$(curl -s -o "$TMPDIR/eduai-fixture-course.json" -w '%{http_code}' -c "$E
   "$EDUAI/api/courses")
 expect_status 'seed EduAI fixture course' 201 "$status" "$TMPDIR/eduai-fixture-course.json"
 EXTERNAL_COURSE_ID=$(jq -r '.id' "$TMPDIR/eduai-fixture-course.json")
+
+# EduAI's GET /api/courses is user-scoped: professors only see courses
+# they own.  Course creation always sets professorId = authenticated user
+# (the admin).  Reassign ownership to instructor@eduai.local via Prisma
+# so that the professor's OAuth token can discover and import the fixture.
+(
+  cd "$EDUAI_ROOT"
+  EXTERNAL_COURSE_ID="$EXTERNAL_COURSE_ID" bun -e '
+  import { PrismaClient } from "@prisma/client";
+  const prisma = new PrismaClient();
+  const courseId = process.env.EXTERNAL_COURSE_ID;
+  const instructor = await prisma.user.findFirst({ where: { email: "instructor@eduai.local" } });
+  if (!instructor) { console.error("instructor@eduai.local not found"); process.exit(1); }
+  await prisma.course.update({ where: { id: courseId }, data: { professorId: instructor.id } });
+  await prisma.$disconnect();
+  '
+)
+log "INFO reassigned fixture course to instructor@eduai.local"
 
 status=$(curl -s -o "$TMPDIR/eduai-fixture-topic-a.json" -w '%{http_code}' -c "$EDUAI_ADMIN_JAR" -b "$EDUAI_ADMIN_JAR" \
   -X POST -H 'Content-Type: application/json' -d '{"name":"Regression Topic 1"}' \

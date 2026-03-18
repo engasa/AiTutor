@@ -8,7 +8,9 @@ router.get('/ai-models', async (req, res) => {
     const { policy, availableModels, availableModelsError } = await getAiModelPolicyState();
 
     if (availableModelsError) {
-      return res.status(500).json({ error: 'Failed to load AI models', detail: availableModelsError });
+      return res
+        .status(500)
+        .json({ error: 'Failed to load AI models', detail: availableModelsError });
     }
 
     const visibleModels =
@@ -32,7 +34,7 @@ router.get('/ai-models', async (req, res) => {
 /**
  * Validate an API key by making a minimal request to the provider.
  * Uses lightweight endpoints (list models) that don't consume tokens.
- * 
+ *
  * Returns 200 with { valid: true/false, error? } so the client can read
  * provider-specific error messages. Only returns 4xx/5xx for actual request errors.
  */
@@ -47,7 +49,7 @@ router.post('/ai-models/validate-key', async (req, res) => {
     if (provider === 'google') {
       // Gemini: list models endpoint is free/lightweight
       const resp = await fetch(
-        `https://generativelanguage.googleapis.com/v1/models?key=${encodeURIComponent(apiKey)}`
+        `https://generativelanguage.googleapis.com/v1/models?key=${encodeURIComponent(apiKey)}`,
       );
       if (!resp.ok) {
         const body = await resp.json().catch(() => ({}));

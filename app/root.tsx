@@ -5,12 +5,12 @@ import {
   Outlet,
   Scripts,
   ScrollRestoration,
-} from "react-router";
+} from 'react-router';
 
-import type { Route } from "./+types/root";
-import "./app.css";
-import { AuthProvider } from "~/hooks/useLocalUser";
-import { TourProvider } from "~/components/TourProvider";
+import type { Route } from './+types/root';
+import './app.css';
+import { AuthProvider } from '~/hooks/useLocalUser';
+import { TourProvider } from '~/components/TourProvider';
 
 // Theme script runs before React hydration to prevent flash
 // Sets dark class on <html> based on localStorage or system preference
@@ -32,26 +32,26 @@ const themeScript = `(function(){
 })();`;
 
 export const links: Route.LinksFunction = () => [
-  { rel: "preconnect", href: "https://fonts.googleapis.com" },
+  { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
   {
-    rel: "preconnect",
-    href: "https://fonts.gstatic.com",
-    crossOrigin: "anonymous",
+    rel: 'preconnect',
+    href: 'https://fonts.gstatic.com',
+    crossOrigin: 'anonymous',
   },
   // Satoshi - Modern geometric sans for body text
   {
-    rel: "stylesheet",
-    href: "https://api.fontshare.com/v2/css?f[]=satoshi@400,500,600,700&display=swap",
+    rel: 'stylesheet',
+    href: 'https://api.fontshare.com/v2/css?f[]=satoshi@400,500,600,700&display=swap',
   },
   // Fraunces - Distinctive old-style serif for display headings
   {
-    rel: "stylesheet",
-    href: "https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&display=swap",
+    rel: 'stylesheet',
+    href: 'https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&display=swap',
   },
   // JetBrains Mono - For code and monospace elements
   {
-    rel: "stylesheet",
-    href: "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap",
+    rel: 'stylesheet',
+    href: 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap',
   },
 ];
 
@@ -98,16 +98,14 @@ export default function App() {
 }
 
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
-  let message = "Oops!";
-  let details = "An unexpected error occurred.";
+  let message = 'Oops!';
+  let details = 'An unexpected error occurred.';
   let stack: string | undefined;
 
   if (isRouteErrorResponse(error)) {
-    message = error.status === 404 ? "404" : "Error";
+    message = error.status === 404 ? '404' : 'Error';
     details =
-      error.status === 404
-        ? "The requested page could not be found."
-        : error.statusText || details;
+      error.status === 404 ? 'The requested page could not be found.' : error.statusText || details;
   } else if (import.meta.env.DEV && error && error instanceof Error) {
     details = error.message;
     stack = error.stack;

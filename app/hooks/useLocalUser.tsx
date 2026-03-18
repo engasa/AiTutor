@@ -1,8 +1,8 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import api from "~/lib/api";
-import type { User } from "~/lib/types";
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import api from '~/lib/api';
+import type { User } from '~/lib/types';
 
-export type AuthUser = Pick<User, "id" | "name" | "role">;
+export type AuthUser = Pick<User, 'id' | 'name' | 'role'>;
 
 type AuthContextValue = {
   user: AuthUser | null;
@@ -64,7 +64,7 @@ export function AuthProvider({ initialUser, children }: AuthProviderProps) {
     try {
       await api.logout();
     } catch (error) {
-      console.error("Failed to log out", error);
+      console.error('Failed to log out', error);
     }
     setUser(null);
   };
@@ -86,7 +86,7 @@ export function AuthProvider({ initialUser, children }: AuthProviderProps) {
 export function useLocalUser() {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error("useLocalUser must be used within an AuthProvider");
+    throw new Error('useLocalUser must be used within an AuthProvider');
   }
   return context;
 }

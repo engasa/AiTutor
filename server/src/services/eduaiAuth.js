@@ -36,8 +36,7 @@ export async function getEduAiAccessTokenForUser(userId) {
       },
     });
 
-    const accessToken =
-      typeof tokens?.accessToken === 'string' ? tokens.accessToken.trim() : '';
+    const accessToken = typeof tokens?.accessToken === 'string' ? tokens.accessToken.trim() : '';
 
     if (!accessToken) {
       throw createStatusError('EduAI token endpoint returned an invalid access token', 502);

@@ -24,7 +24,9 @@ describe('API_BASE', () => {
 
 describe('api methods', () => {
   it('api.me() calls fetch with correct URL and credentials: include', async () => {
-    const mockResponse = { user: { id: '1', name: 'Test', email: 'test@example.com', role: 'STUDENT' } };
+    const mockResponse = {
+      user: { id: '1', name: 'Test', email: 'test@example.com', role: 'STUDENT' },
+    };
     mockFetch.mockResolvedValue({
       ok: true,
       status: 200,

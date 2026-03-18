@@ -1,13 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../../src/app.js';
-import {
-  makeProfessor,
-  makeStudent,
-  truncateAll,
-  seedMinimalCourse,
-  prisma,
-} from '../helpers.js';
+import { makeProfessor, makeStudent, truncateAll, seedMinimalCourse, prisma } from '../helpers.js';
 
 describe('Lessons routes', () => {
   let prof;
@@ -57,9 +51,7 @@ describe('Lessons routes', () => {
         },
       });
 
-      const res = await request(profApp).get(
-        `/api/modules/${seed.module.id}/lessons`,
-      );
+      const res = await request(profApp).get(`/api/modules/${seed.module.id}/lessons`);
 
       expect(res.status).toBe(200);
       expect(res.body).toHaveLength(2);
@@ -87,9 +79,7 @@ describe('Lessons routes', () => {
       const student = await enrollStudent();
       const studentApp = await createApp({ mockUser: student });
 
-      const res = await request(studentApp).get(
-        `/api/modules/${seed.module.id}/lessons`,
-      );
+      const res = await request(studentApp).get(`/api/modules/${seed.module.id}/lessons`);
 
       expect(res.status).toBe(200);
       // Student should only see the published lesson
@@ -116,9 +106,7 @@ describe('Lessons routes', () => {
       });
       const otherApp = await createApp({ mockUser: otherProf });
 
-      const res = await request(otherApp).get(
-        `/api/modules/${seed.module.id}/lessons`,
-      );
+      const res = await request(otherApp).get(`/api/modules/${seed.module.id}/lessons`);
 
       expect(res.status).toBe(403);
     });
@@ -163,9 +151,7 @@ describe('Lessons routes', () => {
         data: { isPublished: false },
       });
 
-      const res = await request(profApp).patch(
-        `/api/lessons/${seed.lesson.id}/publish`,
-      );
+      const res = await request(profApp).patch(`/api/lessons/${seed.lesson.id}/publish`);
 
       expect(res.status).toBe(200);
       expect(res.body.isPublished).toBe(true);
@@ -182,9 +168,7 @@ describe('Lessons routes', () => {
         data: { isPublished: false },
       });
 
-      const res = await request(profApp).patch(
-        `/api/lessons/${seed.lesson.id}/publish`,
-      );
+      const res = await request(profApp).patch(`/api/lessons/${seed.lesson.id}/publish`);
 
       expect(res.status).toBe(400);
       expect(res.body.error).toMatch(/parent module is not published/i);
@@ -195,9 +179,7 @@ describe('Lessons routes', () => {
 
   describe('PATCH /api/lessons/:id/unpublish', () => {
     it('unpublishes a lesson', async () => {
-      const res = await request(profApp).patch(
-        `/api/lessons/${seed.lesson.id}/unpublish`,
-      );
+      const res = await request(profApp).patch(`/api/lessons/${seed.lesson.id}/unpublish`);
 
       expect(res.status).toBe(200);
       expect(res.body.isPublished).toBe(false);

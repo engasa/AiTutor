@@ -215,13 +215,7 @@ router.get('/courses/:courseId', async (req, res) => {
 
 router.post('/courses', requireRole('PROFESSOR'), async (req, res) => {
   const instructor = req.user;
-  const {
-    title,
-    description,
-    sourceCourseId,
-    startDate,
-    endDate,
-  } = req.body || {};
+  const { title, description, sourceCourseId, startDate, endDate } = req.body || {};
 
   if (!title) {
     return res.status(400).json({ error: 'title is required' });
@@ -330,23 +324,14 @@ router.post('/courses/:courseId/import', requireRole('PROFESSOR'), async (req, r
     return res.status(400).json({ error: 'Invalid course id' });
   }
 
-  const {
-    sourceCourseId,
-    moduleIds,
-    lessonIds,
-    targetModuleId,
-  } = req.body || {};
+  const { sourceCourseId, moduleIds, lessonIds, targetModuleId } = req.body || {};
 
   const normalizedModuleIds = Array.isArray(moduleIds)
-    ? moduleIds
-        .map((value) => Number(value))
-        .filter((value) => Number.isFinite(value))
+    ? moduleIds.map((value) => Number(value)).filter((value) => Number.isFinite(value))
     : [];
 
   const normalizedLessonIds = Array.isArray(lessonIds)
-    ? lessonIds
-        .map((value) => Number(value))
-        .filter((value) => Number.isFinite(value))
+    ? lessonIds.map((value) => Number(value)).filter((value) => Number.isFinite(value))
     : [];
 
   const numericTargetModuleId =
@@ -395,7 +380,9 @@ router.post('/courses/:courseId/import', requireRole('PROFESSOR'), async (req, r
       });
 
       if (moduleCount !== normalizedModuleIds.length) {
-        return res.status(400).json({ error: 'One or more modules do not belong to source course' });
+        return res
+          .status(400)
+          .json({ error: 'One or more modules do not belong to source course' });
       }
 
       await cloneCourseContent(numericSourceCourseId, courseId, {
@@ -414,7 +401,9 @@ router.post('/courses/:courseId/import', requireRole('PROFESSOR'), async (req, r
       });
 
       if (!targetModule || targetModule.courseOfferingId !== courseId) {
-        return res.status(400).json({ error: 'targetModuleId does not belong to destination course' });
+        return res
+          .status(400)
+          .json({ error: 'targetModuleId does not belong to destination course' });
       }
 
       const lessons = await prisma.lesson.findMany({

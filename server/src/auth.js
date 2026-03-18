@@ -1,34 +1,32 @@
-import { betterAuth } from "better-auth";
-import { genericOAuth } from "better-auth/plugins";
-import { prismaAdapter } from "better-auth/adapters/prisma";
-import { prisma } from "./config/database.js";
+import { betterAuth } from 'better-auth';
+import { genericOAuth } from 'better-auth/plugins';
+import { prismaAdapter } from 'better-auth/adapters/prisma';
+import { prisma } from './config/database.js';
 
-const isProd = process.env.NODE_ENV === "production";
-const baseURL = process.env.BETTER_AUTH_URL || "http://localhost:4000/api/auth";
-const cookieDomain = process.env.COOKIE_DOMAIN || "localhost";
+const isProd = process.env.NODE_ENV === 'production';
+const baseURL = process.env.BETTER_AUTH_URL || 'http://localhost:4000/api/auth';
+const cookieDomain = process.env.COOKIE_DOMAIN || 'localhost';
 const eduAiDiscoveryUrl =
   process.env.EDUAI_DISCOVERY_URL ||
-  "http://localhost:5174/api/auth/.well-known/openid-configuration";
-const eduAiClientId = process.env.EDUAI_CLIENT_ID || "aitutor-local";
-const eduAiClientSecret =
-  process.env.EDUAI_CLIENT_SECRET || "aitutor-local-secret";
+  'http://localhost:5174/api/auth/.well-known/openid-configuration';
+const eduAiClientId = process.env.EDUAI_CLIENT_ID || 'aitutor-local';
+const eduAiClientSecret = process.env.EDUAI_CLIENT_SECRET || 'aitutor-local-secret';
 const eduAiUserInfoUrl =
-  process.env.EDUAI_USERINFO_URL ||
-  "http://localhost:5174/api/auth/oauth2/userinfo";
+  process.env.EDUAI_USERINFO_URL || 'http://localhost:5174/api/auth/oauth2/userinfo';
 const authSecret =
   process.env.BETTER_AUTH_SECRET ||
   process.env.JWT_SECRET ||
-  (isProd ? undefined : "aitutor-local-dev-secret-change-me");
+  (isProd ? undefined : 'aitutor-local-dev-secret-change-me');
 
 if (!authSecret) {
-  throw new Error("BETTER_AUTH_SECRET must be configured in production");
+  throw new Error('BETTER_AUTH_SECRET must be configured in production');
 }
 
 function normalizeEduAiRole(value) {
-  if (value === "ADMIN") return "ADMIN";
-  if (value === "PROFESSOR") return "PROFESSOR";
-  if (value === "TA") return "TA";
-  return "STUDENT";
+  if (value === 'ADMIN') return 'ADMIN';
+  if (value === 'PROFESSOR') return 'PROFESSOR';
+  if (value === 'TA') return 'TA';
+  return 'STUDENT';
 }
 
 export const auth = betterAuth({
@@ -37,20 +35,20 @@ export const auth = betterAuth({
   baseURL,
 
   // Allow the frontend dev origin to call auth endpoints
-  trustedOrigins: ["http://localhost:5173", "https://aitutor.ok.ubc.ca"],
+  trustedOrigins: ['http://localhost:5173', 'https://aitutor.ok.ubc.ca'],
 
   // Use Prisma as the database adapter (PostgreSQL in this repo)
   database: prismaAdapter(prisma, {
-    provider: "postgresql",
+    provider: 'postgresql',
   }),
 
   user: {
     additionalFields: {
       role: {
-        type: "string",
+        type: 'string',
         required: false,
         input: false,
-        defaultValue: "STUDENT",
+        defaultValue: 'STUDENT',
         returned: true,
       },
     },
@@ -60,7 +58,7 @@ export const auth = betterAuth({
   },
   account: {
     accountLinking: {
-      trustedProviders: ["eduai"],
+      trustedProviders: ['eduai'],
       updateUserInfoOnLink: true,
     },
   },
@@ -69,17 +67,17 @@ export const auth = betterAuth({
   cookies: {
     domain: cookieDomain,
     secure: isProd,
-    sameSite: "lax",
+    sameSite: 'lax',
   },
   plugins: [
     genericOAuth({
       config: [
         {
-          providerId: "eduai",
+          providerId: 'eduai',
           clientId: eduAiClientId,
           clientSecret: eduAiClientSecret,
           discoveryUrl: eduAiDiscoveryUrl,
-          scopes: ["openid", "profile", "email", "offline_access"],
+          scopes: ['openid', 'profile', 'email', 'offline_access'],
           pkce: true,
           requireIssuerValidation: true,
           overrideUserInfo: true,
@@ -98,11 +96,11 @@ export const auth = betterAuth({
 
             return {
               id: String(profile.sub),
-              email: String(profile.email || "").toLowerCase(),
-              name: String(profile.name || profile.email || "EduAI User"),
-              image: typeof profile.picture === "string" ? profile.picture : undefined,
+              email: String(profile.email || '').toLowerCase(),
+              name: String(profile.name || profile.email || 'EduAI User'),
+              image: typeof profile.picture === 'string' ? profile.picture : undefined,
               emailVerified: Boolean(profile.email_verified),
-              role: normalizeEduAiRole(profile["https://eduai.app/role"]),
+              role: normalizeEduAiRole(profile['https://eduai.app/role']),
             };
           },
         },

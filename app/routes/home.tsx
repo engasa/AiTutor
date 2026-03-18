@@ -5,7 +5,7 @@ import { useLocalUser } from '../hooks/useLocalUser';
 import { signInWithEduAi } from '../lib/auth-client';
 import type { Role } from '../lib/types';
 
-export function meta({}: Route.MetaArgs) {
+export function meta(_args: Route.MetaArgs) {
   return [
     { title: 'AI Tutor - Welcome' },
     { name: 'description', content: 'Sign in to AI Tutor with your EduAI account' },
@@ -81,8 +81,19 @@ export default function Home() {
         <div className="relative container mx-auto flex min-h-dvh items-center justify-center px-6 py-12">
           <div className="card-editorial flex w-full max-w-md items-center justify-center gap-3 p-8 text-sm text-muted-foreground">
             <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              />
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              />
             </svg>
             Redirecting to your workspace...
           </div>
@@ -130,7 +141,9 @@ export default function Home() {
         <div className="animate-fade-up delay-150 w-full max-w-md">
           <div className="card-editorial p-8 sm:p-10">
             <div className="mb-8 text-center">
-              <h2 className="mb-2 font-display text-2xl font-bold text-foreground">Sign in with EduAI</h2>
+              <h2 className="mb-2 font-display text-2xl font-bold text-foreground">
+                Sign in with EduAI
+              </h2>
               <p className="text-sm text-muted-foreground">
                 AI Tutor now uses your EduAI identity. Use the same account you already use across
                 the EduAI platform.
@@ -140,27 +153,63 @@ export default function Home() {
             <div className="space-y-5">
               {error && (
                 <div className="animate-fade-in flex items-center gap-2 rounded-xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-                  <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                  <svg
+                    className="h-4 w-4 flex-shrink-0"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
+                    />
                   </svg>
                   {error}
                 </div>
               )}
 
-              <button type="button" onClick={onSignIn} disabled={loading} className="btn-primary w-full text-base">
+              <button
+                type="button"
+                onClick={onSignIn}
+                disabled={loading}
+                className="btn-primary w-full text-base"
+              >
                 {loading ? (
                   <>
                     <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      />
                     </svg>
                     Redirecting to EduAI...
                   </>
                 ) : (
                   <>
                     Sign in with EduAI
-                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                    <svg
+                      className="h-4 w-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"
+                      />
                     </svg>
                   </>
                 )}

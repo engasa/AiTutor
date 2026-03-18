@@ -182,7 +182,12 @@ export default function InstructorModuleLessons({ loaderData }: Route.ComponentP
   };
 
   const onImportLessons = async () => {
-    if (!module || !numericModuleId || selectedSourceModuleId == null || selectedLessonIds.size === 0)
+    if (
+      !module ||
+      !numericModuleId ||
+      selectedSourceModuleId == null ||
+      selectedLessonIds.size === 0
+    )
       return;
     setImporting(true);
     try {
@@ -228,225 +233,234 @@ export default function InstructorModuleLessons({ loaderData }: Route.ComponentP
     <div className="min-h-dvh bg-background">
       <Nav />
       <div className="container mx-auto px-4 py-8 space-y-6">
-          <Breadcrumb className="mb-6">
-            <BreadcrumbList>
-              <BreadcrumbItem>
+        <Breadcrumb className="mb-6">
+          <BreadcrumbList>
+            <BreadcrumbItem>
+              <BreadcrumbLink asChild>
+                <Link to="/instructor">Teaching</Link>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator>/</BreadcrumbSeparator>
+            <BreadcrumbItem>
+              {course && module ? (
                 <BreadcrumbLink asChild>
-                  <Link to="/instructor">Teaching</Link>
+                  <Link to={`/instructor/courses/${module.courseOfferingId}`}>{course.title}</Link>
                 </BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator>/</BreadcrumbSeparator>
-              <BreadcrumbItem>
-                {course && module ? (
-                  <BreadcrumbLink asChild>
-                    <Link to={`/instructor/courses/${module.courseOfferingId}`}>{course.title}</Link>
-                  </BreadcrumbLink>
-                ) : (
-                  <BreadcrumbPage>Course</BreadcrumbPage>
-                )}
-              </BreadcrumbItem>
-              <BreadcrumbSeparator>/</BreadcrumbSeparator>
-              <BreadcrumbItem>
-                <BreadcrumbPage>{module?.title || 'Module'}</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="font-display text-2xl font-semibold text-foreground">Lessons</h2>
-            </div>
-            <button
-              onClick={() => {
-                if (!showImport) {
-                  ensureSourceCoursesLoaded();
-                } else {
-                  void handleSourceCourseSelection(null);
-                }
-                setShowImport((prev) => !prev);
-              }}
-              className="btn-secondary"
-            >
-              {showImport ? 'Close' : 'Import Lessons'}
-            </button>
+              ) : (
+                <BreadcrumbPage>Course</BreadcrumbPage>
+              )}
+            </BreadcrumbItem>
+            <BreadcrumbSeparator>/</BreadcrumbSeparator>
+            <BreadcrumbItem>
+              <BreadcrumbPage>{module?.title || 'Module'}</BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="font-display text-2xl font-semibold text-foreground">Lessons</h2>
           </div>
+          <button
+            onClick={() => {
+              if (!showImport) {
+                ensureSourceCoursesLoaded();
+              } else {
+                void handleSourceCourseSelection(null);
+              }
+              setShowImport((prev) => !prev);
+            }}
+            className="btn-secondary"
+          >
+            {showImport ? 'Close' : 'Import Lessons'}
+          </button>
+        </div>
 
-          {showImport && (
-            <div className="card-editorial p-5 space-y-4">
+        {showImport && (
+          <div className="card-editorial p-5 space-y-4">
+            <div>
+              <label className="block text-sm font-semibold mb-1 text-foreground">
+                Choose course
+              </label>
+              <select
+                value={selectedSourceCourseId ?? ''}
+                onChange={(e) => {
+                  const nextValue = e.target.value ? Number(e.target.value) : null;
+                  void handleSourceCourseSelection(nextValue);
+                }}
+                className="input-field"
+              >
+                <option value="">Select course…</option>
+                {availableCourses.map((course) => (
+                  <option key={course.id} value={course.id}>
+                    {course.title}
+                  </option>
+                ))}
+              </select>
+              {loadingSourceCourses && (
+                <p className="mt-2 text-xs text-muted-foreground">Loading courses…</p>
+              )}
+              {!loadingSourceCourses && availableCourses.length === 0 && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  You don't have another course to copy from yet.
+                </p>
+              )}
+            </div>
+
+            {selectedSourceCourseId != null && (
               <div>
-                <label className="block text-sm font-semibold mb-1 text-foreground">Choose course</label>
+                <label className="block text-sm font-semibold mb-1 text-foreground">
+                  Choose module
+                </label>
                 <select
-                  value={selectedSourceCourseId ?? ''}
+                  value={selectedSourceModuleId ?? ''}
                   onChange={(e) => {
                     const nextValue = e.target.value ? Number(e.target.value) : null;
-                    void handleSourceCourseSelection(nextValue);
+                    void handleSourceModuleSelection(nextValue);
                   }}
                   className="input-field"
                 >
-                  <option value="">Select course…</option>
-                  {availableCourses.map((course) => (
-                    <option key={course.id} value={course.id}>
-                      {course.title}
+                  <option value="">Select module…</option>
+                  {sourceModules.map((sourceModule) => (
+                    <option key={sourceModule.id} value={sourceModule.id}>
+                      {sourceModule.title}
                     </option>
                   ))}
                 </select>
-                {loadingSourceCourses && (
-                  <p className="mt-2 text-xs text-muted-foreground">Loading courses…</p>
+                {loadingSourceModules && (
+                  <p className="mt-2 text-xs text-muted-foreground">Loading modules…</p>
                 )}
-                {!loadingSourceCourses && availableCourses.length === 0 && (
+                {!loadingSourceModules && sourceModules.length === 0 && (
                   <p className="mt-2 text-xs text-muted-foreground">
-                    You don't have another course to copy from yet.
+                    Selected course has no modules yet.
                   </p>
                 )}
               </div>
+            )}
 
-              {selectedSourceCourseId != null && (
-                <div>
-                  <label className="block text-sm font-semibold mb-1 text-foreground">Choose module</label>
-                  <select
-                    value={selectedSourceModuleId ?? ''}
-                    onChange={(e) => {
-                      const nextValue = e.target.value ? Number(e.target.value) : null;
-                    void handleSourceModuleSelection(nextValue);
-                    }}
-                    className="input-field"
-                  >
-                    <option value="">Select module…</option>
-                    {sourceModules.map((sourceModule) => (
-                      <option key={sourceModule.id} value={sourceModule.id}>
-                        {sourceModule.title}
-                      </option>
-                    ))}
-                  </select>
-                  {loadingSourceModules && (
-                    <p className="mt-2 text-xs text-muted-foreground">Loading modules…</p>
-                  )}
-                  {!loadingSourceModules && sourceModules.length === 0 && (
-                    <p className="mt-2 text-xs text-muted-foreground">Selected course has no modules yet.</p>
-                  )}
-                </div>
-              )}
-
-              {selectedSourceCourseId == null ? (
-                <p className="text-sm text-muted-foreground">Select a course to begin.</p>
-              ) : selectedSourceModuleId == null ? (
-                <p className="text-sm text-muted-foreground">Select a module to preview lessons.</p>
-              ) : loadingSourceLessons ? (
-                <p className="text-sm text-muted-foreground">Loading lessons…</p>
-              ) : sourceLessons.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Selected module has no lessons yet.</p>
-              ) : (
-                <div className="space-y-3">
-                  <div className="border border-border rounded-xl overflow-hidden">
-                    <div className="px-4 py-2.5 text-sm font-semibold bg-secondary text-secondary-foreground">
-                      Lessons
-                    </div>
-                    <div className="p-3 space-y-2 bg-card">
-                      {sourceLessons.map((lesson) => (
-                        <label
-                          key={lesson.id}
-                          className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition ${
-                            selectedLessonIds.has(lesson.id)
-                              ? 'border-primary ring-2 ring-primary/30 bg-primary/5'
-                              : 'border-border hover:border-primary/50'
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            className="sr-only"
-                            checked={selectedLessonIds.has(lesson.id)}
-                            onChange={() => toggleLesson(lesson.id)}
-                          />
-                          <span className="text-sm text-foreground">{lesson.title}</span>
-                        </label>
-                      ))}
-                    </div>
+            {selectedSourceCourseId == null ? (
+              <p className="text-sm text-muted-foreground">Select a course to begin.</p>
+            ) : selectedSourceModuleId == null ? (
+              <p className="text-sm text-muted-foreground">Select a module to preview lessons.</p>
+            ) : loadingSourceLessons ? (
+              <p className="text-sm text-muted-foreground">Loading lessons…</p>
+            ) : sourceLessons.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Selected module has no lessons yet.</p>
+            ) : (
+              <div className="space-y-3">
+                <div className="border border-border rounded-xl overflow-hidden">
+                  <div className="px-4 py-2.5 text-sm font-semibold bg-secondary text-secondary-foreground">
+                    Lessons
                   </div>
-                  <button
-                    onClick={onImportLessons}
-                    disabled={importing || selectedLessonIds.size === 0}
-                    className="btn-primary"
-                  >
-                    {importing ? 'Importing…' : 'Import selected lessons'}
-                  </button>
+                  <div className="p-3 space-y-2 bg-card">
+                    {sourceLessons.map((lesson) => (
+                      <label
+                        key={lesson.id}
+                        className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition ${
+                          selectedLessonIds.has(lesson.id)
+                            ? 'border-primary ring-2 ring-primary/30 bg-primary/5'
+                            : 'border-border hover:border-primary/50'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          className="sr-only"
+                          checked={selectedLessonIds.has(lesson.id)}
+                          onChange={() => toggleLesson(lesson.id)}
+                        />
+                        <span className="text-sm text-foreground">{lesson.title}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
-              )}
-            </div>
-          )}
+                <button
+                  onClick={onImportLessons}
+                  disabled={importing || selectedLessonIds.size === 0}
+                  className="btn-primary"
+                >
+                  {importing ? 'Importing…' : 'Import selected lessons'}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
-          <form onSubmit={onCreateLesson} className="flex gap-3">
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="New lesson title…"
-              className="input-field flex-1"
-            />
-            <button
-              disabled={creating || !title.trim()}
-              className="btn-primary"
-            >
-              {creating ? 'Adding…' : 'Add Lesson'}
-            </button>
-          </form>
+        <form onSubmit={onCreateLesson} className="flex gap-3">
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="New lesson title…"
+            className="input-field flex-1"
+          />
+          <button disabled={creating || !title.trim()} className="btn-primary">
+            {creating ? 'Adding…' : 'Add Lesson'}
+          </button>
+        </form>
 
-          {oLessons.length === 0 ? (
-            <div className="text-muted-foreground">No lessons yet.</div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {oLessons.map((lesson, idx) => {
-                const canPublish = course?.isPublished && module?.isPublished;
-                const blocked = !lesson.isPublished && !canPublish;
-                const parentName = !course?.isPublished
-                  ? course?.title || 'the parent course'
-                  : !module?.isPublished
+        {oLessons.length === 0 ? (
+          <div className="text-muted-foreground">No lessons yet.</div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {oLessons.map((lesson, idx) => {
+              const canPublish = course?.isPublished && module?.isPublished;
+              const blocked = !lesson.isPublished && !canPublish;
+              const parentName = !course?.isPublished
+                ? course?.title || 'the parent course'
+                : !module?.isPublished
                   ? module?.title || 'the parent module'
                   : null;
-                const tooltipMessage = blocked && parentName
+              const tooltipMessage =
+                blocked && parentName
                   ? `${parentName} is unpublished, so you can't publish ${lesson.title}.`
                   : null;
-                const busy = publishingId === lesson.id;
-                return (
-                  <div
-                    key={lesson.id}
-                    className="card-editorial p-5 hover:shadow-lg transition group cursor-pointer flex flex-col h-full animate-fade-up"
-                    style={{ animationDelay: `${idx * 50}ms` }}
-                    onClick={() => navigate(`/instructor/lesson/${lesson.id}`)}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
-                        navigate(`/instructor/lesson/${lesson.id}`);
-                      }
-                    }}
-                    >
-                      <div className="flex items-start gap-3">
-                        <span className="flex-shrink-0 w-8 h-8 rounded-full bg-accent text-accent-foreground flex items-center justify-center font-display font-semibold text-sm">
-                          {idx + 1}
-                        </span>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-semibold text-foreground group-hover:text-primary transition-colors">{lesson.title}</div>
-                        </div>
-                      </div>
-                      <div className="flex-grow"></div>
-                    <div className="mt-4 flex justify-end">
-                      <div onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
-                        <PublishStatusButton
-                          isPublished={lesson.isPublished}
-                          pending={busy}
-                          blockedReason={tooltipMessage}
-                          onClick={() => {
-                            if (busy || blocked) return;
-                            togglePublish(lesson.id, lesson.isPublished);
-                          }}
-                        />
+              const busy = publishingId === lesson.id;
+              return (
+                <div
+                  key={lesson.id}
+                  className="card-editorial p-5 hover:shadow-lg transition group cursor-pointer flex flex-col h-full animate-fade-up"
+                  style={{ animationDelay: `${idx * 50}ms` }}
+                  onClick={() => navigate(`/instructor/lesson/${lesson.id}`)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      navigate(`/instructor/lesson/${lesson.id}`);
+                    }
+                  }}
+                >
+                  <div className="flex items-start gap-3">
+                    <span className="flex-shrink-0 w-8 h-8 rounded-full bg-accent text-accent-foreground flex items-center justify-center font-display font-semibold text-sm">
+                      {idx + 1}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-foreground group-hover:text-primary transition-colors">
+                        {lesson.title}
                       </div>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
+                  <div className="flex-grow"></div>
+                  <div className="mt-4 flex justify-end">
+                    <div
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => e.stopPropagation()}
+                    >
+                      <PublishStatusButton
+                        isPublished={lesson.isPublished}
+                        pending={busy}
+                        blockedReason={tooltipMessage}
+                        onClick={() => {
+                          if (busy || blocked) return;
+                          togglePublish(lesson.id, lesson.isPublished);
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
-      </div>
+    </div>
   );
 }

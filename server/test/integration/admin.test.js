@@ -1,13 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../../src/app.js';
-import {
-  makeProfessor,
-  makeStudent,
-  makeAdmin,
-  truncateAll,
-  prisma,
-} from '../helpers.js';
+import { makeProfessor, makeStudent, makeAdmin, truncateAll, prisma } from '../helpers.js';
 
 describe('Admin routes', () => {
   let admin;
@@ -125,9 +119,7 @@ describe('Admin routes', () => {
         data: { courseOfferingId: course.id, userId: enrolled.id },
       });
 
-      const res = await request(adminApp).get(
-        `/api/admin/courses/${course.id}/enrollments`,
-      );
+      const res = await request(adminApp).get(`/api/admin/courses/${course.id}/enrollments`);
 
       expect(res.status).toBe(200);
       expect(res.body.courseId).toBe(course.id);
@@ -263,9 +255,7 @@ describe('Admin routes', () => {
 
   describe('GET /api/admin/settings/eduai-api-key', () => {
     it('returns API key status', async () => {
-      const res = await request(adminApp).get(
-        '/api/admin/settings/eduai-api-key',
-      );
+      const res = await request(adminApp).get('/api/admin/settings/eduai-api-key');
 
       expect(res.status).toBe(200);
       expect(res.body).toHaveProperty('configured');

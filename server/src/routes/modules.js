@@ -129,8 +129,12 @@ router.get('/modules/:moduleId', async (req, res) => {
       },
     });
     if (!module) return res.status(404).json({ error: 'Module not found' });
-    const isInstructor = module.courseOffering.instructors.some((assignment) => assignment.userId === authUser.id);
-    const isStudent = module.courseOffering.enrollments.some((enrollment) => enrollment.userId === authUser.id);
+    const isInstructor = module.courseOffering.instructors.some(
+      (assignment) => assignment.userId === authUser.id,
+    );
+    const isStudent = module.courseOffering.enrollments.some(
+      (enrollment) => enrollment.userId === authUser.id,
+    );
 
     if (authUser.role === 'PROFESSOR' && !isInstructor) {
       return res.status(403).json({ error: 'Not authorized for this module' });
@@ -182,7 +186,9 @@ router.patch('/modules/:moduleId/publish', requireRole('PROFESSOR'), async (req,
 
     // Validate parent course is published
     if (!module.courseOffering.isPublished) {
-      return res.status(400).json({ error: 'Cannot publish module: parent course is not published' });
+      return res
+        .status(400)
+        .json({ error: 'Cannot publish module: parent course is not published' });
     }
 
     const updated = await prisma.module.update({

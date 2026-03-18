@@ -27,7 +27,9 @@ export const UpdateActivitySchema = z.object({
   instructionsMd: z.string().optional(),
   question: z.string().min(1).optional(),
   type: z.enum(['MCQ', 'SHORT_TEXT']).optional(),
-  options: MCQOptionsSchema.nullish().transform((v) => (v ?? null)).optional(),
+  options: MCQOptionsSchema.nullish()
+    .transform((v) => v ?? null)
+    .optional(),
   answer: z.any().optional(),
   hints: z.array(z.string()).optional(),
   promptTemplateId: z.number().int().nullable().optional(),

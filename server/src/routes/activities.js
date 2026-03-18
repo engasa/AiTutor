@@ -183,14 +183,7 @@ async function loadActivityForChat(activityId) {
   });
 }
 
-async function handleAiInteraction({
-  req,
-  res,
-  activity,
-  mode,
-  payload,
-  generateResponse,
-}) {
+async function handleAiInteraction({ req, res, activity, mode, payload, generateResponse }) {
   const authUser = req.user;
   const activityId = activity.id;
   const course = activity.lesson?.module?.courseOffering;
@@ -311,8 +304,12 @@ router.get('/lessons/:lessonId/activities', async (req, res) => {
       return res.status(404).json({ error: 'Lesson not found' });
     }
 
-    const isInstructor = lesson.module.courseOffering.instructors.some((assignment) => assignment.userId === authUser.id);
-    const isStudent = lesson.module.courseOffering.enrollments.some((enrollment) => enrollment.userId === authUser.id);
+    const isInstructor = lesson.module.courseOffering.instructors.some(
+      (assignment) => assignment.userId === authUser.id,
+    );
+    const isStudent = lesson.module.courseOffering.enrollments.some(
+      (enrollment) => enrollment.userId === authUser.id,
+    );
 
     if (authUser.role === 'PROFESSOR' && !isInstructor) {
       return res.status(403).json({ error: 'Not authorized for this lesson' });
@@ -367,7 +364,7 @@ router.post('/lessons/:lessonId/activities', requireRole('PROFESSOR'), async (re
   }
 
   // Accept legacy `prompt` field by mapping it to question before validation
-  const raw = { ...(req.body || {}) };
+  const raw = { ...req.body };
   if (!raw.question && raw.prompt) raw.question = raw.prompt;
   let payload;
   try {
@@ -416,7 +413,9 @@ router.post('/lessons/:lessonId/activities', requireRole('PROFESSOR'), async (re
       });
       const invalid = topics.some((topic) => topic.courseOfferingId !== courseOfferingId);
       if (invalid || topics.length !== normalizedSecondaryIds.length) {
-        return res.status(400).json({ error: 'secondaryTopicIds must belong to the lesson course' });
+        return res
+          .status(400)
+          .json({ error: 'secondaryTopicIds must belong to the lesson course' });
       }
     }
 
@@ -545,9 +544,8 @@ router.patch('/activities/:activityId', requireRole('PROFESSOR'), async (req, re
       updateData.instructionsMd = payload.instructionsMd;
     }
 
-    const currentConfig = activity.config && typeof activity.config === 'object'
-      ? { ...activity.config }
-      : {};
+    const currentConfig =
+      activity.config && typeof activity.config === 'object' ? { ...activity.config } : {};
     let configChanged = false;
 
     if (typeof payload.question !== 'undefined') {
@@ -583,9 +581,7 @@ router.patch('/activities/:activityId', requireRole('PROFESSOR'), async (req, re
 
     if (typeof payload.hints !== 'undefined') {
       const normalizedHints = Array.isArray(payload.hints)
-        ? payload.hints
-            .map((hint) => hint.trim())
-            .filter((hint) => hint.length > 0)
+        ? payload.hints.map((hint) => hint.trim()).filter((hint) => hint.length > 0)
         : [];
       currentConfig.hints = normalizedHints;
       configChanged = true;
@@ -599,7 +595,9 @@ router.patch('/activities/:activityId', requireRole('PROFESSOR'), async (req, re
       if (payload.promptTemplateId === null) {
         updateData.promptTemplateId = null;
       } else if (typeof payload.promptTemplateId === 'number') {
-        const prompt = await prisma.promptTemplate.findUnique({ where: { id: payload.promptTemplateId } });
+        const prompt = await prisma.promptTemplate.findUnique({
+          where: { id: payload.promptTemplateId },
+        });
         if (!prompt) {
           return res.status(400).json({ error: 'Invalid promptTemplateId' });
         }
@@ -655,10 +653,14 @@ router.patch('/activities/:activityId', requireRole('PROFESSOR'), async (req, re
       );
 
       if (normalizedSecondaryIds.length > 0) {
-        const topics = await prisma.topic.findMany({ where: { id: { in: normalizedSecondaryIds } } });
+        const topics = await prisma.topic.findMany({
+          where: { id: { in: normalizedSecondaryIds } },
+        });
         const invalid = topics.some((topic) => topic.courseOfferingId !== courseOfferingId);
         if (invalid || topics.length !== normalizedSecondaryIds.length) {
-          return res.status(400).json({ error: 'secondaryTopicIds must belong to the activity course' });
+          return res
+            .status(400)
+            .json({ error: 'secondaryTopicIds must belong to the activity course' });
         }
       }
 
@@ -677,21 +679,24 @@ router.patch('/activities/:activityId', requireRole('PROFESSOR'), async (req, re
 
     // Handle AI mode updates with validation
     if (requestedModeUpdate) {
-      const newTeachMode = typeof payload.enableTeachMode !== 'undefined' 
-        ? payload.enableTeachMode 
-        : activity.enableTeachMode;
-      const newGuideMode = typeof payload.enableGuideMode !== 'undefined' 
-        ? payload.enableGuideMode 
-        : activity.enableGuideMode;
-      const newCustomMode = typeof payload.enableCustomMode !== 'undefined'
-        ? payload.enableCustomMode
-        : activity.enableCustomMode;
-      
+      const newTeachMode =
+        typeof payload.enableTeachMode !== 'undefined'
+          ? payload.enableTeachMode
+          : activity.enableTeachMode;
+      const newGuideMode =
+        typeof payload.enableGuideMode !== 'undefined'
+          ? payload.enableGuideMode
+          : activity.enableGuideMode;
+      const newCustomMode =
+        typeof payload.enableCustomMode !== 'undefined'
+          ? payload.enableCustomMode
+          : activity.enableCustomMode;
+
       // Validate at least one mode is enabled
       if (!newTeachMode && !newGuideMode && !newCustomMode) {
         return res.status(400).json({ error: 'At least one AI mode must be enabled' });
       }
-      
+
       if (typeof payload.enableTeachMode !== 'undefined') {
         updateData.enableTeachMode = payload.enableTeachMode;
       }
@@ -883,7 +888,9 @@ router.post('/activities/:activityId/teach', async (req, res) => {
   try {
     payload = TeachRequestSchema.parse(req.body || {});
   } catch (error) {
-    return res.status(400).json({ error: 'Invalid payload', details: error?.errors || String(error) });
+    return res
+      .status(400)
+      .json({ error: 'Invalid payload', details: error?.errors || String(error) });
   }
 
   try {
@@ -931,7 +938,9 @@ router.post('/activities/:activityId/guide', async (req, res) => {
   try {
     payload = GuideRequestSchema.parse(req.body || {});
   } catch (error) {
-    return res.status(400).json({ error: 'Invalid payload', details: error?.errors || String(error) });
+    return res
+      .status(400)
+      .json({ error: 'Invalid payload', details: error?.errors || String(error) });
   }
 
   try {
@@ -978,7 +987,9 @@ router.post('/activities/:activityId/custom', async (req, res) => {
   try {
     payload = CustomRequestSchema.parse(req.body || {});
   } catch (error) {
-    return res.status(400).json({ error: 'Invalid payload', details: error?.errors || String(error) });
+    return res
+      .status(400)
+      .json({ error: 'Invalid payload', details: error?.errors || String(error) });
   }
 
   try {
@@ -1037,7 +1048,9 @@ router.post('/activities/:activityId/feedback', async (req, res) => {
   try {
     payload = ActivityFeedbackRequestSchema.parse(req.body || {});
   } catch (error) {
-    return res.status(400).json({ error: 'Invalid payload', details: error?.errors || String(error) });
+    return res
+      .status(400)
+      .json({ error: 'Invalid payload', details: error?.errors || String(error) });
   }
 
   try {

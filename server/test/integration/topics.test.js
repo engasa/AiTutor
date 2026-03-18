@@ -1,13 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../../src/app.js';
-import {
-  makeProfessor,
-  makeStudent,
-  truncateAll,
-  seedMinimalCourse,
-  prisma,
-} from '../helpers.js';
+import { makeProfessor, makeStudent, truncateAll, seedMinimalCourse, prisma } from '../helpers.js';
 
 describe('Topics routes', () => {
   let prof;

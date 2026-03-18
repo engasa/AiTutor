@@ -108,7 +108,7 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
 
   const [showTopicSaving, setShowTopicSaving] = useState(false);
   const topicSavingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  
+
   const [showModeSaving, setShowModeSaving] = useState(false);
   const modeSavingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [promptDrafts, setPromptDrafts] = useState<Record<number, string>>({});
@@ -239,8 +239,6 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
     };
   }, []);
 
-
-
   const handleDeleteActivity = async (activityId: number) => {
     if (typeof window === 'undefined') {
       return;
@@ -268,7 +266,7 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
   const handleActivityModeChange = async (
     activityId: number,
     mode: 'teach' | 'guide' | 'custom',
-    enabled: boolean
+    enabled: boolean,
   ) => {
     const activity = oActivities.find((a) => a.id === activityId);
     if (!activity) return;
@@ -321,8 +319,10 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
 
   const handleCustomPromptSave = async (activity: Activity) => {
     const draft = (promptDrafts[activity.id] ?? activity.customPrompt ?? '').trim();
-    const titleDraft = (titleDrafts[activity.id] ?? activity.customPromptTitle ?? '').trim().slice(0, 20);
-    
+    const titleDraft = (titleDrafts[activity.id] ?? activity.customPromptTitle ?? '')
+      .trim()
+      .slice(0, 20);
+
     // Validate: both title and prompt are required
     if (!titleDraft) {
       setPromptErrors((prev) => ({
@@ -354,9 +354,7 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
         customPrompt: draft,
         customPromptTitle: titleDraft,
       });
-      setActivities((prev) =>
-        prev.map((item) => (item.id === activity.id ? updated : item)),
-      );
+      setActivities((prev) => prev.map((item) => (item.id === activity.id ? updated : item)));
       setPromptSaved((prev) => ({ ...prev, [activity.id]: true }));
     } catch (error) {
       console.error('Failed to save custom prompt', error);
@@ -436,7 +434,7 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
         activity.id === activityId
           ? {
               ...activity,
-              secondaryTopics: nextSecondary.sort((a, b) => a.name.localeCompare(b.name)),
+              secondaryTopics: nextSecondary.toSorted((a, b) => a.name.localeCompare(b.name)),
             }
           : activity,
       ),
@@ -471,43 +469,47 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
       <div className="min-h-dvh bg-background">
         <Nav />
         <div className="container mx-auto px-4 py-8">
-            <Breadcrumb className="mb-6">
-              <BreadcrumbList>
-                <BreadcrumbItem>
+          <Breadcrumb className="mb-6">
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbLink asChild>
+                  <Link to="/instructor">Teaching</Link>
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator>/</BreadcrumbSeparator>
+              <BreadcrumbItem>
+                {course && module ? (
                   <BreadcrumbLink asChild>
-                    <Link to="/instructor">Teaching</Link>
+                    <Link to={`/instructor/courses/${module.courseOfferingId}`}>
+                      {course.title}
+                    </Link>
                   </BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator>/</BreadcrumbSeparator>
-                <BreadcrumbItem>
-                  {course && module ? (
-                    <BreadcrumbLink asChild>
-                      <Link to={`/instructor/courses/${module.courseOfferingId}`}>{course.title}</Link>
-                    </BreadcrumbLink>
-                  ) : (
-                    <BreadcrumbPage>Course</BreadcrumbPage>
-                  )}
-                </BreadcrumbItem>
-                <BreadcrumbSeparator>/</BreadcrumbSeparator>
-                <BreadcrumbItem>
-                  {module && lesson ? (
-                    <BreadcrumbLink asChild>
-                      <Link to={`/instructor/module/${lesson.moduleId}`}>{module.title}</Link>
-                    </BreadcrumbLink>
-                  ) : (
-                    <BreadcrumbPage>Module</BreadcrumbPage>
-                  )}
-                </BreadcrumbItem>
-                <BreadcrumbSeparator>/</BreadcrumbSeparator>
-                <BreadcrumbItem>
-                  <BreadcrumbPage>{lesson?.title || 'Lesson'}</BreadcrumbPage>
-                </BreadcrumbItem>
-              </BreadcrumbList>
-            </Breadcrumb>
-            <h2 className="font-display text-2xl font-semibold text-foreground mb-6">{lesson?.title || 'Lesson'}</h2>
+                ) : (
+                  <BreadcrumbPage>Course</BreadcrumbPage>
+                )}
+              </BreadcrumbItem>
+              <BreadcrumbSeparator>/</BreadcrumbSeparator>
+              <BreadcrumbItem>
+                {module && lesson ? (
+                  <BreadcrumbLink asChild>
+                    <Link to={`/instructor/module/${lesson.moduleId}`}>{module.title}</Link>
+                  </BreadcrumbLink>
+                ) : (
+                  <BreadcrumbPage>Module</BreadcrumbPage>
+                )}
+              </BreadcrumbItem>
+              <BreadcrumbSeparator>/</BreadcrumbSeparator>
+              <BreadcrumbItem>
+                <BreadcrumbPage>{lesson?.title || 'Lesson'}</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
+          <h2 className="font-display text-2xl font-semibold text-foreground mb-6">
+            {lesson?.title || 'Lesson'}
+          </h2>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-              <div className="lg:col-span-2 space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+            <div className="lg:col-span-2 space-y-4">
               <div className="card-editorial p-5">
                 <div className="font-semibold mb-3 text-foreground">Activities</div>
                 {oActivities.length === 0 ? (
@@ -540,7 +542,9 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
                                 {i + 1}
                               </span>
                               <div>
-                                <div className="text-xs text-muted-foreground mb-0.5">{activity.type}</div>
+                                <div className="text-xs text-muted-foreground mb-0.5">
+                                  {activity.type}
+                                </div>
                                 <div className="font-medium whitespace-pre-wrap text-foreground">
                                   {activity.question}
                                 </div>
@@ -641,7 +645,9 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
                                                 ? 'border-transparent bg-accent text-accent-foreground shadow-sm'
                                                 : 'border-border bg-secondary hover:border-accent/50'
                                             } ${
-                                              showTopicSaving && isUpdatingTopics ? 'opacity-60' : ''
+                                              showTopicSaving && isUpdatingTopics
+                                                ? 'opacity-60'
+                                                : ''
                                             }`}
                                           >
                                             <input
@@ -679,7 +685,9 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
                                 <input
                                   type="checkbox"
                                   checked={activity.enableTeachMode}
-                                  onChange={(e) => handleActivityModeChange(activity.id, 'teach', e.target.checked)}
+                                  onChange={(e) =>
+                                    handleActivityModeChange(activity.id, 'teach', e.target.checked)
+                                  }
                                   disabled={isUpdatingModes}
                                   className="rounded border-primary/50 text-primary focus:ring-primary"
                                 />
@@ -689,7 +697,9 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
                                 <input
                                   type="checkbox"
                                   checked={activity.enableGuideMode}
-                                  onChange={(e) => handleActivityModeChange(activity.id, 'guide', e.target.checked)}
+                                  onChange={(e) =>
+                                    handleActivityModeChange(activity.id, 'guide', e.target.checked)
+                                  }
                                   disabled={isUpdatingModes}
                                   className="rounded border-primary/50 text-primary focus:ring-primary"
                                 />
@@ -700,7 +710,11 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
                                   type="checkbox"
                                   checked={activity.enableCustomMode}
                                   onChange={(e) =>
-                                    handleActivityModeChange(activity.id, 'custom', e.target.checked)
+                                    handleActivityModeChange(
+                                      activity.id,
+                                      'custom',
+                                      e.target.checked,
+                                    )
                                   }
                                   disabled={isUpdatingModes}
                                   className="rounded border-primary/50 text-primary focus:ring-primary"
@@ -719,11 +733,16 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
                                   </label>
                                   <input
                                     type="text"
-                                    value={titleDrafts[activity.id] ?? activity.customPromptTitle ?? ''}
+                                    value={
+                                      titleDrafts[activity.id] ?? activity.customPromptTitle ?? ''
+                                    }
                                     onChange={(event) => {
                                       const value = event.target.value.slice(0, 20);
                                       setTitleDrafts((prev) => ({ ...prev, [activity.id]: value }));
-                                      setPromptSaved((saved) => ({ ...saved, [activity.id]: false }));
+                                      setPromptSaved((saved) => ({
+                                        ...saved,
+                                        [activity.id]: false,
+                                      }));
                                     }}
                                     placeholder="e.g., Explain simply"
                                     maxLength={20}
@@ -731,7 +750,11 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
                                     disabled={isSavingPrompt}
                                   />
                                   <div className="text-[0.65rem] text-muted-foreground mt-1">
-                                    {(titleDrafts[activity.id] ?? activity.customPromptTitle ?? '').length}/20 characters
+                                    {
+                                      (titleDrafts[activity.id] ?? activity.customPromptTitle ?? '')
+                                        .length
+                                    }
+                                    /20 characters
                                   </div>
                                 </div>
                                 <div>
@@ -742,7 +765,10 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
                                     value={promptDraft}
                                     onChange={(event) =>
                                       setPromptDrafts((prev) => {
-                                        setPromptSaved((saved) => ({ ...saved, [activity.id]: false }));
+                                        setPromptSaved((saved) => ({
+                                          ...saved,
+                                          [activity.id]: false,
+                                        }));
                                         return {
                                           ...prev,
                                           [activity.id]: event.target.value,
@@ -755,7 +781,15 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
                                     disabled={isSavingPrompt}
                                   />
                                   <div className="text-[0.65rem] text-muted-foreground mt-1">
-                                    Tip: Use <code className="bg-secondary px-1 rounded">[INSERT TOPIC HERE]</code> and <code className="bg-secondary px-1 rounded">[ENTER KNOWLEDGE LEVEL]</code> as placeholders.
+                                    Tip: Use{' '}
+                                    <code className="bg-secondary px-1 rounded">
+                                      [INSERT TOPIC HERE]
+                                    </code>{' '}
+                                    and{' '}
+                                    <code className="bg-secondary px-1 rounded">
+                                      [ENTER KNOWLEDGE LEVEL]
+                                    </code>{' '}
+                                    as placeholders.
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-3">
@@ -765,7 +799,11 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
                                     disabled={isSavingPrompt}
                                     className="btn-primary text-xs py-2"
                                   >
-                                    {isSavingPrompt ? 'Saving…' : isPromptSaved ? 'Saved' : 'Save prompt'}
+                                    {isSavingPrompt
+                                      ? 'Saving…'
+                                      : isPromptSaved
+                                        ? 'Saved'
+                                        : 'Save prompt'}
                                   </button>
                                   {promptError && (
                                     <span className="text-[0.75rem] text-destructive">
@@ -811,7 +849,9 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
                 <div className="flex items-center justify-between">
                   <div className="font-semibold text-foreground">Course Topics</div>
                   {lesson?.courseOfferingId && (
-                    <span className="text-xs text-muted-foreground">Course #{lesson.courseOfferingId}</span>
+                    <span className="text-xs text-muted-foreground">
+                      Course #{lesson.courseOfferingId}
+                    </span>
                   )}
                 </div>
                 {topicsError && <p className="text-xs text-destructive">{topicsError}</p>}
@@ -829,8 +869,14 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
                             const result = await api.syncCourseTopics(lesson.courseOfferingId);
                             // Refresh topics first so the dialog options reflect latest topics
                             await courseTopics.refresh();
-                            if (result && Array.isArray(result.missingTopics) && result.missingTopics.length > 0) {
-                              setMissingTopics(result.missingTopics.map((t: any) => ({ id: t.id, name: t.name })));
+                            if (
+                              result &&
+                              Array.isArray(result.missingTopics) &&
+                              result.missingTopics.length > 0
+                            ) {
+                              setMissingTopics(
+                                result.missingTopics.map((t: any) => ({ id: t.id, name: t.name })),
+                              );
                               setShowMapping(true);
                             }
                           } catch (e) {
@@ -844,9 +890,7 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
                     )
                   ) : (
                     // Regular course: Show add topics button
-                    <AddCourseTopicsButton
-                      disabled={!lesson?.courseOfferingId}
-                    />
+                    <AddCourseTopicsButton disabled={!lesson?.courseOfferingId} />
                   )}
                 </div>
                 <div className="space-y-1.5 max-h-48 overflow-y-auto text-sm">

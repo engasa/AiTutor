@@ -17,8 +17,7 @@ export function calculateDifficulty({
     Math.min(100, Math.round(helpPerStudent * 15 + incorrectRate * 45 + ratingPenalty * 25)),
   );
 
-  const difficultyLabel =
-    difficultyScore >= 65 ? 'HIGH' : difficultyScore >= 35 ? 'MEDIUM' : 'LOW';
+  const difficultyLabel = difficultyScore >= 65 ? 'HIGH' : difficultyScore >= 35 ? 'MEDIUM' : 'LOW';
 
   return { difficultyScore, difficultyLabel };
 }

@@ -1,11 +1,4 @@
-import {
-  forwardRef,
-  useCallback,
-  useEffect,
-  useImperativeHandle,
-  useMemo,
-  useState,
-} from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useState } from 'react';
 import type { ChangeEvent, FormEvent, KeyboardEvent } from 'react';
 import {
   Conversation,
@@ -35,12 +28,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '~/components/ui/dialog';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '~/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '~/components/ui/tooltip';
 import api from '../lib/api';
 import type { Activity, AiModel, SuggestedPrompt } from '../lib/types';
 
@@ -52,7 +40,12 @@ type ChatMessage = {
   content: string;
 };
 
-type SingleChatState = { messages: ChatMessage[]; input: string; loading: boolean; chatId: string | null };
+type SingleChatState = {
+  messages: ChatMessage[];
+  input: string;
+  loading: boolean;
+  chatId: string | null;
+};
 
 type ChatState = Record<ChatTab, SingleChatState>;
 
@@ -195,14 +188,17 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
   // Load suggested prompts
   useEffect(() => {
     let isMounted = true;
-    api.listSuggestedPrompts()
+    api
+      .listSuggestedPrompts()
       .then((prompts) => {
         if (isMounted) setSuggestedPrompts(prompts);
       })
       .catch((err) => {
         console.error('Failed to load suggested prompts:', err);
       });
-    return () => { isMounted = false; };
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const currentProvider = getProviderFromModelId(selectedModelId);
@@ -231,7 +227,8 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
       tabs.push({
         value: 'custom' as ChatTab,
         label: activity.customPromptTitle || 'Custom',
-        tooltip: activity.customPrompt.slice(0, 100) + (activity.customPrompt.length > 100 ? '...' : ''),
+        tooltip:
+          activity.customPrompt.slice(0, 100) + (activity.customPrompt.length > 100 ? '...' : ''),
       });
     }
     return tabs;
@@ -265,7 +262,9 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
         setStudentModelPolicyActive(policyActive);
         setSelectedModelId((current) => {
           if (selectableModels.some((model) => model.modelId === current)) return current;
-          const geminiModel = selectableModels.find((model) => model.modelId.includes('gemini-2.5-flash'));
+          const geminiModel = selectableModels.find((model) =>
+            model.modelId.includes('gemini-2.5-flash'),
+          );
           return geminiModel?.modelId ?? selectableModels[0]?.modelId ?? DEFAULT_MODEL_ID;
         });
         setModelLoadError(false);
@@ -278,7 +277,9 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
         if (isMounted) setModelsFetched(true);
       }
     })();
-    return () => { isMounted = false; };
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const ensureKnowledgeLevel = useCallback(() => {
@@ -333,8 +334,8 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
         typeof studentAnswer === 'number'
           ? studentAnswer
           : typeof studentAnswer === 'string' && studentAnswer.trim()
-          ? studentAnswer.trim()
-          : undefined;
+            ? studentAnswer.trim()
+            : undefined;
 
       const messageId = generateMessageId();
 
@@ -353,18 +354,33 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
         let response;
         if (tab === 'teach') {
           response = await api.sendTeachMessage(activity.id, {
-            knowledgeLevel: level, topicId, message, modelId, apiKey,
-            chatId: chatState[tab].chatId, messageId,
+            knowledgeLevel: level,
+            topicId,
+            message,
+            modelId,
+            apiKey,
+            chatId: chatState[tab].chatId,
+            messageId,
           });
         } else if (tab === 'guide') {
           response = await api.sendGuideMessage(activity.id, {
-            knowledgeLevel: level, message, studentAnswer: normalizedStudentAnswer,
-            modelId, apiKey, chatId: chatState[tab].chatId, messageId,
+            knowledgeLevel: level,
+            message,
+            studentAnswer: normalizedStudentAnswer,
+            modelId,
+            apiKey,
+            chatId: chatState[tab].chatId,
+            messageId,
           });
         } else {
           response = await api.sendCustomMessage(activity.id, {
-            knowledgeLevel: level, topicId, message, modelId, apiKey,
-            chatId: chatState[tab].chatId, messageId,
+            knowledgeLevel: level,
+            topicId,
+            message,
+            modelId,
+            apiKey,
+            chatId: chatState[tab].chatId,
+            messageId,
           });
         }
 
@@ -375,12 +391,27 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
         appendMessage(tab, 'assistant', response.message);
       } catch (error) {
         console.error('AI chat failed:', error);
-        appendMessage(tab, 'assistant', 'AI study buddy not available right now. Please try again later.');
+        appendMessage(
+          tab,
+          'assistant',
+          'AI study buddy not available right now. Please try again later.',
+        );
       } finally {
         setChatState((prev) => ({ ...prev, [tab]: { ...prev[tab], loading: false } }));
       }
     },
-    [activity, appendMessage, chatState, currentTopicId, ensureKnowledgeLevel, isUserReady, knowledgeLevel, providerApiKeys, selectedModelId, studentAnswer],
+    [
+      activity,
+      appendMessage,
+      chatState,
+      currentTopicId,
+      ensureKnowledgeLevel,
+      isUserReady,
+      knowledgeLevel,
+      providerApiKeys,
+      selectedModelId,
+      studentAnswer,
+    ],
   );
 
   const guideInput = chatState.guide.input;
@@ -406,7 +437,8 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
 
   const chatDisabled = !activity || !knowledgeLevel || !hasApiKey || !isUserReady;
   const activeChat = chatState[activeTab];
-  const canSend = !!activeChat && !activeChat.loading && !chatDisabled && Boolean(activeChat.input.trim());
+  const canSend =
+    !!activeChat && !activeChat.loading && !chatDisabled && Boolean(activeChat.input.trim());
 
   // Filter suggested prompts for current tab (only teach/guide, not custom)
   const currentSuggestedPrompts = useMemo(() => {
@@ -422,7 +454,10 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
 
   const handlePromptInputChange = useCallback(
     (event: ChangeEvent<HTMLTextAreaElement>) => {
-      setChatState((prev) => ({ ...prev, [activeTab]: { ...prev[activeTab], input: event.target.value } }));
+      setChatState((prev) => ({
+        ...prev,
+        [activeTab]: { ...prev[activeTab], input: event.target.value },
+      }));
     },
     [activeTab],
   );
@@ -457,10 +492,10 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
 
   const handleSetupSaveApiKey = useCallback(async () => {
     if (!setupApiKeyInput.trim()) return;
-    
+
     setApiKeyValidating(true);
     setApiKeyError(null);
-    
+
     try {
       const result = await api.validateApiKey(currentProvider, setupApiKeyInput.trim());
       if (!result.valid) {
@@ -486,10 +521,10 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
 
   const handleSaveApiKeyDialog = useCallback(async () => {
     if (!tempApiKey.trim()) return;
-    
+
     setApiKeyValidating(true);
     setApiKeyError(null);
-    
+
     try {
       const result = await api.validateApiKey(currentProvider, tempApiKey.trim());
       if (!result.valid) {
@@ -530,27 +565,49 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
     <div className="mx-auto max-w-sm card-editorial p-6 space-y-5 animate-scale-in">
       <div className="text-center">
         <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
-          <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+          <svg
+            className="w-7 h-7"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={1.5}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"
+            />
           </svg>
         </div>
-        <h3 className="font-display text-lg font-bold text-foreground">Set up your AI Study Buddy</h3>
+        <h3 className="font-display text-lg font-bold text-foreground">
+          Set up your AI Study Buddy
+        </h3>
         <p className="text-xs text-muted-foreground mt-1">Complete these steps to start chatting</p>
       </div>
 
       {/* Step 1: Knowledge Level */}
       <div className="space-y-2">
         <div className="flex items-center gap-2">
-          <span className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
-            knowledgeLevel
-              ? 'bg-accent text-accent-foreground'
-              : 'bg-secondary text-muted-foreground'
-          }`}>
+          <span
+            className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
+              knowledgeLevel
+                ? 'bg-accent text-accent-foreground'
+                : 'bg-secondary text-muted-foreground'
+            }`}
+          >
             {knowledgeLevel ? (
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+              <svg
+                className="w-3.5 h-3.5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={3}
+              >
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
               </svg>
-            ) : '1'}
+            ) : (
+              '1'
+            )}
           </span>
           <span className="text-sm font-semibold text-foreground">Knowledge Level</span>
         </div>
@@ -561,14 +618,12 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
             className="w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 border-border bg-card text-sm text-left hover:border-primary/30 transition group"
           >
             <span className="font-medium text-foreground">{titleCase(knowledgeLevel)}</span>
-            <span className="text-xs text-muted-foreground group-hover:text-foreground transition">Change</span>
+            <span className="text-xs text-muted-foreground group-hover:text-foreground transition">
+              Change
+            </span>
           </button>
         ) : (
-          <button
-            type="button"
-            onClick={onRequestKnowledgeLevel}
-            className="btn-primary w-full"
-          >
+          <button type="button" onClick={onRequestKnowledgeLevel} className="btn-primary w-full">
             Select your level
           </button>
         )}
@@ -577,16 +632,24 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
       {/* Step 2: API Key */}
       <div className="space-y-2">
         <div className="flex items-center gap-2">
-          <span className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
-            hasApiKey
-              ? 'bg-accent text-accent-foreground'
-              : 'bg-secondary text-muted-foreground'
-          }`}>
+          <span
+            className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
+              hasApiKey ? 'bg-accent text-accent-foreground' : 'bg-secondary text-muted-foreground'
+            }`}
+          >
             {hasApiKey ? (
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+              <svg
+                className="w-3.5 h-3.5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={3}
+              >
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
               </svg>
-            ) : '2'}
+            ) : (
+              '2'
+            )}
           </span>
           <span className="text-sm font-semibold text-foreground">
             {getProviderLabel(currentProvider)} API Key
@@ -599,7 +662,9 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
             className="w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 border-border bg-card text-sm text-left hover:border-primary/30 transition group"
           >
             <span className="font-mono text-foreground">{maskApiKey(currentApiKey)}</span>
-            <span className="text-xs text-muted-foreground group-hover:text-foreground transition">Change</span>
+            <span className="text-xs text-muted-foreground group-hover:text-foreground transition">
+              Change
+            </span>
           </button>
         ) : (
           <div className="space-y-2">
@@ -625,15 +690,26 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
               >
                 {apiKeyValidating ? (
                   <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    />
                   </svg>
-                ) : 'Save'}
+                ) : (
+                  'Save'
+                )}
               </button>
             </div>
-            {apiKeyError && (
-              <p className="text-xs text-destructive pl-1">{apiKeyError}</p>
-            )}
+            {apiKeyError && <p className="text-xs text-destructive pl-1">{apiKeyError}</p>}
           </div>
         )}
       </div>
@@ -645,8 +721,18 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
       {/* Header */}
       <div className="flex items-center gap-3 p-5 border-b border-border">
         <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+          <svg
+            className="w-6 h-6"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={1.5}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"
+            />
           </svg>
         </div>
         <div className="flex-1 min-w-0">
@@ -706,9 +792,7 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
               <TooltipProvider delayDuration={300}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <div className="tag cursor-default">
-                      {availableTabs[0].label}
-                    </div>
+                    <div className="tag cursor-default">{availableTabs[0].label}</div>
                   </TooltipTrigger>
                   <TooltipContent side="bottom" className="max-w-[250px]">
                     <p>{availableTabs[0].tooltip}</p>
@@ -719,26 +803,30 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
           </div>
 
           {/* Topic selector for teach mode and custom mode (when prompt uses topic placeholder) */}
-          {(activeTab === 'teach' || (activeTab === 'custom' && activity?.customPrompt?.includes('[INSERT TOPIC HERE]'))) && topicOptions.length > 1 && (
-            <div>
-              <label className="block text-xs font-semibold text-muted-foreground mb-1.5">
-                Focus topic
-              </label>
-              <select
-                value={currentTopicId ?? ''}
-                onChange={(e) => {
-                  const value = Number(e.target.value);
-                  if (Number.isFinite(value)) onSelectTopic(value);
-                }}
-                disabled={topicOptions.length <= 1}
-                className="input-field py-2 text-sm"
-              >
-                {topicOptions.map((topic) => (
-                  <option key={topic.value} value={topic.value}>{topic.label}</option>
-                ))}
-              </select>
-            </div>
-          )}
+          {(activeTab === 'teach' ||
+            (activeTab === 'custom' && activity?.customPrompt?.includes('[INSERT TOPIC HERE]'))) &&
+            topicOptions.length > 1 && (
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1.5">
+                  Focus topic
+                </label>
+                <select
+                  value={currentTopicId ?? ''}
+                  onChange={(e) => {
+                    const value = Number(e.target.value);
+                    if (Number.isFinite(value)) onSelectTopic(value);
+                  }}
+                  disabled={topicOptions.length <= 1}
+                  className="input-field py-2 text-sm"
+                >
+                  {topicOptions.map((topic) => (
+                    <option key={topic.value} value={topic.value}>
+                      {topic.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
         </div>
       )}
 
@@ -748,8 +836,18 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
           {!activity ? (
             <div className="flex flex-col items-center justify-center h-full text-center py-12">
               <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center mb-4">
-                <svg className="w-6 h-6 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
+                <svg
+                  className="w-6 h-6 text-muted-foreground"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={1.5}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z"
+                  />
                 </svg>
               </div>
               <p className="text-sm text-muted-foreground">Select an activity to begin.</p>
@@ -762,9 +860,18 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
               {chatState[activeTab].loading && (
                 <div className="flex items-center gap-2 mt-4 text-muted-foreground animate-pulse-soft">
                   <div className="flex gap-1">
-                    <div className="w-2 h-2 rounded-full bg-current animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <div className="w-2 h-2 rounded-full bg-current animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <div className="w-2 h-2 rounded-full bg-current animate-bounce" style={{ animationDelay: '300ms' }} />
+                    <div
+                      className="w-2 h-2 rounded-full bg-current animate-bounce"
+                      style={{ animationDelay: '0ms' }}
+                    />
+                    <div
+                      className="w-2 h-2 rounded-full bg-current animate-bounce"
+                      style={{ animationDelay: '150ms' }}
+                    />
+                    <div
+                      className="w-2 h-2 rounded-full bg-current animate-bounce"
+                      style={{ animationDelay: '300ms' }}
+                    />
                   </div>
                   <span className="text-xs">Thinking...</span>
                 </div>
@@ -772,14 +879,24 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
               {chatState[activeTab].messages.length === 0 && (
                 <div className="flex flex-col items-center justify-center h-full text-center py-8">
                   <div className="w-12 h-12 rounded-xl bg-accent/50 flex items-center justify-center mb-4">
-                    <svg className="w-6 h-6 text-accent-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
+                    <svg
+                      className="w-6 h-6 text-accent-foreground"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={1.5}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.493 1.509 1.333 1.509 2.316V18"
+                      />
                     </svg>
                   </div>
                   <p className="text-sm text-muted-foreground max-w-[200px] mb-4">
                     Ask your study buddy anything about this topic!
                   </p>
-                  
+
                   {/* Suggested prompts */}
                   {showSuggestedPrompts && (
                     <div className="w-full max-w-sm space-y-2">
@@ -821,10 +938,10 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
                 chatDisabled
                   ? 'Complete setup above to start chatting'
                   : activeTab === 'teach'
-                  ? 'Ask about the topic...'
-                  : activeTab === 'guide'
-                  ? 'Describe where you need guidance...'
-                  : 'Ask a question...'
+                    ? 'Ask about the topic...'
+                    : activeTab === 'guide'
+                      ? 'Describe where you need guidance...'
+                      : 'Ask a question...'
               }
               disabled={chatDisabled}
               className="px-4 pb-3 pt-4 text-sm"
@@ -849,14 +966,27 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
                 </PromptInputModelSelectContent>
               </PromptInputModelSelect>
             </PromptInputTools>
-            <PromptInputSubmit disabled={!canSend} status={activeChat.loading ? 'streaming' : 'ready'} />
+            <PromptInputSubmit
+              disabled={!canSend}
+              status={activeChat.loading ? 'streaming' : 'ready'}
+            />
           </PromptInputFooter>
         </PromptInput>
 
         {modelsFetched && modelLoadError && (
           <div className="flex items-center gap-2 text-xs text-destructive">
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+            <svg
+              className="w-3.5 h-3.5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
+              />
             </svg>
             Unable to load AI models.
           </div>
@@ -864,18 +994,23 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
         {modelsFetched && !modelLoadError && !availableModels.length && (
           <div className="text-xs text-muted-foreground">No AI models configured.</div>
         )}
-        {modelsFetched && !modelLoadError && studentModelPolicyActive && availableModels.length > 0 && (
-          <div className="text-xs text-muted-foreground">
-            Tutor model choices are limited by your course configuration.
-          </div>
-        )}
+        {modelsFetched &&
+          !modelLoadError &&
+          studentModelPolicyActive &&
+          availableModels.length > 0 && (
+            <div className="text-xs text-muted-foreground">
+              Tutor model choices are limited by your course configuration.
+            </div>
+          )}
       </div>
 
       {/* API Key Edit Dialog */}
       <Dialog open={showApiKeyDialog} onOpenChange={setShowApiKeyDialog}>
         <DialogContent className="sm:max-w-md card-editorial">
           <DialogHeader>
-            <DialogTitle className="font-display">{getProviderLabel(currentProvider)} API Key</DialogTitle>
+            <DialogTitle className="font-display">
+              {getProviderLabel(currentProvider)} API Key
+            </DialogTitle>
             <DialogDescription>
               Update your API key for {getProviderLabel(currentProvider)} models.
             </DialogDescription>
@@ -889,15 +1024,11 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
                 setApiKeyError(null);
               }}
               placeholder={`Enter your ${getProviderLabel(currentProvider)} API key`}
-              className={`input-field font-mono text-sm ${
-                apiKeyError ? 'border-destructive' : ''
-              }`}
+              className={`input-field font-mono text-sm ${apiKeyError ? 'border-destructive' : ''}`}
               autoFocus
               disabled={apiKeyValidating}
             />
-            {apiKeyError && (
-              <p className="text-xs text-destructive">{apiKeyError}</p>
-            )}
+            {apiKeyError && <p className="text-xs text-destructive">{apiKeyError}</p>}
           </div>
           <DialogFooter className="gap-2 sm:gap-2">
             <button
@@ -920,12 +1051,25 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
               {apiKeyValidating ? (
                 <>
                   <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    />
                   </svg>
                   Validating...
                 </>
-              ) : 'Save'}
+              ) : (
+                'Save'
+              )}
             </button>
           </DialogFooter>
         </DialogContent>

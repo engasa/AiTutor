@@ -7,10 +7,7 @@ interface AddActivityPanelProps {
   onActivityCreated: () => void;
 }
 
-export default function AddActivityPanel({
-  lessonId,
-  onActivityCreated,
-}: AddActivityPanelProps) {
+export default function AddActivityPanel({ lessonId, onActivityCreated }: AddActivityPanelProps) {
   const { topics, loading: loadingTopics, error: topicsError } = useCourseTopicsContext();
   const [type, setType] = useState<'MCQ' | 'SHORT_TEXT'>('MCQ');
   const [question, setQuestion] = useState('');
@@ -47,12 +44,11 @@ export default function AddActivityPanel({
   const availableSecondaryTopics = useMemo(
     () =>
       topics.filter(
-        (topic) => topic.id !== (typeof selectedMainTopicId === 'number' ? selectedMainTopicId : -1),
+        (topic) =>
+          topic.id !== (typeof selectedMainTopicId === 'number' ? selectedMainTopicId : -1),
       ),
     [topics, selectedMainTopicId],
   );
-
-
 
   const toggleSecondaryForNew = (topicId: number) => {
     setSelectedSecondaryTopicIds((prev) => {
@@ -126,15 +122,14 @@ export default function AddActivityPanel({
   };
 
   return (
-    <form
-      onSubmit={handleAddActivity}
-      className="card-editorial p-5 space-y-4"
-    >
+    <form onSubmit={handleAddActivity} className="card-editorial p-5 space-y-4">
       <div className="font-semibold text-foreground">Add Activity</div>
       <div className="flex gap-2 text-sm">
         <label
           className={`px-3 py-1.5 rounded-full cursor-pointer transition ${
-            type === 'MCQ' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-muted'
+            type === 'MCQ'
+              ? 'bg-primary text-primary-foreground'
+              : 'bg-secondary text-secondary-foreground hover:bg-muted'
           }`}
         >
           <input
@@ -148,7 +143,9 @@ export default function AddActivityPanel({
         </label>
         <label
           className={`px-3 py-1.5 rounded-full cursor-pointer transition ${
-            type === 'SHORT_TEXT' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-muted'
+            type === 'SHORT_TEXT'
+              ? 'bg-primary text-primary-foreground'
+              : 'bg-secondary text-secondary-foreground hover:bg-muted'
           }`}
         >
           <input
@@ -163,9 +160,7 @@ export default function AddActivityPanel({
       </div>
 
       <div className="space-y-2">
-        <label className="text-xs font-semibold text-muted-foreground">
-          Question prompt
-        </label>
+        <label className="text-xs font-semibold text-muted-foreground">Question prompt</label>
         <textarea
           value={question}
           onChange={(event) => setQuestion(event.target.value)}
@@ -200,7 +195,9 @@ export default function AddActivityPanel({
                       setHasSelectedCorrect(true);
                     }}
                   />
-                  <span className="text-xs font-semibold text-muted-foreground w-6">{String.fromCharCode(65 + index)}.</span>
+                  <span className="text-xs font-semibold text-muted-foreground w-6">
+                    {String.fromCharCode(65 + index)}.
+                  </span>
                   <input
                     value={choice}
                     onChange={(event) =>
@@ -220,9 +217,7 @@ export default function AddActivityPanel({
         </div>
       ) : (
         <div className="space-y-2">
-          <label className="text-xs font-semibold text-muted-foreground">
-            Expected answer
-          </label>
+          <label className="text-xs font-semibold text-muted-foreground">Expected answer</label>
           <input
             value={textAnswer}
             onChange={(event) => setTextAnswer(event.target.value)}
@@ -254,9 +249,7 @@ export default function AddActivityPanel({
             </option>
           ))}
         </select>
-        {topicSelectionError && (
-          <p className="text-xs text-destructive">{topicSelectionError}</p>
-        )}
+        {topicSelectionError && <p className="text-xs text-destructive">{topicSelectionError}</p>}
       </div>
 
       <div className="space-y-2">
@@ -313,7 +306,9 @@ export default function AddActivityPanel({
               }}
               className="rounded border-primary/50 text-primary focus:ring-primary"
             />
-            <span className="text-sm text-foreground">Teach me - Conceptual learning about topics</span>
+            <span className="text-sm text-foreground">
+              Teach me - Conceptual learning about topics
+            </span>
           </label>
           <label className="flex items-center gap-2 cursor-pointer">
             <input
@@ -328,7 +323,9 @@ export default function AddActivityPanel({
               }}
               className="rounded border-primary/50 text-primary focus:ring-primary"
             />
-            <span className="text-sm text-foreground">Guide me - Step-by-step guidance on this question</span>
+            <span className="text-sm text-foreground">
+              Guide me - Step-by-step guidance on this question
+            </span>
           </label>
         </div>
       </div>
@@ -340,11 +337,7 @@ export default function AddActivityPanel({
         className="input-field"
       />
 
-      <button
-        type="submit"
-        disabled={busy || !question.trim()}
-        className="w-full btn-primary"
-      >
+      <button type="submit" disabled={busy || !question.trim()} className="w-full btn-primary">
         {busy ? 'Adding…' : 'Add Activity'}
       </button>
 

@@ -5,9 +5,7 @@ export function evaluateQuestion(activity, payload) {
 
   if (questionType === 'MCQ') {
     const expected =
-      typeof config.answer === 'number'
-        ? config.answer
-        : config.answer?.correctIndex;
+      typeof config.answer === 'number' ? config.answer : config.answer?.correctIndex;
     if (typeof expected === 'number' && typeof payload.answerOption === 'number') {
       isCorrect = expected === payload.answerOption;
     }
@@ -18,10 +16,9 @@ export function evaluateQuestion(activity, payload) {
         : config.answer?.text
           ? String(config.answer.text)
           : '';
-    if (typeof payload.answerText === 'string') { 
+    if (typeof payload.answerText === 'string') {
       isCorrect =
-        expected &&
-        payload.answerText.trim().toLowerCase() === expected.trim().toLowerCase();
+        expected && payload.answerText.trim().toLowerCase() === expected.trim().toLowerCase();
     }
   }
 

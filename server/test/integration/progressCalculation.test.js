@@ -1,11 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import {
-  makeProfessor,
-  makeStudent,
-  truncateAll,
-  seedMinimalCourse,
-  prisma,
-} from '../helpers.js';
+import { makeProfessor, makeStudent, truncateAll, seedMinimalCourse, prisma } from '../helpers.js';
 import {
   calculateCourseProgress,
   calculateModuleProgress,
@@ -101,7 +95,12 @@ describe('progressCalculation service', () => {
         },
       });
       const unpubLesson = await prisma.lesson.create({
-        data: { title: 'Lesson in unpub', position: 0, isPublished: true, moduleId: unpubModule.id },
+        data: {
+          title: 'Lesson in unpub',
+          position: 0,
+          isPublished: true,
+          moduleId: unpubModule.id,
+        },
       });
       await createActivity(unpubLesson.id);
 
@@ -218,10 +217,7 @@ describe('progressCalculation service', () => {
       await submitAnswer(a2.id, studentId, 1, false);
       // a3 not attempted
 
-      const statuses = await getActivityCompletionStatuses(
-        [a1.id, a2.id, a3.id],
-        studentId,
-      );
+      const statuses = await getActivityCompletionStatuses([a1.id, a2.id, a3.id], studentId);
 
       expect(statuses).toBeInstanceOf(Map);
       expect(statuses.get(a1.id)).toBe('correct');
