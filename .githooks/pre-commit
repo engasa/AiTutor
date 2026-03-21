@@ -1,20 +1,49 @@
 #!/bin/sh
-# Pre-commit hook: lint, format check, and tests before every commit.
+# Pre-commit hook: lint, format, and test ONLY what the staged changes touch.
 # Skip with: git commit --no-verify
 
 set -e
 
-echo "Checking formatting (oxfmt)..."
-npx oxfmt --check app/ shared/ server/src/ server/test/ 2>&1
+# Collect staged files (added/modified, not deleted)
+STAGED=$(git diff --cached --name-only --diff-filter=d)
 
-echo "Linting (oxlint)..."
-npx oxlint app/ shared/ server/src/ server/test/ --quiet 2>&1
+if [ -z "$STAGED" ]; then
+  echo "No staged files — skipping checks."
+  exit 0
+fi
 
-echo "Running backend tests..."
-cd server && npx vitest run --reporter=dot 2>&1
-cd ..
+# Split staged files into frontend and backend
+FE_FILES=$(echo "$STAGED" | grep -E '^(app|shared)/' || true)
+BE_FILES=$(echo "$STAGED" | grep -E '^server/(src|test)/' || true)
+ALL_SRC=$(echo "$STAGED" | grep -E '\.(ts|tsx|js|jsx)$' || true)
 
-echo "Running frontend tests..."
-npx vitest run --reporter=dot 2>&1
+# ── Format check (only staged source files) ──────────────────────────
+if [ -n "$ALL_SRC" ]; then
+  echo "Checking formatting on $(echo "$ALL_SRC" | wc -l | tr -d ' ') staged files..."
+  echo "$ALL_SRC" | xargs npx oxfmt --check --no-error-on-unmatched-pattern 2>&1
+fi
+
+# ── Lint (only staged source files) ──────────────────────────────────
+if [ -n "$ALL_SRC" ]; then
+  echo "Linting $(echo "$ALL_SRC" | wc -l | tr -d ' ') staged files..."
+  echo "$ALL_SRC" | xargs npx oxlint --quiet 2>&1
+fi
+
+# ── Backend tests (only if server/ files changed) ────────────────────
+if [ -n "$BE_FILES" ]; then
+  echo "Running backend tests affected by changes..."
+  cd server && npx vitest run --changed HEAD --reporter=dot 2>&1
+  cd ..
+else
+  echo "No backend changes — skipping backend tests."
+fi
+
+# ── Frontend tests (only if app/ files changed) ──────────────────────
+if [ -n "$FE_FILES" ]; then
+  echo "Running frontend tests affected by changes..."
+  npx vitest run --changed HEAD --reporter=dot 2>&1
+else
+  echo "No frontend changes — skipping frontend tests."
+fi
 
 echo "All checks passed."
