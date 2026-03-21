@@ -1,5 +1,5 @@
 #!/bin/sh
-# Pre-commit hook: lint, format, and test ONLY what the staged changes touch.
+# Pre-commit hook: lint, format, typecheck, and test ONLY what staged changes touch.
 # Skip with: git commit --no-verify
 
 set -e
@@ -12,10 +12,11 @@ if [ -z "$STAGED" ]; then
   exit 0
 fi
 
-# Split staged files into frontend and backend
+# Categorize staged files
 FE_FILES=$(echo "$STAGED" | grep -E '^(app|shared)/' || true)
 BE_FILES=$(echo "$STAGED" | grep -E '^server/(src|test)/' || true)
 ALL_SRC=$(echo "$STAGED" | grep -E '\.(ts|tsx|js|jsx)$' || true)
+TS_FILES=$(echo "$STAGED" | grep -E '\.(ts|tsx)$' || true)
 
 # ── Format check (only staged source files) ──────────────────────────
 if [ -n "$ALL_SRC" ]; then
@@ -27,6 +28,13 @@ fi
 if [ -n "$ALL_SRC" ]; then
   echo "Linting $(echo "$ALL_SRC" | wc -l | tr -d ' ') staged files..."
   echo "$ALL_SRC" | xargs npx oxlint --quiet 2>&1
+fi
+
+# ── Type check (runs tsgo when any .ts/.tsx file is staged) ──────────
+# tsgo is project-wide but at ~0.7s it's faster than most lint runs
+if [ -n "$TS_FILES" ]; then
+  echo "Type-checking with tsgo..."
+  npx tsgo --noEmit 2>&1
 fi
 
 # ── Backend tests (only if server/ files changed) ────────────────────
