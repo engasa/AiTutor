@@ -40,6 +40,21 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
   const driverRef = useRef<Driver | null>(null);
   const sessionRef = useRef<ActiveTourSession | null>(null);
   const renderTokenRef = useRef(0);
+  const suppressDestroyedRef = useRef(false);
+
+  const clearTourState = useCallback(() => {
+    renderTokenRef.current += 1;
+    sessionRef.current = null;
+    setActiveTourId(null);
+  }, []);
+
+  const destroyDriver = useCallback((suppressOnDestroyed = false) => {
+    if (suppressOnDestroyed) {
+      suppressDestroyedRef.current = true;
+    }
+
+    driverRef.current?.destroy();
+  }, []);
 
   const ensureDriver = useCallback(async () => {
     if (driverRef.current) return driverRef.current;
@@ -57,17 +72,23 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
       showProgress: true,
       allowKeyboardControl: true,
       popoverClass: 'driver-popover-aitutor',
+      onDestroyed: () => {
+        if (suppressDestroyedRef.current) {
+          suppressDestroyedRef.current = false;
+          return;
+        }
+
+        clearTourState();
+      },
     });
 
     return driverRef.current;
-  }, []);
+  }, [clearTourState]);
 
   const stopTour = useCallback(() => {
-    renderTokenRef.current += 1;
-    sessionRef.current = null;
-    setActiveTourId(null);
-    driverRef.current?.destroy();
-  }, []);
+    clearTourState();
+    destroyDriver(true);
+  }, [clearTourState, destroyDriver]);
 
   const completeTour = useCallback((tour: AppTourDefinition) => {
     markTourCompleted(tour);
@@ -92,7 +113,7 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
     session.context.currentPath = location.pathname;
 
     if (route !== location.pathname) {
-      driverRef.current?.destroy();
+      destroyDriver(true);
       session.pendingRoute = route;
       navigate(route);
       return;
@@ -107,7 +128,7 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
       const driver = await ensureDriver();
       if (renderTokenRef.current !== token || sessionRef.current !== session) return;
 
-      driver.destroy();
+      destroyDriver(true);
 
       driver.highlight({
         element,
@@ -169,9 +190,9 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
     const tour = tourDefinitions[tourId];
     sessionRef.current = createTourSession(tour, location.pathname);
     setActiveTourId(tourId);
-    driverRef.current?.destroy();
+    destroyDriver(true);
     void showStep();
-  }, [location.pathname, showStep]);
+  }, [destroyDriver, location.pathname, showStep]);
 
   const suggestedTourId = useMemo<AppTourId | null>(() => {
     if (!location.pathname.startsWith('/student')) return null;
@@ -196,8 +217,8 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
   }, [location.pathname, showStep]);
 
   useEffect(() => () => {
-    driverRef.current?.destroy();
-  }, []);
+    destroyDriver(true);
+  }, [destroyDriver]);
 
   const value = useMemo<TourContextValue>(() => ({
     activeTourId,
