@@ -3,6 +3,7 @@ import { useLocalUser } from '../hooks/useLocalUser';
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
+import TourButton from './TourButton';
 
 export default function Nav() {
   const [eduAiStatus, setEduAiStatus] = useState<'loading' | 'connected' | 'disconnected'>(
@@ -97,6 +98,8 @@ export default function Nav() {
                   My Courses
                 </Link>
               )}
+
+              <TourButton />
 
               {isInstructor && (
                 <Link to="/instructor" className="btn-ghost text-sm">

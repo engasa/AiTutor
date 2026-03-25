@@ -30,7 +30,7 @@ export default function StudentHome({ loaderData }: Route.ComponentProps) {
 
       <div className="container mx-auto px-6 py-10">
         {/* Page header */}
-        <header className="mb-10 animate-fade-up">
+        <header className="mb-10 animate-fade-up" data-tour="student-dashboard-header">
           <div className="flex items-end justify-between gap-4 mb-2">
             <div>
               <p className="text-sm font-medium text-muted-foreground mb-1">Dashboard</p>
@@ -84,6 +84,8 @@ export default function StudentHome({ loaderData }: Route.ComponentProps) {
                 onClick={() => navigate(`/student/courses/${course.id}`)}
                 className="group card-editorial p-6 text-left transition-all duration-300 hover:shadow-xl hover:-translate-y-1 glow animate-fade-up"
                 style={{ animationDelay: `${150 + index * 50}ms` }}
+                data-tour={index === 0 ? 'student-course-card-first' : undefined}
+                data-tour-route={index === 0 ? `/student/courses/${course.id}` : undefined}
               >
                 {/* Course icon */}
                 <div className="flex items-start justify-between mb-4">

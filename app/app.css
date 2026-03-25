@@ -337,6 +337,95 @@ html.dark {
   .tag-accent {
     @apply bg-accent text-accent-foreground;
   }
+
+  .driver-popover.driver-popover-aitutor {
+    @apply max-w-[22rem] rounded-3xl border border-border bg-card p-5 text-card-foreground shadow-2xl;
+    font-family: var(--font-sans);
+    box-shadow:
+      0 24px 80px oklch(0.18 0.02 45 / 0.24),
+      0 6px 24px oklch(0.18 0.02 45 / 0.12);
+    background-image:
+      radial-gradient(circle at top right, oklch(0.52 0.14 35 / 0.08), transparent 45%),
+      linear-gradient(135deg, transparent 0%, oklch(0.92 0.02 75 / 0.45) 100%);
+  }
+
+  .dark .driver-popover.driver-popover-aitutor {
+    background-image:
+      radial-gradient(circle at top right, oklch(0.70 0.14 50 / 0.12), transparent 45%),
+      linear-gradient(135deg, transparent 0%, oklch(0.24 0.01 45 / 0.7) 100%);
+  }
+
+  .driver-popover-aitutor .driver-popover-title {
+    @apply pr-8 text-xl leading-tight text-foreground;
+    font-family: var(--font-display);
+    font-weight: 700;
+  }
+
+  .driver-popover-aitutor .driver-popover-description {
+    @apply mt-2 text-sm leading-6 text-muted-foreground;
+    font-family: var(--font-sans);
+  }
+
+  .driver-popover-aitutor .driver-popover-progress-text {
+    @apply text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground;
+  }
+
+  .driver-popover-aitutor .driver-popover-close-btn {
+    @apply flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors;
+  }
+
+  .driver-popover-aitutor .driver-popover-close-btn:hover,
+  .driver-popover-aitutor .driver-popover-close-btn:focus-visible {
+    @apply bg-secondary text-foreground;
+  }
+
+  .driver-popover-aitutor .driver-popover-arrow {
+    border-width: 8px;
+  }
+
+  .driver-popover-aitutor .driver-popover-arrow-side-top,
+  .driver-popover-aitutor .driver-popover-arrow-side-bottom,
+  .driver-popover-aitutor .driver-popover-arrow-side-left,
+  .driver-popover-aitutor .driver-popover-arrow-side-right {
+    border-color: var(--card);
+  }
+
+  .driver-popover-aitutor .driver-popover-arrow-side-left {
+    border-right-color: transparent;
+    border-bottom-color: transparent;
+    border-top-color: transparent;
+  }
+
+  .driver-popover-aitutor .driver-popover-arrow-side-right {
+    border-left-color: transparent;
+    border-bottom-color: transparent;
+    border-top-color: transparent;
+  }
+
+  .driver-popover-aitutor .driver-popover-arrow-side-top {
+    border-right-color: transparent;
+    border-bottom-color: transparent;
+    border-left-color: transparent;
+  }
+
+  .driver-popover-aitutor .driver-popover-arrow-side-bottom {
+    border-left-color: transparent;
+    border-top-color: transparent;
+    border-right-color: transparent;
+  }
+
+  .driver-tour-button {
+    @apply inline-flex items-center justify-center rounded-xl border px-3 py-2 text-sm font-semibold transition-colors;
+    font-family: var(--font-sans);
+  }
+
+  .driver-tour-button-secondary {
+    @apply border-border bg-card text-foreground hover:bg-secondary;
+  }
+
+  .driver-tour-button-primary {
+    @apply border-transparent bg-primary text-primary-foreground hover:opacity-95;
+  }
 }
 
 /* ========================================

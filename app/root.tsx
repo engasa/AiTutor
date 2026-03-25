@@ -10,6 +10,7 @@ import {
 import type { Route } from './+types/root';
 import './app.css';
 import { AuthProvider } from '~/hooks/useLocalUser';
+import { TourProvider } from '~/components/TourProvider';
 
 // Theme script runs before React hydration to prevent flash
 // Sets dark class on <html> based on localStorage or system preference
@@ -89,7 +90,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <AuthProvider initialUser={null}>
-      <Outlet />
+      <TourProvider>
+        <Outlet />
+      </TourProvider>
     </AuthProvider>
   );
 }

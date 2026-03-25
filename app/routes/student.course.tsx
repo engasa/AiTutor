@@ -138,6 +138,8 @@ export default function StudentCourseModules({ loaderData }: Route.ComponentProp
                 onClick={() => navigate(`/student/module/${module.id}`)}
                 className="group card-editorial p-6 text-left transition-all duration-300 hover:shadow-xl hover:-translate-y-1 glow animate-fade-up"
                 style={{ animationDelay: `${150 + index * 50}ms` }}
+                data-tour={index === 0 ? 'student-module-card-first' : undefined}
+                data-tour-route={index === 0 ? `/student/module/${module.id}` : undefined}
               >
                 {/* Module number badge */}
                 <div className="flex items-start justify-between mb-4">
