@@ -641,7 +641,7 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
   );
 
   return (
-    <aside className="flex h-[700px] flex-col card-editorial overflow-hidden">
+    <aside className="flex h-[700px] flex-col card-editorial overflow-hidden" data-tour="student-ai-chat">
       {/* Header */}
       <div className="flex items-center gap-3 p-5 border-b border-border">
         <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
