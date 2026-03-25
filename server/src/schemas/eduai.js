@@ -34,3 +34,20 @@ export const EduAiTopicListSchema = z
     topics: z.array(EduAiTopicSchema),
   })
   .passthrough();
+
+export const EduAiEnrollmentSchema = z
+  .object({
+    id: z.string(),
+    studentId: z.string(),
+    studentEmail: z.string(),
+    studentName: z.string(),
+    enrolledAt: z.string(),
+    isActive: z.boolean(),
+  })
+  .passthrough();
+
+export const EduAiEnrollmentListSchema = z
+  .object({
+    enrollments: z.array(EduAiEnrollmentSchema),
+  })
+  .passthrough();

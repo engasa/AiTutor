@@ -1,6 +1,6 @@
 import { auth } from '../auth.js';
 
-const EDUAI_PROVIDER_ID = 'eduai';
+export const EDUAI_PROVIDER_ID = 'eduai';
 
 function createStatusError(message, status) {
   const error = new Error(message);

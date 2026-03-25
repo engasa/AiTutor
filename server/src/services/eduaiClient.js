@@ -1,4 +1,4 @@
-import { EduAiCourseListSchema, EduAiTopicListSchema } from '../schemas/eduai.js';
+import { EduAiCourseListSchema, EduAiTopicListSchema, EduAiEnrollmentListSchema } from '../schemas/eduai.js';
 const DEFAULT_BASE_URL = 'http://localhost:5174/api';
 
 function normalizeBaseUrl(rawUrl) {
@@ -84,6 +84,24 @@ export async function listEduAiCourseTopics(externalCourseId, accessToken) {
     return parsed.topics;
   } catch (e) {
     const err = new Error('Invalid response when fetching EduAI course topics');
+    err.cause = e;
+    err.status = 502;
+    throw err;
+  }
+}
+
+// Fetch enrollments for a specific EduAI course by external id
+export async function listEduAiCourseEnrollments(externalCourseId, accessToken) {
+  if (!externalCourseId) return [];
+  const data = await requestEduAi(`/courses/${externalCourseId}/enrollments`, {
+    accessToken,
+    requireAuth: true,
+  });
+  try {
+    const parsed = EduAiEnrollmentListSchema.parse(data);
+    return parsed.enrollments;
+  } catch (e) {
+    const err = new Error('Invalid response when fetching EduAI course enrollments');
     err.cause = e;
     err.status = 502;
     throw err;
