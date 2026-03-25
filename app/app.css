@@ -362,14 +362,23 @@ html.dark {
   }
 
   .driver-popover-aitutor .driver-popover-title {
-    @apply pr-8 text-xl leading-tight text-foreground;
+    @apply pr-8 text-xl leading-tight;
     font-family: var(--font-display);
     font-weight: 700;
+    color: var(--primary);
+  }
+
+  .dark .driver-popover-aitutor .driver-popover-title {
+    color: var(--primary);
   }
 
   .driver-popover-aitutor .driver-popover-description {
     @apply mt-2 text-sm leading-6 text-muted-foreground;
     font-family: var(--font-sans);
+  }
+
+  .driver-popover-aitutor .driver-popover-footer {
+    @apply mt-[15px];
   }
 
   .driver-popover-aitutor .driver-popover-progress-text {
