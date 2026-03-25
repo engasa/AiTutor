@@ -63,6 +63,9 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
     driverRef.current = driver({
       animate: true,
       allowClose: true,
+      overlayClickBehavior: () => {
+        stopTour();
+      },
       overlayOpacity: 0.42,
       overlayColor: 'rgb(46 32 20)',
       smoothScroll: true,
@@ -72,6 +75,10 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
       showProgress: true,
       allowKeyboardControl: true,
       popoverClass: 'driver-popover-aitutor',
+      onDestroyStarted: () => {
+        if (suppressDestroyedRef.current) return;
+        clearTourState();
+      },
       onDestroyed: () => {
         if (suppressDestroyedRef.current) {
           suppressDestroyedRef.current = false;
