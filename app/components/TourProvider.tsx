@@ -66,8 +66,8 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
       overlayClickBehavior: () => {
         stopTour();
       },
-      overlayOpacity: 0.42,
-      overlayColor: 'rgb(46 32 20)',
+      overlayOpacity: 0.62,
+      overlayColor: 'rgb(20 14 10)',
       smoothScroll: true,
       stagePadding: 12,
       stageRadius: 20,
@@ -132,6 +132,17 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
       const element = await waitForElement(step.target);
       if (renderTokenRef.current !== token || sessionRef.current !== session) return;
 
+      const projectedSession: ActiveTourSession = {
+        ...session,
+        context: { ...session.context },
+      };
+      storeStepSelection(projectedSession, element);
+      const projectedHasNext = findStepIndex(
+        projectedSession,
+        projectedSession.stepIndex + 1,
+        1,
+      ) != null;
+
       const driver = await ensureDriver();
       if (renderTokenRef.current !== token || sessionRef.current !== session) return;
 
@@ -151,7 +162,7 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
             'close',
           ],
           progressText: `${session.stepIndex + 1} of ${session.tour.steps.length}`,
-          nextBtnText: hasNext ? 'Continue' : 'Finish',
+          nextBtnText: projectedHasNext ? 'Continue' : 'Finish',
           prevBtnText: 'Back',
           doneBtnText: 'Finish',
           onPopoverRender: applyPopoverTheme,
