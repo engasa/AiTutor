@@ -9,6 +9,8 @@ import {
 } from '../services/systemSettings.js';
 import { getAiModelPolicyState, setAiModelPolicy } from '../services/aiModelPolicy.js';
 import { mapAdminUser, mapCourseOffering } from '../utils/mappers.js';
+import { getEduAiAccessTokenForUser } from '../services/eduaiAuth.js';
+import { syncCourseEnrollments } from '../services/enrollmentSync.js';
 
 const router = express.Router();
 
@@ -216,6 +218,34 @@ router.put('/admin/settings/ai-model-policy', requireRole('ADMIN'), async (req, 
       ? 400
       : 500;
     res.status(status).json({ error: String(e.message || e) });
+  }
+});
+
+router.post('/admin/courses/:courseId/sync-enrollments', requireRole('ADMIN'), async (req, res) => {
+  const courseId = Number(req.params.courseId);
+  if (!Number.isFinite(courseId)) {
+    return res.status(400).json({ error: 'Invalid course id' });
+  }
+
+  try {
+    const course = await prisma.courseOffering.findUnique({ where: { id: courseId } });
+    if (!course) {
+      return res.status(404).json({ error: 'Course not found' });
+    }
+
+    if (!course.externalId || course.externalSource !== 'EDUAI') {
+      return res.status(400).json({ error: 'Course is not imported from EduAI' });
+    }
+
+    const accessToken = await getEduAiAccessTokenForUser(req.user?.id);
+
+    // Pass the already-fetched course to avoid a duplicate DB lookup inside the service
+    const result = await syncCourseEnrollments(courseId, { accessToken, course });
+    res.json(result);
+  } catch (error) {
+    console.error('[eduai] Manual enrollment sync failed:', error);
+    const status = Number.isInteger(error?.status) ? error.status : 500;
+    res.status(status).json({ error: error.message || 'Enrollment sync failed' });
   }
 });
 

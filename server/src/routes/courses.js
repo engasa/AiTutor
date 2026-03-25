@@ -7,6 +7,7 @@ import { calculateCourseProgress } from '../services/progressCalculation.js';
 import { findEduAiCourseById, listEduAiCourses } from '../services/eduaiClient.js';
 import { getEduAiAccessTokenForUser } from '../services/eduaiAuth.js';
 import { syncExternalCourseTopics } from '../services/topicSync.js';
+import { syncCourseEnrollments } from '../services/enrollmentSync.js';
 
 const router = express.Router();
 
@@ -153,12 +154,17 @@ router.post('/courses/import-external', requireRole('PROFESSOR'), async (req, re
       return offering;
     });
 
-    // After creation, sync topics from EduAI into local DB
-    try {
-      await syncExternalCourseTopics(created.id, { accessToken: eduAiAccessToken });
-    } catch (e) {
-      console.error('[eduai] Failed to sync topics for imported course', e);
-      // Do not fail the import due to topic sync issues
+    // Sync topics and enrollments from EduAI concurrently (independent operations)
+    const syncOpts = { accessToken: eduAiAccessToken };
+    const [topicResult, enrollmentResult] = await Promise.allSettled([
+      syncExternalCourseTopics(created.id, syncOpts),
+      syncCourseEnrollments(created.id, syncOpts),
+    ]);
+    if (topicResult.status === 'rejected') {
+      console.error('[eduai] Failed to sync topics for imported course', topicResult.reason);
+    }
+    if (enrollmentResult.status === 'rejected') {
+      console.error('[eduai] Failed to sync enrollments for imported course', enrollmentResult.reason);
     }
 
     res.status(201).json(mapCourseOffering(created));
