@@ -1,227 +1,99 @@
 # AiTutor
 
-An AI-powered educational platform with a two-agent supervisor system that ensures pedagogically sound tutoring. Built for UBC course delivery with hierarchical content management and role-based access.
+AiTutor is a full-stack learning platform with student, instructor, and admin experiences.
 
-## Tech Stack
+## Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Frontend | React Router v7 (SPA mode), Vite 8, TailwindCSS v4, shadcn/ui |
-| Backend | Express 5, Prisma ORM, PostgreSQL 16 |
-| Auth | Better Auth (session-based) |
-| AI | Two-agent supervisor system via EduAI API |
-| Testing | Vitest, Supertest |
-| Tooling | Bun, oxlint, oxfmt, tsgo, knip |
+- Frontend: React 19 + React Router v7 in SPA mode (`ssr: false`)
+- Backend: Express 5 API (`server/`)
+- Auth: Better Auth email/password with cookie-based sessions
+- Data: Prisma ORM + PostgreSQL
 
-## Prerequisites
+## Architecture At A Glance
 
-- [Bun](https://bun.sh) (v1.2+)
-- [Docker](https://docs.docker.com/get-docker/) (for PostgreSQL)
-- Node.js 20+ (Vite/Vitest runtime)
+- `app/`: client routes/UI and API client (`VITE_API_URL`, default `http://localhost:4000`)
+- `server/`: Express routes, Better Auth endpoints (`/api/auth/*`), Prisma-backed services
+- `server/prisma/`: schema, migrations, and seed script
+- `docs/two-agent-supervisor-system.md`: two-agent AI tutoring design
 
-## Getting Started
+## Local Setup (Bun + Docker)
 
+1. Install root dependencies:
 ```bash
-# 1. Clone and install
 bun install
-cd server && bun install && cd ..
-
-# 2. Start PostgreSQL
-docker compose up -d db
-
-# 3. Configure environment
-cp server/.env.example server/.env
-# Edit server/.env with your secrets (see Environment section below)
-
-# 4. Run migrations and seed demo data
+```
+2. Install server dependencies:
+```bash
 cd server
-bunx prisma migrate deploy
-bun run seed
+bun install
 cd ..
 ```
-
-### Development
-
-Run frontend and backend in separate terminals:
-
+3. Create server env file:
 ```bash
-# Terminal 1 — API server (http://localhost:4000)
-cd server && bun run dev
-
-# Terminal 2 — Frontend dev server (http://localhost:5173)
-bun run dev
+cp server/.env.example server/.env
 ```
-
-The frontend expects the API at `http://localhost:4000`. Override with the `VITE_API_URL` env var.
-
-## Project Structure
-
-```
-├── app/                          # React Router frontend
-│   ├── routes/                   # File-based routes (dot-delimited)
-│   │   ├── home.tsx              # Login page
-│   │   ├── admin.tsx             # Admin dashboard
-│   │   ├── instructor.*.tsx      # Instructor views (course → module → lesson)
-│   │   └── student.*.tsx         # Student views
-│   ├── components/               # Reusable UI components
-│   ├── hooks/                    # Custom React hooks
-│   └── lib/                      # API client, types, utilities
-├── server/
-│   └── src/
-│       ├── app.js                # Express app factory (createApp)
-│       ├── config/               # Database connection, admin bootstrap
-│       ├── middleware/            # Auth (Better Auth session middleware)
-│       ├── routes/               # Domain route modules (10 modules)
-│       ├── services/             # Business logic (AI guidance, cloning, evaluation)
-│       ├── schemas/              # Zod validation schemas
-│       └── utils/                # Data mappers
-│   └── prisma/
-│       ├── schema.prisma         # Database schema (18 models)
-│       └── seed.ts               # Demo data seeder
-├── shared/                       # Code shared between frontend and backend
-├── docs/                         # Design documents
-├── .githooks/                    # Pre-commit hook (lint, format, typecheck, test)
-└── docker-compose.yml            # PostgreSQL 16 service
-```
-
-## Architecture
-
-### Content Hierarchy
-
-```
-CourseOffering → Module → Lesson → Activity
-```
-
-Each level supports publish/unpublish gating — unpublished parents hide their children.
-
-### Roles
-
-| Role | Access |
-|------|--------|
-| **Student** | Enrolled courses, activities, AI chat modes |
-| **Professor** | Full course management, content authoring, analytics |
-| **TA** | Assigned course assistance |
-| **Admin** | User management, system settings, AI model config |
-
-### AI Tutoring — Two-Agent Supervisor System
-
-The platform uses a two-agent architecture for AI-powered tutoring:
-
-1. **AI1 (Primary Tutor)** — Generates responses in one of three modes: Teach, Guide, or Custom
-2. **AI2 (Supervisor)** — Reviews AI1's output for pedagogical soundness (e.g., no answer leaking)
-
-The supervisor loop runs up to 3 iterations before falling back. Controlled by the `AI_SUPERVISOR_ENABLED` env var. See [`docs/two-agent-supervisor-system.md`](docs/two-agent-supervisor-system.md) for details.
-
-### Topic Classification
-
-Activities require a **main topic** and support multiple **secondary topics** for cross-referencing. Topics are scoped to their CourseOffering (unique names per course, no cross-course pollution).
-
-## Environment Variables
-
-Copy `server/.env.example` to `server/.env` and configure:
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `DATABASE_URL` | Yes | PostgreSQL connection string |
-| `BETTER_AUTH_SECRET` | Yes | Session signing secret |
-| `BETTER_AUTH_URL` | Yes | Auth endpoint base URL |
-| `PORT` | No | API port (default: `4000`) |
-| `COOKIE_DOMAIN` | No | Cookie domain (default: `localhost`) |
-| `EDUAI_API_KEY` | For AI | EduAI API key |
-| `EDUAI_BASE_URL` | For AI | EduAI API base URL |
-| `EDUAI_MODEL` | For AI | Model identifier (e.g., `google:gemini-2.5-flash`) |
-| `AI_SUPERVISOR_ENABLED` | No | Enable two-agent review (default: `true`) |
-
-Frontend env var:
-- `VITE_API_URL` — API server URL (default: `http://localhost:4000`)
-
-## Scripts
-
-### Root (frontend)
-
-| Command | Description |
-|---------|-------------|
-| `bun run dev` | Start Vite dev server |
-| `bun run build` | Production build |
-| `bun run typecheck` | React Router typegen + `tsc` |
-| `bun run typecheck:fast` | React Router typegen + `tsgo` (~10x faster) |
-| `bun run lint` | Run oxlint on all source files |
-| `bun run format` | Format with oxfmt |
-| `bun run knip` | Detect dead code/exports |
-| `bun run test` | Run frontend tests |
-
-### Server
-
-| Command | Description |
-|---------|-------------|
-| `bun run dev` | Start API with nodemon (auto-reload) |
-| `bun run start` | Production start |
-| `bun run seed` | Seed database with demo data |
-| `bun run test` | Run all tests (unit + integration) |
-| `bun run test:unit` | Unit tests only (no DB required) |
-| `bun run test:integration` | Integration tests only (requires PostgreSQL) |
-| `bun run test:watch` | Watch mode |
-
-## Testing
-
-15 test files across unit and integration suites:
-
-- **Unit tests** (`server/test/unit/`) — Pure function tests for mappers, evaluation logic, analytics, AI model policy, and AI guidance. No database required.
-- **Integration tests** (`server/test/integration/`) — Full HTTP tests via Supertest against a real PostgreSQL test database. Covers auth, CRUD for all entities, course cloning, progress calculation, and topic management.
-
+4. Start PostgreSQL:
 ```bash
-# Run all server tests
-cd server && bun run test
-
-# Run only unit tests (fast, no DB)
-cd server && bun run test:unit
+docker compose up -d db
 ```
-
-The test database (`aitutor_test`) is created automatically on first run by `globalSetup.js`. Tests inject a mock user via `createApp({ mockUser })` to bypass auth.
-
-## Pre-commit Hook
-
-The project uses `.githooks/pre-commit` (configured via `core.hooksPath`). On staged files it runs:
-
-1. **Format check** — `oxfmt --check`
-2. **Lint** — `oxlint --quiet`
-3. **Type check** — `tsgo --noEmit` (when `.ts`/`.tsx` files are staged)
-4. **Backend tests** — Vitest on changed server files
-5. **Frontend tests** — Vitest on changed app/shared files
-
-## Database
-
-Reset or reseed at any time:
-
+5. Apply migrations:
 ```bash
 cd server
-
-# Apply pending migrations
 bunx prisma migrate deploy
-
-# Reseed demo data
+```
+6. (Optional) Seed demo data:
+```bash
 bun run seed
-
-# Open Prisma Studio (visual DB browser)
-bunx prisma studio
 ```
+Warning: `bun run seed` is destructive in this repository (it clears and recreates demo data).
 
-## Production Build
+## Run The App (Two Terminals)
 
+1. Backend:
 ```bash
-bun run build
-bun run start       # Serves built frontend via Vite preview
+cd server
+bun run dev
 ```
+Backend runs at `http://localhost:4000`.
 
-For the API server:
-
+2. Frontend:
 ```bash
-cd server && bun run start
+cd /path/to/AiTutor   # repo root
+bun run dev
 ```
+Frontend runs at `http://localhost:5173`.
 
-### Docker
+Authentication is real (not simulated): users sign in/sign up through Better Auth and API calls use cookie sessions (`credentials: include`).
 
+## Current Commands And Verification
+
+Root (`package.json`):
+- `bun run dev`
+- `bun run build`
+- `bun run start`
+- `bun run typecheck`
+- `bun run test`
+- `bun run e2e:oauth-matrix`
+
+Server (`server/package.json`):
+- `bun run dev`
+- `bun run start`
+- `bun run seed`
+- `bun run test` (currently placeholder that exits with error)
+
+Current verification baseline:
 ```bash
-docker build -t aitutor .
-docker run -p 3000:3000 aitutor
+bun run typecheck
+bun run test
 ```
+
+Notes on lint/format/hooks:
+- No first-class `lint`/`format` scripts are currently defined in root or `server/package.json`.
+- No tracked `oxlint`/`oxfmt` project config files are present.
+- Repository includes `.githooks/` scripts for `commit-msg`, `prepare-commit-msg`, `post-commit`, and `pre-push` (Entire CLI integration).
+- There is no tracked `pre-commit` hook script in `.githooks`.
+
+## Additional Docs
+
+- [Server API and operations guide](server/README.md)
+- [Two-agent supervisor system](docs/two-agent-supervisor-system.md)
