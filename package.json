@@ -6,7 +6,6 @@
     "build": "react-router build",
     "dev": "react-router dev",
     "start": "vite preview --outDir build/client",
-    "test": "bun test",
     "typecheck": "react-router typegen && tsc",
     "e2e:oauth-matrix": "bash ./scripts/e2e/oauth-matrix.sh",
     "test": "vitest run",
