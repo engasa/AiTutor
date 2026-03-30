@@ -1,0 +1,17 @@
+I need you to completely rethingk and redo the front page for this app. I need you to Compltely boldly redesign it, you ahve all the freedom in the world to show off your skill
+
+---
+
+can you remove the quote on the @app/routes/home.tsx ? and then stash this change?
+
+---
+
+no you dont need to stash quote only change stash that along w the entire rewrite of home.tsx that we did I basically want to revert back to my oroginal home.tsx
+
+---
+
+Hey gemini now I need you to redo the entire UI as you did w the home page, I have unstashed that change.
+
+---
+
+are you sure you are done double check everything
