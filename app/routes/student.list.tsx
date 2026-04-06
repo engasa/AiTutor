@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import Nav from '../components/Nav';
 import { ProgressBar } from '../components/ProgressBar';
@@ -17,6 +17,7 @@ import type { Activity, Course, Lesson, ModuleDetail } from '../lib/types';
 import type { Route } from './+types/student.list';
 import { requireClientUser } from '~/lib/client-auth';
 import { useLocalUser } from '~/hooks/useLocalUser';
+import { useBugReport } from '~/components/bug-report/useBugReport';
 
 type StudentFeedbackState = {
   rating: number | null;
@@ -75,6 +76,7 @@ export async function clientLoader({ params }: Route.ClientLoaderArgs) {
 
 export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps) {
   const { user } = useLocalUser();
+  const { setContext: setBugReportContext, clearContext: clearBugReportContext } = useBugReport();
   const { course, module, lesson, activities } = loaderData;
   const [orderedActivities, setOrderedActivities] = useState<Activity[]>(activities ?? []);
   const [idx, setIdx] = useState(0);
@@ -308,6 +310,29 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
   const handleCancelKnowledge = () => {
     setShowKnowledgeModal(false);
   };
+
+  useEffect(() => {
+    setBugReportContext({
+      courseOfferingId: course?.id ?? module?.courseOfferingId ?? null,
+      moduleId: module?.id ?? null,
+      lessonId: lesson?.id ?? null,
+      activityId: activity?.id ?? null,
+    });
+  }, [
+    activity?.id,
+    clearBugReportContext,
+    course?.id,
+    lesson?.id,
+    module?.courseOfferingId,
+    module?.id,
+    setBugReportContext,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      clearBugReportContext();
+    };
+  }, [clearBugReportContext]);
 
   const topicOptions = activity
     ? [

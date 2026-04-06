@@ -22,6 +22,7 @@ import { requireClientUser } from '~/lib/client-auth';
 import type { ActivityUpdatePayload } from '../lib/activityForm';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '~/components/ui/tooltip';
 import TopicSyncMappingDialog from '~/components/TopicSyncMappingDialog';
+import { useBugReport } from '~/components/bug-report/useBugReport';
 
 function SyncTopicsButton({
   courseId,
@@ -116,6 +117,7 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
   const [savingPromptId, setSavingPromptId] = useState<number | null>(null);
   const [promptErrors, setPromptErrors] = useState<Record<number, string>>({});
   const [promptSaved, setPromptSaved] = useState<Record<number, boolean>>({});
+  const { setContext: setBugReportContext, clearContext: clearBugReportContext } = useBugReport();
 
   const beginTopicUpdate = (activityId: number) => {
     setUpdatingTopicsFor(activityId);
@@ -238,6 +240,29 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
       }
     };
   }, []);
+
+  useEffect(() => {
+    setBugReportContext({
+      courseOfferingId: course?.id ?? module?.courseOfferingId ?? null,
+      moduleId: module?.id ?? null,
+      lessonId: lesson?.id ?? null,
+      activityId: editingActivityId ?? null,
+    });
+  }, [
+    clearBugReportContext,
+    course?.id,
+    editingActivityId,
+    lesson?.id,
+    module?.courseOfferingId,
+    module?.id,
+    setBugReportContext,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      clearBugReportContext();
+    };
+  }, [clearBugReportContext]);
 
   const handleDeleteActivity = async (activityId: number) => {
     if (typeof window === 'undefined') {

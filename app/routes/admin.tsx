@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
+import BugReportsTab from '~/components/admin/BugReportsTab';
 import Nav from '~/components/Nav';
 import api from '~/lib/api';
-import type { AdminEnrollmentData, AdminUser, Course, EduAiApiKeyStatus } from '~/lib/types';
+import type {
+  AdminBugReportRow,
+  AdminEnrollmentData,
+  AdminUser,
+  Course,
+  EduAiApiKeyStatus,
+} from '~/lib/types';
 import type { Route } from './+types/admin';
 import { requireClientUser } from '~/lib/client-auth';
 import { Tooltip, TooltipContent, TooltipTrigger } from '~/components/ui/tooltip';
@@ -29,6 +36,7 @@ type AdminLoaderData = {
   status: EduAiApiKeyStatus;
   users: AdminUser[];
   courses: Course[];
+  bugReports: AdminBugReportRow[];
   aiPolicy: AdminAiModelPolicy | null;
   aiModels: AdminAiModelOption[];
   aiPolicyAvailable: boolean;
@@ -60,10 +68,11 @@ export async function clientLoader(_: Route.ClientLoaderArgs) {
     typeof settingsApi.getAdminAiModelPolicy === 'function' &&
     typeof settingsApi.setAdminAiModelPolicy === 'function';
 
-  const [status, users, courses, aiModelsResult, aiPolicyResult] = await Promise.all([
+  const [status, users, courses, bugReports, aiModelsResult, aiPolicyResult] = await Promise.all([
     api.getEduAiApiKeyStatus(),
     api.listAdminUsers(),
     api.listAdminCourses(),
+    api.listAdminBugReports(),
     loadAdminAiModels(settingsApi),
     loadAdminAiPolicy(settingsApi),
   ]);
@@ -72,6 +81,7 @@ export async function clientLoader(_: Route.ClientLoaderArgs) {
     status,
     users,
     courses,
+    bugReports,
     aiModels: aiModelsResult.models,
     aiPolicy: aiPolicyResult.policy,
     aiPolicyError: aiPolicyResult.error,
@@ -88,7 +98,9 @@ function formatTime(value: string | null) {
 
 export default function AdminHome({ loaderData }: Route.ComponentProps) {
   const settingsApi = getAdminSettingsApi();
-  const [activeTab, setActiveTab] = useState<'users' | 'enrollments' | 'settings'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'enrollments' | 'settings' | 'bugReports'>(
+    'users',
+  );
   const [status, setStatus] = useState<EduAiApiKeyStatus>(loaderData.status);
   const [users, setUsers] = useState<AdminUser[]>(loaderData.users);
   const [courses] = useState<Course[]>(loaderData.courses);
@@ -338,6 +350,13 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
           >
             EduAI Settings
           </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('bugReports')}
+            className={activeTab === 'bugReports' ? 'btn-primary' : 'btn-secondary'}
+          >
+            Bug Reports
+          </button>
         </div>
 
         {(error || message) && (
@@ -510,7 +529,7 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
               </>
             )}
           </div>
-        ) : (
+        ) : activeTab === 'settings' ? (
           <div className="space-y-6 animate-fade-up delay-150">
             <div className="card-editorial p-6 sm:p-8 space-y-6">
               <div className="space-y-2">
@@ -865,6 +884,8 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
               </div>
             </div>
           </div>
+        ) : (
+          <BugReportsTab initialReports={loaderData.bugReports} />
         )}
       </div>
     </div>

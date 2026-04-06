@@ -4,19 +4,35 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 import TourButton from './TourButton';
+import { BugReportDialog } from './bug-report/BugReportDialog';
+import { useBugReport } from './bug-report/useBugReport';
 
 export default function Nav() {
   const [eduAiStatus, setEduAiStatus] = useState<'loading' | 'connected' | 'disconnected'>(
     'loading',
   );
+  const [bugReportOpen, setBugReportOpen] = useState(false);
+  const [capturingScreenshot, setCapturingScreenshot] = useState(false);
   const navigate = useNavigate();
   const loc = useLocation();
   const { user, logout } = useLocalUser();
+  const { captureScreenshot } = useBugReport();
   const isAdminUser = user?.role === 'ADMIN';
+  const canReportBug = user?.role === 'STUDENT' || user?.role === 'PROFESSOR';
 
   const handleLogout = async () => {
     await logout();
     navigate('/');
+  };
+
+  const handleOpenBugReport = async () => {
+    setCapturingScreenshot(true);
+    try {
+      await captureScreenshot();
+      setBugReportOpen(true);
+    } finally {
+      setCapturingScreenshot(false);
+    }
   };
 
   useEffect(() => {
@@ -191,6 +207,17 @@ export default function Nav() {
                   </div>
 
                   {/* Logout button */}
+                  {canReportBug && (
+                    <button
+                      type="button"
+                      onClick={handleOpenBugReport}
+                      className="btn-ghost text-sm"
+                      disabled={capturingScreenshot}
+                    >
+                      {capturingScreenshot ? 'Preparing...' : 'Report Bug'}
+                    </button>
+                  )}
+
                   <button
                     onClick={handleLogout}
                     className="btn-ghost text-sm text-muted-foreground hover:text-destructive"
@@ -217,6 +244,7 @@ export default function Nav() {
           </div>
         </div>
       </div>
+      <BugReportDialog open={bugReportOpen} setOpen={setBugReportOpen} />
     </header>
   );
 }

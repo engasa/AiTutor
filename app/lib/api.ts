@@ -1,10 +1,13 @@
 import type {
+  AdminBugReportRow,
   AdminEnrollmentData,
   AdminAiModelPolicy,
   AdminUser,
   ActivityAnswerResult,
   ActivityFeedbackResult,
   AiModel,
+  BugReportCreatePayload,
+  BugReportStatus,
   Course,
   EduAiApiKeyStatus,
   EduAiCourse,
@@ -304,6 +307,17 @@ export const api = {
     http(`/api/admin/courses/${courseId}/enrollments/${userId}`, {
       method: 'DELETE',
     }) as Promise<{ ok: true }>,
+  submitBugReport: (payload: BugReportCreatePayload) =>
+    http('/api/bug-reports', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }) as Promise<{ id: string; status: BugReportStatus; createdAt: string }>,
+  listAdminBugReports: () => http('/api/admin/bug-reports') as Promise<AdminBugReportRow[]>,
+  updateAdminBugReportStatus: (reportId: string, payload: { status: BugReportStatus }) =>
+    http(`/api/admin/bug-reports/${reportId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }) as Promise<AdminBugReportRow>,
   setEduAiApiKey: (apiKey: string) =>
     http('/api/admin/settings/eduai-api-key', {
       method: 'PUT',

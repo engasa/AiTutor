@@ -21,6 +21,63 @@ export type AdminEnrollmentData = {
   availableStudents: AdminUser[];
 };
 
+export type BugReportStatus = 'unhandled' | 'in progress' | 'resolved';
+
+export type BugReportContext = {
+  courseOfferingId?: number | null;
+  moduleId?: number | null;
+  lessonId?: number | null;
+  activityId?: number | null;
+};
+
+export type BugReportCreatePayload = {
+  description: string;
+  isAnonymous: boolean;
+  consoleLogs: string;
+  networkLogs: string;
+  screenshot: string | null;
+  pageUrl: string;
+  userAgent: string;
+  context?: BugReportContext;
+};
+
+export type AdminBugReportRow = {
+  id: string;
+  description: string;
+  status: BugReportStatus;
+  consoleLogs?: string | null;
+  networkLogs?: string | null;
+  screenshot?: string | null;
+  pageUrl?: string | null;
+  userAgent?: string | null;
+  isAnonymous: boolean;
+  userId: string;
+  reporterName?: string | null;
+  reporterEmail?: string | null;
+  reporterRole?: Role | null;
+  user?:
+    | {
+        id: string;
+        name: string | null;
+        email: string | null;
+        role: Role | null;
+      }
+    | null;
+  userName?: string | null;
+  userEmail?: string | null;
+  role?: Role | null;
+  createdAt: string;
+  updatedAt?: string;
+  courseOfferingId?: number | null;
+  moduleId?: number | null;
+  lessonId?: number | null;
+  activityId?: number | null;
+  courseTitle?: string | null;
+  moduleTitle?: string | null;
+  lessonTitle?: string | null;
+  activityTitle?: string | null;
+};
+
 export type EduAiApiKeyStatus = {
   configured: boolean;
   source: 'ADMIN' | 'ENV' | 'NONE';
