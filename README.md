@@ -1,99 +1,213 @@
 # AiTutor
 
-AiTutor is a full-stack learning platform with student, instructor, and admin experiences.
+AiTutor is a full-stack AI-powered tutoring platform built for university courses. Students interact with an AI study buddy that teaches concepts and guides problem-solving without revealing answers, using a dual-loop tutor-supervisor architecture. Instructors author course content and configure AI behavior per activity. Admins manage users, enrollments, and system-wide AI model policies.
+
+Deployed at [aitutor.ok.ubc.ca](https://aitutor.ok.ubc.ca).
 
 ## Stack
 
-- Frontend: React 19 + React Router v7 in SPA mode (`ssr: false`)
-- Backend: Express 5 API (`server/`)
-- Auth: Better Auth email/password with cookie-based sessions
-- Data: Prisma ORM + PostgreSQL
+| Layer | Technology |
+|-------|------------|
+| Frontend | React 19 + React Router v7 (SPA mode) |
+| Backend | Express 5 API |
+| Auth | Better Auth with EduAI OAuth (OIDC + PKCE) |
+| Database | PostgreSQL via Prisma ORM |
+| AI | Dual-loop tutor-supervisor via EduAI platform |
+| Styling | Tailwind CSS v4 + shadcn/ui (Radix) |
+| Runtime | Bun |
 
-## Architecture At A Glance
+## Architecture
 
-- `app/`: client routes/UI and API client (`VITE_API_URL`, default `http://localhost:4000`)
-- `server/`: Express routes, Better Auth endpoints (`/api/auth/*`), Prisma-backed services
-- `server/prisma/`: schema, migrations, and seed script
-- `docs/two-agent-supervisor-system.md`: two-agent AI tutoring design
-
-## Local Setup (Bun + Docker)
-
-1. Install root dependencies:
-```bash
-bun install
 ```
-2. Install server dependencies:
-```bash
-cd server
-bun install
-cd ..
+browser (SPA)                          server (Express 5)
+  app/                                   server/src/
+  routes/    ── clientLoader ──>         routes/       ── services/ ──> EduAI API
+  components/                            middleware/                    (OAuth + /chat)
+  hooks/                                 prisma/                       PostgreSQL
+  lib/api.ts ── credentials:include ──>
 ```
-3. Create server env file:
+
+### Directory Layout
+
+```
+AiTutor/
+  app/                    # React Router v7 client (routes, components, hooks, lib)
+  server/                 # Express 5 API (routes, services, middleware, prisma)
+  shared/schemas/         # Zod schemas shared between frontend and backend
+  docs/                   # Design documents
+  scripts/                # E2E and automation scripts
+  .githooks/              # Pre-commit (lint, format, typecheck, tests), Entire CLI hooks
+  public/                 # Static assets
+```
+
+### Learning Hierarchy
+
+```
+CourseOffering
+  -> Module (ordered)
+       -> Lesson (ordered)
+            -> Activity (MCQ or SHORT_TEXT)
+                 -> mainTopic (required)
+                 -> secondaryTopics (optional)
+```
+
+Each activity can enable three AI chat modes: **Teach** (concept explanation), **Guide** (problem-solving help), and **Custom** (instructor-authored prompt).
+
+### Authentication
+
+Cookie-based sessions via Better Auth. No JWT or bearer tokens.
+
+1. User clicks "Sign in with EduAI" on the home page.
+2. OAuth 2.0 flow (OIDC + PKCE) redirects to EduAI, then back with a session cookie.
+3. Backend resolves sessions via `auth.api.getSession()` and hydrates `req.user` from the database.
+4. Frontend calls `GET /api/me` to check identity; all API requests use `credentials: "include"`.
+
+### Roles
+
+| Role | Access |
+|------|--------|
+| **STUDENT** | View published courses, answer questions, use AI chat, submit feedback |
+| **PROFESSOR** | Author courses/modules/lessons/activities, manage topics, configure AI modes |
+| **ADMIN** | Manage users, enrollments, EduAI API keys, AI model policy, bug reports |
+| **TA** | Redirected to an unsupported-role page (not yet implemented) |
+
+Admins are isolated from student/instructor APIs by middleware.
+
+### AI Tutoring System
+
+The platform uses a **dual-loop tutor-supervisor** pattern:
+
+1. The **Tutor** (AI1) generates a response using a prompt template.
+2. The **Supervisor** (AI2) reviews it against pedagogical rules (never reveal answers, guide via questions).
+3. If rejected, the tutor revises with supervisor feedback (up to N iterations, configurable 1-5).
+4. If all iterations fail, a safe fallback message is returned.
+
+Every interaction is logged to `AiInteractionTrace` for audit and analytics. The supervisor can be toggled on/off and configured via the admin AI model policy panel.
+
+See [docs/two-agent-supervisor-system.md](docs/two-agent-supervisor-system.md) for the full design.
+
+## Local Setup
+
+### Prerequisites
+
+- [Bun](https://bun.sh/) (runtime and package manager)
+- [Docker](https://www.docker.com/) (for PostgreSQL)
+
+### Steps
+
 ```bash
+# 1. Install dependencies
+bun install
+cd server && bun install && cd ..
+
+# 2. Create server env file
 cp server/.env.example server/.env
-```
-4. Start PostgreSQL:
-```bash
+# Edit server/.env with your BETTER_AUTH_SECRET and EduAI credentials
+
+# 3. Start PostgreSQL
 docker compose up -d db
-```
-5. Apply migrations:
-```bash
-cd server
-bunx prisma migrate deploy
-```
-6. (Optional) Seed demo data:
-```bash
-bun run seed
-```
-Warning: `bun run seed` is destructive in this repository (it clears and recreates demo data).
 
-## Run The App (Two Terminals)
+# 4. Apply migrations
+cd server && bunx prisma migrate deploy && cd ..
 
-1. Backend:
+# 5. (Optional) Seed demo data
+cd server && bun run seed && cd ..
+```
+
+> **Warning:** `bun run seed` is destructive. It clears all existing data and recreates demo content (4 users, 3 courses with full module/lesson/activity trees).
+
+### Running the App
+
+Two terminals:
+
 ```bash
-cd server
+# Terminal 1: Backend API (port 4000)
+cd server && bun run dev
+
+# Terminal 2: Frontend dev server (port 5173)
 bun run dev
 ```
-Backend runs at `http://localhost:4000`.
 
-2. Frontend:
-```bash
-cd /path/to/AiTutor   # repo root
-bun run dev
-```
-Frontend runs at `http://localhost:5173`.
+## Commands
 
-Authentication is real (not simulated): users sign in/sign up through Better Auth and API calls use cookie sessions (`credentials: include`).
+### Root (`package.json`)
 
-## Current Commands And Verification
+| Command | Purpose |
+|---------|---------|
+| `bun run dev` | Vite dev server with HMR |
+| `bun run build` | Build SPA to `build/client/` |
+| `bun run start` | Preview built SPA via `vite preview` |
+| `bun run typecheck` | React Router typegen + `tsc` |
+| `bun run typecheck:fast` | React Router typegen + `tsgo` (~10x faster) |
+| `bun run test` | Run frontend tests (Vitest) |
+| `bun run test:watch` | Watch mode |
+| `bun run lint` | Lint with oxlint |
+| `bun run lint:fix` | Auto-fix lint issues |
+| `bun run format` | Format with oxfmt |
+| `bun run format:check` | Check formatting |
+| `bun run knip` | Dead code detection |
+| `bun run e2e:oauth-matrix` | E2E OAuth + role regression tests |
 
-Root (`package.json`):
-- `bun run dev`
-- `bun run build`
-- `bun run start`
-- `bun run typecheck`
-- `bun run test`
-- `bun run e2e:oauth-matrix`
+### Server (`server/package.json`)
 
-Server (`server/package.json`):
-- `bun run dev`
-- `bun run start`
-- `bun run seed`
-- `bun run test` (currently placeholder that exits with error)
+| Command | Purpose |
+|---------|---------|
+| `bun run dev` | Express API with nodemon |
+| `bun run start` | Prisma generate + start server |
+| `bun run seed` | Reset and seed demo data |
+| `bun run test` | Run backend tests (Vitest) |
+| `bun run test:unit` | Unit tests only |
+| `bun run test:integration` | Integration tests only |
 
-Current verification baseline:
+### Verification Baseline
+
 ```bash
 bun run typecheck
 bun run test
+cd server && bun run test
 ```
 
-Notes on lint/format/hooks:
-- No first-class `lint`/`format` scripts are currently defined in root or `server/package.json`.
-- No tracked `oxlint`/`oxfmt` project config files are present.
-- Repository includes `.githooks/` scripts for `commit-msg`, `prepare-commit-msg`, `post-commit`, and `pre-push` (Entire CLI integration).
-- There is no tracked `pre-commit` hook script in `.githooks`.
+### Pre-Commit Hook
+
+The `.githooks/pre-commit` hook automatically runs on staged files:
+
+- **Format check** (oxfmt) on staged source files
+- **Lint** (oxlint) on staged source files
+- **Typecheck** (tsgo) if `.ts`/`.tsx` files are staged
+- **Backend tests** (vitest) if `server/` files changed
+- **Frontend tests** (vitest) if `app/`/`shared/` files changed
+
+## Environment Variables
+
+### Frontend
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `VITE_API_URL` | `http://localhost:4000` | Backend API base URL |
+
+### Backend
+
+| Variable | Required | Default | Purpose |
+|----------|----------|---------|---------|
+| `DATABASE_URL` | Yes | - | PostgreSQL connection string |
+| `PORT` | No | `4000` | Express listen port |
+| `BETTER_AUTH_SECRET` | Yes | - | Session signing secret |
+| `BETTER_AUTH_URL` | No | `http://localhost:4000/api/auth` | Better Auth base URL |
+| `COOKIE_DOMAIN` | No | `localhost` | Session cookie domain |
+| `EDUAI_DISCOVERY_URL` | Yes | - | EduAI OIDC discovery endpoint |
+| `EDUAI_CLIENT_ID` | Yes | - | OAuth client ID |
+| `EDUAI_CLIENT_SECRET` | Yes | - | OAuth client secret |
+| `EDUAI_USERINFO_URL` | Yes | - | EduAI user info endpoint |
+| `EDUAI_BASE_URL` | No | `http://localhost:5174/api` | EduAI API base URL |
+| `EDUAI_API_KEY` | Recommended | - | Default EduAI API key (overridable via admin) |
+| `EDUAI_MODEL` | No | `google:gemini-2.5-flash` | Default AI tutor model |
+
+See `server/.env.example` for the full template.
 
 ## Additional Docs
 
-- [Server API and operations guide](server/README.md)
-- [Two-agent supervisor system](docs/two-agent-supervisor-system.md)
+- [Frontend Architecture](app/README.md)
+- [Backend API and Operations](server/README.md)
+- [API Reference](docs/api-reference.md)
+- [Two-Agent Supervisor System](docs/two-agent-supervisor-system.md)
+- [Contributing Guide](CONTRIBUTING.md)

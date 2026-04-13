@@ -1,216 +1,256 @@
 # AiTutor Backend (`server/`)
 
-Express 5 API for AiTutor. This service handles authentication/session hydration, RBAC, course/content CRUD, AI tutoring flows, admin operations, and Prisma-backed persistence.
+Express 5 API for AiTutor. Handles authentication, RBAC, course content CRUD, AI tutoring flows, admin operations, bug report management, and Prisma-backed persistence.
 
-## Purpose And Architecture
+## Architecture
 
-Backend modules are organized by responsibility:
+```
+server/
+  src/
+    index.js              # Bootstrap: load env, create app, listen on PORT
+    app.js                # Express app factory (createApp), middleware + route mounting
+    auth.js               # Better Auth config (EduAI OAuth, Prisma adapter, cookies)
+    config/
+      database.js         # PrismaClient singleton
+      bootstrapAdmins.js  # Hardcoded admin email list
+    middleware/
+      auth.js             # attachSession, requireAuth, requireRole, requireRoles
+    routes/
+      authentication.js   # GET /me
+      courses.js          # Course CRUD, EduAI import, publish/unpublish
+      modules.js          # Module CRUD, publish/unpublish
+      lessons.js          # Lesson CRUD, publish/unpublish
+      activities.js       # Activity CRUD, answer submission, AI chat, feedback
+      topics.js           # Topic CRUD, EduAI sync, remapping
+      prompts.js          # Prompt template management
+      suggested-prompts.js# Read-only suggested prompts
+      ai-models.js        # AI model listing, API key validation
+      admin.js            # User/course/enrollment/settings management
+      bug-reports.js      # Bug report creation and admin triage
+    services/
+      aiGuidance.js       # Core AI chat: dual-loop tutor-supervisor pattern
+      aiModelPolicy.js    # Model policy: allowed models, defaults, cost tiers
+      activityEvaluation.js # MCQ/SHORT_TEXT answer evaluation
+      activityAnalytics.js  # Per-activity metrics, difficulty scoring
+      courseCloning.js     # Deep-clone courses (modules, lessons, activities, topics)
+      progressCalculation.js # Course/module/lesson progress calculation
+      eduaiClient.js      # HTTP client for EduAI API
+      eduaiAuth.js        # EduAI OAuth access token retrieval
+      topicSync.js        # Sync topics from EduAI
+      enrollmentSync.js   # Sync enrollments from EduAI (creates users/accounts)
+      systemSettings.js   # Key-value settings store (DB-backed)
+      bugReports.js       # Bug report business logic
+    schemas/
+      eduai.js            # Zod schemas for EduAI API responses
+    utils/
+      mappers.js          # Response mappers (user, course, module, lesson, activity, progress)
+      bugReportMappers.js # Bug report response mappers
+  prisma/
+    schema.prisma         # Database schema (PostgreSQL)
+    seed.ts               # Seed script (destructive reset + demo data)
+    migrations/           # Migration history
+  test/
+    globalSetup.js        # Test DB setup
+    setup.js              # Test environment config
+    helpers.js            # Test utilities
+    unit/                 # Unit tests (5 files)
+    integration/          # Integration tests (8 files)
+```
 
-- `src/index.js`: app bootstrap, middleware chain, Better Auth mount, and route module mounting.
-- `src/auth.js`: Better Auth configuration (Prisma adapter, cookie behavior, user role defaults).
-- `src/middleware/`: auth/session middleware (`attachSession`, `requireAuth`, `requireRole`, `requireRoles`).
-- `src/routes/`: HTTP API modules by domain (courses, modules, lessons, activities, admin, etc.).
-- `src/services/`: business logic integrations (EduAI client, cloning, AI guidance, analytics, model policy, settings).
-- `src/utils/`: response mapping helpers.
-- `prisma/`: schema, migrations, and seeding.
+## Request Flow
 
-Request flow in `src/index.js`:
+The middleware chain in `app.js` processes requests in this order:
 
-1. CORS enabled with credentials.
-2. Better Auth handler mounted at `/api/auth/{*any}`.
-3. JSON body parsing for non-auth routes.
-4. `GET /api/health` database check.
-5. `attachSession` runs on `/api` to populate `req.user`.
-6. `requireAuth` enforced for `/api/*` except `/api/health` and `/api/auth/*`.
-7. Admin isolation middleware (see RBAC section).
-8. Route modules mounted under `/api`.
+1. **CORS** — Open origin with `credentials: true`.
+2. **Better Auth** — Mounted at `/api/auth/{*any}` (handles its own body parsing).
+3. **JSON parser** — `express.json()` for all subsequent routes.
+4. **Health check** — `GET /api/health` runs `SELECT 1` against the database.
+5. **Session hydration** — `attachSession` resolves Better Auth cookies and hydrates `req.user` from Prisma.
+6. **Auth gate** — `requireAuth` enforced for all `/api/*` except `/api/health` and `/api/auth/*`.
+7. **Admin isolation** — Users with `role === 'ADMIN'` can only access `/api/me`, `/api/admin/*`, and `/api/ai-models/*`.
+8. **Route modules** — All 11 route files mounted at `/api`.
 
-## Authentication And RBAC
+## Authentication
 
-### Session/Auth model
+- **Provider**: Better Auth with EduAI OAuth (OIDC + PKCE) via the `genericOAuth` plugin.
+- **Email/password**: Disabled. All authentication goes through EduAI SSO.
+- **Session storage**: Better Auth `Session` table in PostgreSQL, exposed as cookies.
+- **Role source**: Extracted from EduAI's custom claim `https://eduai.app/role`, normalized to enum values.
+- **Cookie config**: Domain from `COOKIE_DOMAIN`, secure in production, `sameSite=lax`.
+- **Trusted origins**: `localhost:5173` (dev) and `aitutor.ok.ubc.ca` (production).
+- **Account linking**: Enabled with `eduai` as a trusted provider.
 
-- Better Auth is the auth provider and owns `/api/auth/*`.
-- Session is resolved from Better Auth cookies via `auth.api.getSession(...)` and hydrated into `req.user` from Prisma.
-- `GET /api/me` returns the current authenticated user (`401` if unauthenticated).
+## RBAC
 
 ### Roles
 
-User roles are persisted on `User.role` in Prisma:
+| Role | Enum | Access |
+|------|------|--------|
+| Student | `STUDENT` | Published courses, answer submission, AI chat, feedback |
+| Professor | `PROFESSOR` | Full course authoring, content management, AI config |
+| TA | `TA` | Not yet supported (redirected to unsupported-role page) |
+| Admin | `ADMIN` | `/api/me`, `/api/admin/*`, `/api/ai-models/*` only |
 
-- `STUDENT`
-- `INSTRUCTOR`
-- `ADMIN`
+### Middleware
 
-Role checks are middleware-based:
+| Function | Purpose |
+|----------|---------|
+| `attachSession(req, res, next)` | Resolves session from cookies, hydrates `req.user` |
+| `requireAuth(req, res, next)` | Returns 401 if `req.user` is null |
+| `requireRole(role)` | Returns 403 if `req.user.role !== role` |
+| `requireRoles([...])` | Returns 403 if `req.user.role` not in array |
 
-- `requireAuth`: authenticated user required.
-- `requireRole(role)`: exact role required.
-- `requireRoles([...])`: any-of role check.
+### Admin Isolation
 
-### Admin route isolation behavior
+After authentication, an explicit isolation rule blocks admins from non-admin endpoints. If `req.user.role === 'ADMIN'`, the only allowed paths are:
+- `/api/me`
+- `/api/admin/*`
+- `/api/ai-models/*`
 
-After auth, there is an explicit isolation rule:
+All other `/api/*` requests return `403 Admins can only access admin endpoints`.
 
-- If `req.user.role === 'ADMIN'`, allowed paths are only:
-  - `/api/me`
-  - `/api/admin/*`
-- Any other `/api/*` endpoint returns `403` with:
-  - `Admins can only access admin endpoints`
+## API Surface
 
-This means admins are intentionally blocked from instructor/student route modules unless those routes are under `/api/admin/*` (or `/api/me`).
+All routes are mounted under `/api`. See [docs/api-reference.md](../docs/api-reference.md) for the complete endpoint reference with request/response shapes.
 
-## API Surface Summary (By Route Module)
+### Quick Reference
 
-All routes are mounted under `/api`.
+| Module | Endpoints | Auth |
+|--------|-----------|------|
+| System | `GET /health` | None |
+| Auth | `GET /me` | Any authenticated |
+| Courses | 9 endpoints | PROFESSOR (write), course member (read) |
+| Modules | 5 endpoints | PROFESSOR (write), course member (read) |
+| Lessons | 5 endpoints | PROFESSOR (write), course member (read) |
+| Activities | 9 endpoints | PROFESSOR (write), course member (read/submit) |
+| Topics | 4 endpoints | PROFESSOR (write), course member (read) |
+| Prompts | 2 endpoints | PROFESSOR |
+| Suggested Prompts | 1 endpoint | Any authenticated |
+| AI Models | 2 endpoints | Any authenticated |
+| Admin | 12 endpoints | ADMIN |
+| Bug Reports | 3 endpoints | STUDENT/PROFESSOR (create), ADMIN (manage) |
 
-### System
+## AI Tutoring System
 
-- `GET /health`: DB liveness probe (`SELECT 1`).
+### Three Chat Modes
 
-### `routes/authentication.js`
+| Mode | Prompt Template | Purpose |
+|------|----------------|---------|
+| Teach | `learning-prompt` | Concept explanation, calibrated to knowledge level |
+| Guide | `exercise-prompt` | Problem-solving help without revealing answers |
+| Custom | Activity's `customPrompt` | Instructor-authored, activity-specific prompt |
 
-- `GET /me`: current authenticated user.
+### Dual-Loop Supervisor
 
-### `routes/courses.js`
+When enabled (configurable via admin AI model policy):
 
-- `GET /eduai/courses` (`INSTRUCTOR`): list importable EduAI courses not yet imported by the instructor.
-- `GET /courses`: list courses for current user (role-sensitive: instructor vs enrolled student).
-- `POST /courses/import-external` (`INSTRUCTOR`): import EduAI course into local `CourseOffering`.
-- `GET /courses/:courseId`: get single course if user is instructor or enrolled student.
-- `POST /courses` (`INSTRUCTOR`): create course (optionally clone from source course).
-- `PATCH /courses/:courseId` (`INSTRUCTOR`): update metadata.
-- `POST /courses/:courseId/import` (`INSTRUCTOR`): import modules/lessons from other offerings.
-- `PATCH /courses/:courseId/publish` (`INSTRUCTOR`): publish course.
-- `PATCH /courses/:courseId/unpublish` (`INSTRUCTOR`): unpublish course and cascade to modules/lessons.
+1. **Tutor** generates a response using the mode's prompt template.
+2. **Supervisor** reviews against pedagogical rules (never reveal answers, guide via questions).
+3. If rejected, tutor revises with supervisor feedback prepended as `[SUPERVISOR FEEDBACK: ...]`.
+4. Loop up to `maxSupervisorIterations` (configurable 1-5, default 3).
+5. If all iterations fail, a safe fallback message is returned.
 
-### `routes/modules.js`
+### Interaction Logging
 
-- `GET /courses/:courseId/modules`: list modules (students get published-only + progress).
-- `POST /courses/:courseId/modules` (`INSTRUCTOR`): create module.
-- `GET /modules/:moduleId`: fetch module.
-- `PATCH /modules/:moduleId/publish` (`INSTRUCTOR`): publish module (requires parent course published).
-- `PATCH /modules/:moduleId/unpublish` (`INSTRUCTOR`): unpublish module and cascade to lessons.
+Every AI interaction is recorded in `AiInteractionTrace` with:
+- Mode, knowledge level, user message, final response
+- Final outcome: `approved`, `single_pass`, `safe_fallback`, or `error`
+- Iteration count and full trace (all tutor drafts + supervisor verdicts)
 
-### `routes/lessons.js`
-
-- `GET /modules/:moduleId/lessons`: list lessons (students get published-only + progress).
-- `POST /modules/:moduleId/lessons` (`INSTRUCTOR`): create lesson.
-- `GET /lessons/:lessonId`: fetch lesson.
-- `PATCH /lessons/:lessonId/publish` (`INSTRUCTOR`): publish lesson (requires published parent module/course).
-- `PATCH /lessons/:lessonId/unpublish` (`INSTRUCTOR`): unpublish lesson.
-
-### `routes/activities.js`
-
-- `GET /lessons/:lessonId/activities`: list activities (students get completion status).
-- `POST /lessons/:lessonId/activities` (`INSTRUCTOR`): create activity (validates topics + AI mode flags).
-- `PATCH /activities/:activityId` (`INSTRUCTOR`): update activity content/config/topics/modes.
-- `DELETE /activities/:activityId` (`INSTRUCTOR`): delete activity.
-- `POST /questions/:id/answer`: submit answer attempt and correctness feedback.
-- `POST /activities/:activityId/teach`: AI teach-mode response.
-- `POST /activities/:activityId/guide`: AI guide-mode response.
-- `POST /activities/:activityId/custom`: AI custom-mode response (requires custom mode enabled + prompt set).
-- `POST /activities/:activityId/feedback`: student activity feedback submission.
-
-### `routes/topics.js`
-
-- `GET /courses/:courseId/topics`: list topics if user is enrolled student or instructor for course.
-- `POST /courses/:courseId/topics` (`INSTRUCTOR`): create topic (blocked for imported EduAI courses).
-- `POST /courses/:courseId/topics/sync` (`INSTRUCTOR`): sync imported-course topics from EduAI.
-- `POST /courses/:courseId/topics/remap` (`INSTRUCTOR`): remap activity topic references.
-
-### `routes/prompts.js`
-
-- `GET /prompts` (`INSTRUCTOR`): list prompt templates.
-- `POST /prompts` (`INSTRUCTOR`): create prompt template.
-
-### `routes/suggested-prompts.js`
-
-- `GET /suggested-prompts`: list active suggested prompts (teach/guide).
-
-### `routes/ai-models.js`
-
-- `GET /ai-models`: list available models, filtered for student-visible allowed tutor models.
-- `POST /ai-models/validate-key`: validate provider API key against lightweight provider endpoints.
-
-### `routes/admin.js` (`ADMIN`)
-
-- `GET /admin/users`: list users.
-- `PATCH /admin/users/:userId/role`: promote user (`INSTRUCTOR` or `ADMIN`) with guardrails.
-- `GET /admin/courses`: list all offerings.
-- `GET /admin/courses/:courseId/enrollments`: list enrolled + available students.
-- `POST /admin/courses/:courseId/enrollments`: enroll student.
-- `DELETE /admin/courses/:courseId/enrollments/:userId`: remove enrollment.
-- `GET /admin/settings/eduai-api-key`: key status (`source`, `configured`, etc.).
-- `PUT /admin/settings/eduai-api-key`: set DB override key.
-- `DELETE /admin/settings/eduai-api-key`: clear DB override key.
-- `GET /admin/settings/ai-model-policy`: read AI model policy state.
-- `PUT /admin/settings/ai-model-policy`: update AI model policy.
+See [docs/two-agent-supervisor-system.md](../docs/two-agent-supervisor-system.md) for the full design.
 
 ## Environment Variables
 
-Source of truth for local setup: `server/.env.example`.
+Source of truth: `server/.env.example`.
 
-| Variable | Required | Default / Example | Used by | Behavior notes |
-| --- | --- | --- | --- | --- |
-| `DATABASE_URL` | Yes | `postgresql://postgres:postgres@localhost:54321/aitutor?schema=public` | Prisma datasource | Required for all DB reads/writes. |
-| `PORT` | No | `4000` | `src/index.js` | Express listen port fallback. |
-| `BETTER_AUTH_SECRET` | Yes (Better Auth) | `replace-with-a-random-strong-secret` | Better Auth runtime | Needed by Better Auth session/security internals. |
-| `BETTER_AUTH_URL` | No | `http://localhost:4000/api/auth` | `src/auth.js` | Base URL used by Better Auth handler. |
-| `COOKIE_DOMAIN` | No | `localhost` | `src/auth.js` | Session cookie domain; `secure` flag follows `NODE_ENV === "production"`. |
-| `EDUAI_API_KEY` | Usually yes for AI features | `your-eduai-api-key-here` | `src/services/systemSettings.js`, `src/services/eduaiClient.js`, `src/services/aiGuidance.js` | Used as fallback key for EduAI calls when no admin override exists. |
-| `EDUAI_BASE_URL` | No | `http://localhost:5174/api` | `src/services/eduaiClient.js` | Base URL for EduAI API (`/courses`, `/chat`, `/ai-models`). |
-| `EDUAI_MODEL` | No | `google:gemini-2.5-flash` | `src/services/aiGuidance.js` | Default tutor model if no policy/request override chooses another. |
-| `AI_SUPERVISOR_ENABLED` | Present in example only | `true` | Not currently read by runtime code | Current supervisor behavior is controlled by persisted AI model policy (`dualLoopEnabled`) rather than this env var. |
+| Variable | Required | Default | Purpose |
+|----------|----------|---------|---------|
+| `DATABASE_URL` | Yes | - | PostgreSQL connection string |
+| `PORT` | No | `4000` | Express listen port |
+| `NODE_ENV` | No | - | `production` enables secure cookies |
+| `BETTER_AUTH_SECRET` | Yes | - | Session signing secret |
+| `BETTER_AUTH_URL` | No | `http://localhost:4000/api/auth` | Better Auth base URL |
+| `COOKIE_DOMAIN` | No | `localhost` | Session cookie domain |
+| `EDUAI_DISCOVERY_URL` | Yes | - | EduAI OIDC discovery endpoint |
+| `EDUAI_CLIENT_ID` | Yes | - | OAuth client ID |
+| `EDUAI_CLIENT_SECRET` | Yes | - | OAuth client secret |
+| `EDUAI_USERINFO_URL` | Yes | - | EduAI user info endpoint |
+| `EDUAI_BASE_URL` | No | `http://localhost:5174/api` | EduAI API base URL |
+| `EDUAI_API_KEY` | Recommended | - | Default EduAI API key |
+| `EDUAI_MODEL` | No | `google:gemini-2.5-flash` | Default tutor model |
 
-### EDUAI API key precedence
+### EduAI API Key Precedence
 
-Effective key resolution is:
-
-1. Admin override in `SystemSetting` (`EDUAI_API_KEY`) if set via `/api/admin/settings/eduai-api-key`.
-2. Fallback to env `EDUAI_API_KEY`.
+1. Admin override in `SystemSetting` (set via `/api/admin/settings/eduai-api-key`).
+2. Fallback to `EDUAI_API_KEY` environment variable.
 3. If neither exists, EduAI-dependent endpoints fail with configuration errors.
 
-## Database Lifecycle
+## Database
 
-From `server/`:
+### Schema
 
-- Apply migrations:
-  - `bunx prisma migrate deploy`
-- Seed data:
-  - `bun run seed`
+15 domain models + 3 Better Auth tables. Key relationships:
 
-Important: `bun run seed` is destructive in this repository. `prisma/seed.ts` calls `clearDatabase()` and deletes existing rows from core tables before re-inserting sample data.
+```
+CourseOffering ─┬─ Module ─── Lesson ─── Activity ─┬─ Submission
+                ├─ CourseInstructor                 ├─ AiChatSession ── AiInteractionTrace
+                ├─ CourseEnrollment                 ├─ ActivityFeedback
+                └─ Topic ──────────────────────────┘├─ ActivityAnalytics
+                                                    └─ ActivityStudentMetric
+```
 
-## Run And Development Commands
+See `server/prisma/schema.prisma` for the full schema.
 
-From repo root:
+### Migrations
 
-- Install dependencies:
-  - `bun install`
+```bash
+# Apply migrations
+cd server && bunx prisma migrate deploy
 
-From `server/`:
+# Create a new migration after schema changes
+cd server && bunx prisma migrate dev --name description_of_change
+```
 
-- Dev server (nodemon):
-  - `bun run dev`
-- Start server:
-  - `bun run start`
-- Seed DB:
-  - `bun run seed`
+### Seed Data
 
-Optional full-stack workflow:
+```bash
+cd server && bun run seed
+```
 
-- Frontend dev (repo root): `bun run dev`
-- Backend dev (`server/`): `bun run dev`
+> **Warning:** The seed script is destructive. It calls `clearDatabase()` and deletes all existing rows before inserting demo data.
 
-## Testing, Linting, Formatting, Hooks (Current Status)
+Seed creates:
+- 4 users (2 students, lead instructor, assistant instructor)
+- 3 courses with full module/lesson/activity trees
+- 5 prompt templates (knowledge-check, debugging, learning, exercise, supervisor)
+- 8 suggested prompts (4 teach, 4 guide)
+- 1 global base system prompt
+- Sample submissions and instructor assignments
 
-Current repo state:
+## Testing
 
-- Backend `test` script is still a placeholder in `server/package.json`:
-  - `echo "Error: no test specified" && exit 1`
-- Root has `bun run test` (Bun test runner) and currently includes frontend/unit coverage such as `app/lib/tours/tour-engine.test.ts`.
-- No dedicated lint script found in root or `server/package.json`.
-- No dedicated format script found in root or `server/package.json`.
-- Repository tracks `.githooks/` scripts for `commit-msg`, `prepare-commit-msg`, `post-commit`, and `pre-push` (Entire CLI integration). No tracked `pre-commit` hook script is present.
+- **Runner**: Vitest 4 with supertest for HTTP assertions
+- **Config**: `server/vitest.config.js` (node environment, forks pool, 15s timeout)
+- **Test DB**: Configured via `.env.test` (database `aitutor_test`, port 4001)
+- **Mock auth**: `createApp({ mockUser })` bypasses Better Auth for testing
 
-For client TypeScript checks, the root has `bun run typecheck` (not a backend-specific test suite).
+### Commands
+
+```bash
+cd server
+bun run test              # All tests
+bun run test:unit         # Unit tests only
+bun run test:integration  # Integration tests only
+bun run test:watch        # Watch mode
+```
+
+### Test Structure
+
+```
+test/
+  globalSetup.js          # Database preparation
+  setup.js                # Environment config
+  helpers.js              # createTestApp(), test utilities
+  unit/                   # 5 unit test files
+  integration/            # 8 integration test files
+```

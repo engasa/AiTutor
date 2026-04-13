@@ -144,8 +144,9 @@ async function supervisedGenerate(generateFn, context) {
 
 ### Supervisor context
 
-- Supervisor now sees the full question/options/knowledge context (not just the raw student message) plus the tutor draft, so it can detect answer leaks like “option C is correct.”
-- Env flag `AI_SUPERVISOR_ENABLED` (default `true`) disables the supervisor loop when set to `false`.
+- Supervisor sees the full question/options/knowledge context (not just the raw student message) plus the tutor draft, so it can detect answer leaks like “option C is correct.”
+- Supervisor also receives “hidden context” containing the answer key (only the supervisor sees this, never the student or tutor).
+- The dual-loop is controlled by the **admin AI model policy** (`dualLoopEnabled`) configured via the admin settings panel at `/admin`. The `AI_SUPERVISOR_ENABLED` env var is no longer used at runtime.
 
 ### Failure handling
 
@@ -213,17 +214,37 @@ Return approved response to frontend
 
 ### Configuration
 
-| Constant | Value | Purpose |
-|----------|-------|---------|
-| `MAX_SUPERVISOR_ITERATIONS` | 3 | Max revision attempts before fallback |
-| `SUPERVISOR_ERROR_MESSAGE` | "AI study buddy encountered an issue..." | Shown if supervisor call fails |
-| `FALLBACK_MESSAGE` | "I'm having trouble formulating..." | Shown after max iterations |
+| Setting | Default | Configurable | Purpose |
+|---------|---------|-------------|---------|
+| `dualLoopEnabled` | `true` | Admin AI model policy | Enables/disables the supervisor loop |
+| `maxSupervisorIterations` | `3` | Admin AI model policy (1-5) | Max revision attempts before fallback |
+| `defaultSupervisorModel` | Same as tutor | Admin AI model policy | Model used for supervisor reviews |
+| `SUPERVISOR_ERROR_MESSAGE` | "AI study buddy encountered an issue..." | Code constant | Shown if supervisor call fails |
+| `FALLBACK_MESSAGE` | "I'm having trouble formulating..." | Code constant | Shown after max iterations |
+
+Admins configure these settings via the **Settings** tab in the admin panel (`/admin`), under **AI Model Policy**.
+
+### Interaction Tracing
+
+Every AI interaction (whether single-pass or supervised) is logged to the `AiInteractionTrace` table with:
+
+| Field | Purpose |
+|-------|---------|
+| `mode` | teach, guide, or custom |
+| `knowledgeLevel` | Student's self-reported level |
+| `userMessage` | The student's original message |
+| `finalResponse` | The response delivered to the student |
+| `finalOutcome` | `approved`, `single_pass`, `safe_fallback`, or `error` |
+| `iterationCount` | How many tutor-supervisor loops ran |
+| `trace` | Full JSON trace of all tutor drafts and supervisor verdicts |
+| `tutorModelId` | Model used for the tutor |
+| `supervisorModelId` | Model used for the supervisor |
 
 ### Error Handling
 
 - **Supervisor call fails**: Returns error to student (fail-closed)
-- **JSON parse fails**: Throws error, surfaces to student
-- **Max iterations reached**: Returns generic fallback message
+- **JSON parse fails**: Retries once with parse error in prompt; if still invalid, tutor recovery pass without supervisor
+- **Max iterations reached**: Returns the supervisor's `safeResponseToStudent` fallback message
 
 ### Chat History
 
@@ -260,9 +281,17 @@ Return approved response to frontend
 
 2. The supervisor is automatically active for all chat modes (teach, guide, custom)
 
-## Future Considerations
+## Current Status
 
-- **Supervisor model**: Currently uses same model as tutor; could use cheaper/faster model
-- **Per-activity toggle**: Add `enableSupervisor` boolean to Activity model
-- **Analytics**: Log supervisor rejections for instructor review
-- **Streaming**: Current implementation is non-streaming; supervisor review requires full response
+Since the initial design, several "future considerations" have been implemented:
+
+- **Configurable supervisor model**: Admins can set a separate `defaultSupervisorModel` via the AI model policy (e.g., use a cheaper model for supervision).
+- **Configurable iterations**: `maxSupervisorIterations` is adjustable 1-5 via admin settings.
+- **Full interaction tracing**: All supervisor rejections, tutor drafts, and verdicts are logged in `AiInteractionTrace` for instructor and admin review.
+- **Admin toggle**: Dual-loop can be enabled/disabled system-wide via the admin AI model policy panel.
+
+## Remaining Future Considerations
+
+- **Per-activity toggle**: Add `enableSupervisor` boolean to Activity model for granular control.
+- **Streaming**: Current implementation is non-streaming; supervisor review requires the full response before it can evaluate.
+- **Instructor dashboard**: Surface interaction traces and rejection rates in instructor-facing analytics.
