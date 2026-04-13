@@ -1,9 +1,11 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import BugReportsTab from '~/components/admin/BugReportsTab';
 import type { AdminBugReportRow } from '~/lib/types';
 
-const { mockUpdateAdminBugReportStatus } = vi.hoisted(() => ({
+const { mockUpdateAdminBugReportStatus, mockClipboardWriteText } = vi.hoisted(() => ({
   mockUpdateAdminBugReportStatus: vi.fn(),
+  mockClipboardWriteText: vi.fn(),
 }));
 
 vi.mock('~/lib/api', () => ({
@@ -17,7 +19,12 @@ const baseReport: AdminBugReportRow = {
   description: 'Student cannot submit answer on activity page',
   status: 'unhandled',
   consoleLogs: JSON.stringify([
-    { level: 'error', message: 'Boom', timestamp: '2026-03-10T08:00:00.000Z', stack: 'line1\nline2' },
+    {
+      level: 'error',
+      message: 'Boom',
+      timestamp: '2026-03-10T08:00:00.000Z',
+      stack: 'line1\nline2',
+    },
   ]),
   networkLogs: JSON.stringify([
     {
@@ -74,9 +81,32 @@ const anonymousReport: AdminBugReportRow = {
   },
 };
 
+const anonymousReportWithPopulatedIdentityFields: AdminBugReportRow = {
+  ...baseReport,
+  id: 'bug-3',
+  description: 'Anonymous report with populated identity fields',
+  isAnonymous: true,
+  reporterName: 'Grace Hopper',
+  reporterEmail: 'grace@example.com',
+  reporterRole: 'PROFESSOR',
+  user: {
+    id: 'u3',
+    name: 'Grace Hopper',
+    email: 'grace@example.com',
+    role: 'PROFESSOR',
+  },
+};
+
 describe('BugReportsTab', () => {
   beforeEach(() => {
     mockUpdateAdminBugReportStatus.mockReset();
+    mockClipboardWriteText.mockReset();
+    Object.defineProperty(window.navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: mockClipboardWriteText,
+      },
+    });
   });
 
   it('renders bug report rows and anonymous reporter label', () => {
@@ -86,7 +116,9 @@ describe('BugReportsTab', () => {
     expect(screen.getByText(baseReport.description)).toBeInTheDocument();
     expect(screen.getByText(anonymousReport.description)).toBeInTheDocument();
     expect(screen.getByText('Anonymous')).toBeInTheDocument();
-    expect(screen.getAllByText('Math 101 / Week 1 / Linear Equations / Solve for x')).toHaveLength(2);
+    expect(screen.getAllByText('Math 101 / Week 1 / Linear Equations / Solve for x')).toHaveLength(
+      2,
+    );
     expect(screen.getAllByText('/student/list/42?step=1')).toHaveLength(2);
   });
 
@@ -133,5 +165,85 @@ describe('BugReportsTab', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Screenshot' }));
     expect(await screen.findByRole('link', { name: 'Open in new tab' })).toBeInTheDocument();
+  });
+
+  it('copies a full bug report template and shows temporary copied feedback', async () => {
+    mockClipboardWriteText.mockResolvedValue(undefined);
+    vi.useFakeTimers();
+
+    try {
+      render(<BugReportsTab initialReports={[baseReport]} />);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Copy' }));
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(mockClipboardWriteText).toHaveBeenCalledTimes(1);
+      const copiedText = mockClipboardWriteText.mock.calls[0][0] as string;
+      expect(copiedText).toContain('Bug Report');
+      expect(copiedText).toContain(`- Report ID: ${baseReport.id}`);
+      expect(copiedText).toContain(`- Internal User ID: ${baseReport.userId}`);
+      expect(copiedText).toContain(`- Page URL: ${baseReport.pageUrl}`);
+      expect(copiedText).toContain('Description');
+      expect(copiedText).toContain(baseReport.description);
+      expect(copiedText).toContain('Raw Appendix');
+      expect(copiedText).toContain('"consoleLogs"');
+      expect(copiedText).toContain('"networkLogs"');
+      expect(copiedText).toContain('"screenshot"');
+      expect(screen.getByRole('button', { name: 'Copied!' })).toBeInTheDocument();
+
+      await act(async () => {
+        vi.advanceTimersByTime(2_000);
+      });
+
+      expect(screen.getByRole('button', { name: 'Copy' })).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('copies masked anonymous reporter details while still including internal user id', async () => {
+    mockClipboardWriteText.mockResolvedValue(undefined);
+
+    render(<BugReportsTab initialReports={[anonymousReport]} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy' }));
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(mockClipboardWriteText).toHaveBeenCalledTimes(1);
+    const copiedText = mockClipboardWriteText.mock.calls[0][0] as string;
+    expect(copiedText).toContain('- Reporter: Anonymous');
+    expect(copiedText).toContain(`- Internal User ID: ${anonymousReport.userId}`);
+    expect(copiedText).toContain('- Anonymous: yes');
+    expect(copiedText).not.toContain('ada@example.com');
+  });
+
+  it('does not leak identity fields when copying anonymous reports even if row includes them', async () => {
+    mockClipboardWriteText.mockResolvedValue(undefined);
+
+    render(<BugReportsTab initialReports={[anonymousReportWithPopulatedIdentityFields]} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy' }));
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(mockClipboardWriteText).toHaveBeenCalledTimes(1);
+    const copiedText = mockClipboardWriteText.mock.calls[0][0] as string;
+    expect(copiedText).toContain('- Reporter: Anonymous');
+    expect(copiedText).toContain(
+      `- Internal User ID: ${anonymousReportWithPopulatedIdentityFields.userId}`,
+    );
+    expect(copiedText).toContain('- Anonymous: yes');
+    expect(copiedText).not.toContain('Grace Hopper');
+    expect(copiedText).not.toContain('grace@example.com');
+    expect(copiedText).not.toContain('"reporterName"');
+    expect(copiedText).not.toContain('"reporterEmail"');
   });
 });

@@ -36,6 +36,7 @@ type NetworkLogEntry = {
 const STATUS_OPTIONS: BugReportStatus[] = ['unhandled', 'in progress', 'resolved'];
 const CONSOLE_LEVELS = ['all', 'log', 'warn', 'error'] as const;
 const NETWORK_TABS = ['meta', 'request', 'response', 'headers'] as const;
+const COPY_FEEDBACK_DURATION_MS = 2_000;
 
 function safeJsonParse<T>(value: string | null | undefined, fallback: T): T {
   if (!value) return fallback;
@@ -65,9 +66,12 @@ function getReporterRole(report: AdminBugReportRow) {
 }
 
 function getContextLabel(report: AdminBugReportRow) {
-  const parts = [report.courseTitle, report.moduleTitle, report.lessonTitle, report.activityTitle].filter(
-    Boolean,
-  ) as string[];
+  const parts = [
+    report.courseTitle,
+    report.moduleTitle,
+    report.lessonTitle,
+    report.activityTitle,
+  ].filter(Boolean) as string[];
 
   if (parts.length > 0) return parts.join(' / ');
 
@@ -97,6 +101,128 @@ function getStatusClasses(status: BugReportStatus) {
   return 'bg-red-500/10 text-red-700 dark:text-red-400';
 }
 
+function buildContextSummary(report: AdminBugReportRow) {
+  const parts = [
+    report.courseTitle ? `Course: ${report.courseTitle}` : null,
+    report.moduleTitle ? `Module: ${report.moduleTitle}` : null,
+    report.lessonTitle ? `Lesson: ${report.lessonTitle}` : null,
+    report.activityTitle ? `Activity: ${report.activityTitle}` : null,
+  ].filter(Boolean);
+
+  if (parts.length > 0) {
+    return parts;
+  }
+
+  return [
+    report.courseOfferingId ? `Course ID: ${report.courseOfferingId}` : null,
+    report.moduleId ? `Module ID: ${report.moduleId}` : null,
+    report.lessonId ? `Lesson ID: ${report.lessonId}` : null,
+    report.activityId ? `Activity ID: ${report.activityId}` : null,
+  ].filter(Boolean);
+}
+
+function buildBugReportCopyText(report: AdminBugReportRow) {
+  const includeReporterIdentity = !report.isAnonymous;
+  const reporterLabel = getReporterLabel(report);
+  const reporterRole = getReporterRole(report);
+  const contextLines = buildContextSummary(report);
+  const parsedConsole = safeJsonParse<ConsoleLogEntry[]>(report.consoleLogs, []);
+  const parsedNetwork = safeJsonParse<NetworkLogEntry[]>(report.networkLogs, []);
+
+  const summaryLines = [
+    `Bug Report`,
+    ``,
+    `Summary`,
+    `- Report ID: ${report.id}`,
+    `- Status: ${report.status}`,
+    `- Created At: ${formatDateTime(report.createdAt)}`,
+    report.updatedAt ? `- Updated At: ${formatDateTime(report.updatedAt)}` : null,
+    `- Reporter: ${reporterLabel}`,
+    `- Internal User ID: ${report.userId}`,
+    reporterRole ? `- Reporter Role: ${reporterRole}` : null,
+    report.isAnonymous ? `- Anonymous: yes` : null,
+    report.pageUrl ? `- Page URL: ${report.pageUrl}` : null,
+    report.userAgent ? `- User Agent: ${report.userAgent}` : null,
+    contextLines.length > 0 ? `- Context:` : null,
+    ...contextLines.map((line) => `  - ${line}`),
+    report.consoleLogs ? `- Console Entries: ${parsedConsole.length}` : null,
+    report.networkLogs ? `- Network Entries: ${parsedNetwork.length}` : null,
+    report.screenshot ? `- Screenshot: included as data URL in raw appendix` : null,
+    ``,
+    `Description`,
+    report.description,
+  ].filter(Boolean);
+
+  const rawAppendix: Record<string, unknown> = {
+    id: report.id,
+    status: report.status,
+    description: report.description,
+    userId: report.userId,
+    isAnonymous: report.isAnonymous,
+  };
+
+  if (report.createdAt) rawAppendix.createdAt = report.createdAt;
+  if (report.updatedAt) rawAppendix.updatedAt = report.updatedAt;
+  if (includeReporterIdentity && report.reporterName)
+    rawAppendix.reporterName = report.reporterName;
+  if (includeReporterIdentity && report.reporterEmail)
+    rawAppendix.reporterEmail = report.reporterEmail;
+  if (reporterRole) rawAppendix.reporterRole = reporterRole;
+  if (report.pageUrl) rawAppendix.pageUrl = report.pageUrl;
+  if (report.userAgent) rawAppendix.userAgent = report.userAgent;
+  if (report.courseOfferingId !== null && report.courseOfferingId !== undefined) {
+    rawAppendix.courseOfferingId = report.courseOfferingId;
+  }
+  if (report.moduleId !== null && report.moduleId !== undefined) {
+    rawAppendix.moduleId = report.moduleId;
+  }
+  if (report.lessonId !== null && report.lessonId !== undefined) {
+    rawAppendix.lessonId = report.lessonId;
+  }
+  if (report.activityId !== null && report.activityId !== undefined) {
+    rawAppendix.activityId = report.activityId;
+  }
+  if (report.courseTitle) rawAppendix.courseTitle = report.courseTitle;
+  if (report.moduleTitle) rawAppendix.moduleTitle = report.moduleTitle;
+  if (report.lessonTitle) rawAppendix.lessonTitle = report.lessonTitle;
+  if (report.activityTitle) rawAppendix.activityTitle = report.activityTitle;
+  if (report.consoleLogs) rawAppendix.consoleLogs = report.consoleLogs;
+  if (report.networkLogs) rawAppendix.networkLogs = report.networkLogs;
+  if (report.screenshot) rawAppendix.screenshot = report.screenshot;
+
+  return `${summaryLines.join('\n')}\n\nRaw Appendix\n${JSON.stringify(rawAppendix, null, 2)}`;
+}
+
+async function copyTextToClipboard(text: string) {
+  if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  if (typeof document === 'undefined') {
+    throw new Error('Clipboard is not available');
+  }
+
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.setAttribute('readonly', 'true');
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  textarea.style.pointerEvents = 'none';
+  document.body.appendChild(textarea);
+  textarea.select();
+  textarea.setSelectionRange(0, textarea.value.length);
+
+  try {
+    const copied = document.execCommand('copy');
+    if (!copied) {
+      throw new Error('Clipboard copy failed');
+    }
+  } finally {
+    document.body.removeChild(textarea);
+  }
+}
+
 function sortReports(rows: AdminBugReportRow[], key: SortKey, direction: SortDirection) {
   const dir = direction === 'asc' ? 1 : -1;
   return [...rows].sort((a, b) => {
@@ -108,7 +234,7 @@ function sortReports(rows: AdminBugReportRow[], key: SortKey, direction: SortDir
           : key === 'reporter'
             ? getReporterLabel(a)
             : key === 'role'
-              ? getReporterRole(a) ?? ''
+              ? (getReporterRole(a) ?? '')
               : key === 'context'
                 ? getContextLabel(a)
                 : key === 'page'
@@ -122,7 +248,7 @@ function sortReports(rows: AdminBugReportRow[], key: SortKey, direction: SortDir
           : key === 'reporter'
             ? getReporterLabel(b)
             : key === 'role'
-              ? getReporterRole(b) ?? ''
+              ? (getReporterRole(b) ?? '')
               : key === 'context'
                 ? getContextLabel(b)
                 : key === 'page'
@@ -332,7 +458,9 @@ function NetworkViewer({ report }: { report: AdminBugReportRow }) {
           </div>
         ) : tab === 'request' ? (
           <pre className="whitespace-pre-wrap break-words text-xs">
-            {typeof requestBody === 'string' ? requestBody : JSON.stringify(requestBody ?? {}, null, 2)}
+            {typeof requestBody === 'string'
+              ? requestBody
+              : JSON.stringify(requestBody ?? {}, null, 2)}
           </pre>
         ) : tab === 'response' ? (
           <pre className="whitespace-pre-wrap break-words text-xs">
@@ -369,7 +497,11 @@ function ScreenshotViewer({ report }: { report: AdminBugReportRow }) {
   return (
     <div className="space-y-3">
       <div className="max-h-[55vh] overflow-auto rounded-xl border border-border/70 bg-background/60 p-2">
-        <img src={report.screenshot} alt="Bug report screenshot" className="w-full rounded-md border" />
+        <img
+          src={report.screenshot}
+          alt="Bug report screenshot"
+          className="w-full rounded-md border"
+        />
       </div>
       <a
         href={report.screenshot}
@@ -388,6 +520,7 @@ export default function BugReportsTab({ initialReports }: { initialReports: Admi
   const [sortKey, setSortKey] = useState<SortKey>('createdAt');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [updatingReportId, setUpdatingReportId] = useState<string | null>(null);
+  const [copiedReportId, setCopiedReportId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [viewerType, setViewerType] = useState<ViewerType>(null);
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
@@ -398,7 +531,9 @@ export default function BugReportsTab({ initialReports }: { initialReports: Admi
   );
 
   const selectedReport =
-    selectedReportId === null ? null : reports.find((report) => report.id === selectedReportId) ?? null;
+    selectedReportId === null
+      ? null
+      : (reports.find((report) => report.id === selectedReportId) ?? null);
 
   const toggleSort = (nextSortKey: SortKey) => {
     if (sortKey === nextSortKey) {
@@ -431,6 +566,20 @@ export default function BugReportsTab({ initialReports }: { initialReports: Admi
       setError('Could not update bug report status. Please try again.');
     } finally {
       setUpdatingReportId(null);
+    }
+  };
+
+  const onCopyReport = async (report: AdminBugReportRow) => {
+    setError(null);
+    try {
+      await copyTextToClipboard(buildBugReportCopyText(report));
+      setCopiedReportId(report.id);
+      window.setTimeout(() => {
+        setCopiedReportId((current) => (current === report.id ? null : current));
+      }, COPY_FEEDBACK_DURATION_MS);
+    } catch {
+      setError('Could not copy bug report details. Please try again.');
+      setCopiedReportId((current) => (current === report.id ? null : current));
     }
   };
 
@@ -590,6 +739,14 @@ export default function BugReportsTab({ initialReports }: { initialReports: Admi
                       <Button
                         type="button"
                         size="sm"
+                        variant={copiedReportId === report.id ? 'secondary' : 'outline'}
+                        onClick={() => onCopyReport(report)}
+                      >
+                        {copiedReportId === report.id ? 'Copied!' : 'Copy'}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
                         variant="outline"
                         onClick={() => openViewer('console', report.id)}
                         disabled={!report.consoleLogs}
@@ -623,7 +780,10 @@ export default function BugReportsTab({ initialReports }: { initialReports: Admi
         </table>
       </div>
 
-      <Dialog open={viewerType !== null} onOpenChange={(open) => (!open ? closeViewer() : undefined)}>
+      <Dialog
+        open={viewerType !== null}
+        onOpenChange={(open) => (!open ? closeViewer() : undefined)}
+      >
         <DialogContent className="max-w-4xl p-6">
           <DialogHeader>
             <DialogTitle>
