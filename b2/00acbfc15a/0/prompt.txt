@@ -1,0 +1,468 @@
+So I have access to my uni machine for deploying Aitutor Webapp onto uni servers. you can access it by ssh stavan@aitutor.ok.ubc.ca can you access it and find the aitutor web app and see how it is hosted?
+
+---
+
+continue
+
+---
+
+!ssh stavan@aitutor.ok.ubc.ca "ls -la ~ && which docker docker-compose pm2 nginx systemctl 2>/dev/null && docker ps 2>/dev/null && ls -la /etc/nginx/sites-enabled/
+  2>/dev/null && cat /etc/systemd/system/aitutor* 2>/dev/null"
+
+---
+
+its not hapening it asks for password, what are the other ways?
+
+---
+
+I dont want to use one password, the ssh command once in asks me for my password
+
+---
+
+[stavan@s216 AiTutor]$ < which docker docker-compose pm2 nginx systemctl 2>/dev/null && echo "===DOCKER===" && docker ps 2>/dev/null &&<2>/dev/null && echo "===SYSTEMD===" && ls /etc/systemd/system/*aitutor* /etc/systemd/system/*tutor* 2>/dev/null<em/*tutor* 2>/dev/null  && echo "===PROCESSES===" && ps aux | grep -i "node\|docker\|nginx\|pm2" | grep -v grep
+===HOME===
+total 56
+drwx------  13 stavan stavan  4096 Dec 16 20:15 .
+drwxr-xr-x. 21 root   root     285 Dec 19 08:50 ..
+-rw-------   1 stavan stavan  5477 Dec 16 20:46 .bash_history
+-rw-------   1 stavan stavan    18 Apr 25  2025 .bash_logout
+-rw-------   1 stavan stavan   217 Dec 16 16:38 .bash_profile
+-rw-------   1 stavan stavan   573 Dec 16 20:15 .bashrc
+drwxrwxr-x   4 stavan stavan    32 Dec 16 16:39 .bun
+drwxrwxr-x   8 stavan stavan   112 Dec 16 17:29 .cache
+drwx------   4 stavan stavan    31 Dec 14 20:58 .config
+drwxrwxr-x   3 stavan stavan    20 Dec 15 19:07 .dotnet
+-rw-rw-r--   1 stavan stavan    48 Apr 27  2025 .gitconfig
+drwxrwxr-x   3 stavan stavan    19 Dec 14 20:58 .local
+drwxrwxr-x   4 stavan stavan    72 Dec 16 17:29 .npm
+drwxrwxr-x   8 stavan stavan  4096 Dec 16 20:15 .nvm
+drwxrwxr-x   5 stavan stavan   160 Apr 13 13:27 .pm2
+drwx------   2 stavan stavan    65 Dec 15 19:17 .ssh
+-rw-------   1 stavan stavan 13950 Dec 16 17:34 .viminfo
+drwxr-x---   5 stavan stavan  4096 Dec 15 19:26 .vscode-server
+-rw-rw-r--   1 stavan stavan   183 Dec 15 19:24 .wget-hsts
+drwxrwxr-x   2 stavan stavan    97 Dec 16 20:13 .zed_server
+===TOOLS===
+/usr/bin/docker
+/usr/local/bin/docker-compose
+/usr/local/bin/pm2
+/usr/bin/systemctl
+
+---
+
+[stavan@s216 AiTutor]$ <docker ps -a && echo "===AITUTOR DIR===" && ls -la && echo "===ENV===" && cat .env 2>/dev/null | grep -v SECRET<POSE===" && cat docker-compose.yml 2>/dev/null && echo "===ECOSYSTEM===" && cat ecosystem.config.js 2>/dev/null
+===PM2===
+┌────┬───────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+│ id │ name      │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+└────┴───────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘
+===DOCKER===
+permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock: Get "http://%2Fvar%2Frun%2Fdocker.sock/v1.45/containers/json?all=1": dial unix /var/run/docker.sock: connect: permission denied
+
+---
+
+[stavan@s216 AiTutor]$ <docker ps -a && echo "===AITUTOR DIR===" && ls -la && echo "===ENV===" && cat .env 2>/dev/null | grep -v SECRET<POSE===" && cat docker-compose.yml 2>/dev/null && echo "===ECOSYSTEM===" && cat ecosystem.config.js 2>/dev/null
+===PM2===
+┌────┬───────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+│ id │ name      │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+└────┴───────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘
+===DOCKER===
+permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock: Get "http://%2Fvar%2Frun%2Fdocker.sock/v1.45/containers/json?all=1": dial unix /var/run/docker.sock: connect: permission denied
+[stavan@s216 AiTutor]$ <&& cat .env 2>/dev/null | grep -v SECRET | grep -v PASSWORD | grep -v KEY && echo "===DOCKER-COMPOSE===" && cat<==" && cat ecosystem.config.js 2>/dev/null && echo "===SUDO DOCKER===" && sudo docker ps -a 2>/dev/null && echo< | grep -i "aitutor\|tutor\|node\|docker\|postgres\|nginx" && echo "===PORTS===" && ss -tlnp 2>/dev/null | head  -20
+===AITUTOR DIR===
+total 440
+drwxrwxr-x  10 stavan stavan   4096 Dec 16 20:18 .
+drwxr-xr-x  12 stavan stavan    231 Apr  4 19:58 ..
+-rw-rw-r--   1 stavan stavan   3049 Dec 15 19:17 AGENTS.md
+drwxrwxr-x   7 stavan stavan    125 Dec 16 20:13 app
+drwxrwxr-x   3 stavan stavan     20 Dec 16 20:18 build
+-rw-rw-r--   1 stavan stavan 176477 Dec 16 17:17 bun.lock
+-rw-rw-r--   1 stavan stavan  23435 Dec 15 19:17 CLAUDE.md
+-rw-rw-r--   1 stavan stavan    509 Dec 15 19:17 components.json
+-rw-rw-r--   1 stavan stavan    377 Dec 16 16:35 docker-compose.yml
+-rw-rw-r--   1 stavan stavan    599 Dec 15 19:17 Dockerfile
+-rw-rw-r--   1 stavan stavan     42 Dec 15 19:17 .dockerignore
+drwxrwxr-x   2 stavan stavan     44 Dec 16 20:13 docs
+-rw-rw-r--   1 stavan stavan     39 Dec 16 17:34 .env
+drwxrwxr-x   8 stavan stavan   4096 Apr 13 13:26 .git
+-rw-rw-r--   1 stavan stavan     97 Dec 15 19:17 .gitignore
+drwxr-xr-x 444 stavan stavan  16384 Dec 16 20:15 node_modules
+-rw-rw-r--   1 stavan stavan   1493 Dec 16 17:17 package.json
+-rw-rw-r--   1 stavan stavan 166072 Dec 15 19:17 package-lock.json
+drwxrwxr-x   2 stavan stavan     43 Dec 16 17:17 public
+-rw-rw-r--   1 stavan stavan    206 Dec 16 17:00 react-router.config.ts
+-rw-rw-r--   1 stavan stavan   2254 Dec 15 19:17 README.md
+drwxrwxr-x   5 stavan stavan    144 Dec 16 20:13 server
+drwxrwxr-x   3 stavan stavan     21 Dec 15 19:17 shared
+-rw-rw-r--   1 stavan stavan    657 Dec 16 20:13 tsconfig.json
+-rw-rw-r--   1 stavan stavan    280 Dec 15 19:17 vite.config.ts
+===ENV===
+VITE_API_URL=https://aitutor.ok.ubc.ca
+===DOCKER-COMPOSE===
+services:
+    db:
+        image: postgres:16-alpine
+        container_name: aitutor_db
+        restart: unless-stopped
+        environment:
+            POSTGRES_USER: postgres
+            POSTGRES_PASSWORD: postgres
+            POSTGRES_DB: aitutor
+        ports:
+            - "54321:5432"
+        volumes:
+            - db_data:/var/lib/postgresql/data
+volumes:
+    db_data:
+===ECOSYSTEM===
+
+---
+
+[stavan@s216 AiTutor]$ <docker ps -a && echo "===AITUTOR DIR===" && ls -la && echo "===ENV===" && cat .env 2>/dev/null | grep -v SECRET<POSE===" && cat docker-compose.yml 2>/dev/null && echo "===ECOSYSTEM===" && cat ecosystem.config.js 2>/dev/null
+===PM2===
+┌────┬───────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+│ id │ name      │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+└────┴───────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘
+===DOCKER===
+permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock: Get "http://%2Fvar%2Frun%2Fdocker.sock/v1.45/containers/json?all=1": dial unix /var/run/docker.sock: connect: permission denied
+[stavan@s216 AiTutor]$ <&& cat .env 2>/dev/null | grep -v SECRET | grep -v PASSWORD | grep -v KEY && echo "===DOCKER-COMPOSE===" && cat<==" && cat ecosystem.config.js 2>/dev/null && echo "===SUDO DOCKER===" && sudo docker ps -a 2>/dev/null && echo< | grep -i "aitutor\|tutor\|node\|docker\|postgres\|nginx" && echo "===PORTS===" && ss -tlnp 2>/dev/null | head  -20
+===AITUTOR DIR===
+total 440
+drwxrwxr-x  10 stavan stavan   4096 Dec 16 20:18 .
+drwxr-xr-x  12 stavan stavan    231 Apr  4 19:58 ..
+-rw-rw-r--   1 stavan stavan   3049 Dec 15 19:17 AGENTS.md
+drwxrwxr-x   7 stavan stavan    125 Dec 16 20:13 app
+drwxrwxr-x   3 stavan stavan     20 Dec 16 20:18 build
+-rw-rw-r--   1 stavan stavan 176477 Dec 16 17:17 bun.lock
+-rw-rw-r--   1 stavan stavan  23435 Dec 15 19:17 CLAUDE.md
+-rw-rw-r--   1 stavan stavan    509 Dec 15 19:17 components.json
+-rw-rw-r--   1 stavan stavan    377 Dec 16 16:35 docker-compose.yml
+-rw-rw-r--   1 stavan stavan    599 Dec 15 19:17 Dockerfile
+-rw-rw-r--   1 stavan stavan     42 Dec 15 19:17 .dockerignore
+drwxrwxr-x   2 stavan stavan     44 Dec 16 20:13 docs
+-rw-rw-r--   1 stavan stavan     39 Dec 16 17:34 .env
+drwxrwxr-x   8 stavan stavan   4096 Apr 13 13:26 .git
+-rw-rw-r--   1 stavan stavan     97 Dec 15 19:17 .gitignore
+drwxr-xr-x 444 stavan stavan  16384 Dec 16 20:15 node_modules
+-rw-rw-r--   1 stavan stavan   1493 Dec 16 17:17 package.json
+-rw-rw-r--   1 stavan stavan 166072 Dec 15 19:17 package-lock.json
+drwxrwxr-x   2 stavan stavan     43 Dec 16 17:17 public
+-rw-rw-r--   1 stavan stavan    206 Dec 16 17:00 react-router.config.ts
+-rw-rw-r--   1 stavan stavan   2254 Dec 15 19:17 README.md
+drwxrwxr-x   5 stavan stavan    144 Dec 16 20:13 server
+drwxrwxr-x   3 stavan stavan     21 Dec 15 19:17 shared
+-rw-rw-r--   1 stavan stavan    657 Dec 16 20:13 tsconfig.json
+-rw-rw-r--   1 stavan stavan    280 Dec 15 19:17 vite.config.ts
+===ENV===
+VITE_API_URL=https://aitutor.ok.ubc.ca
+===DOCKER-COMPOSE===
+services:
+    db:
+        image: postgres:16-alpine
+        container_name: aitutor_db
+        restart: unless-stopped
+        environment:
+            POSTGRES_USER: postgres
+            POSTGRES_PASSWORD: postgres
+            POSTGRES_DB: aitutor
+        ports:
+            - "54321:5432"
+        volumes:
+            - db_data:/var/lib/postgresql/data
+volumes:
+    db_data:
+===ECOSYSTEM===
+[stavan@s216 AiTutor]$ <==SERVER DIR===" && ls -la server/ && echo "===SERVER ENV===" && cat server/.env 2>/dev/null | grep -v SECRET |<MD===" && systemctl list-units --type=service | grep -i "aitutor\|tutor\|node\|docker\|postgres\|nginx" && echo<& echo "===NGINX===" && sudo cat /etc/nginx/conf.d/*.conf 2>/dev/null && sudo ls /etc/nginx/conf.d/ 2>/dev/null
+===SUDO DOCKER===
+[sudo] password for stavan: 
+CONTAINER ID   IMAGE                     COMMAND                  CREATED         STATUS                     PORTS                     NAMES
+aee8ec5a5c64   pgvector/pgvector:pg16    "docker-entrypoint.s…"   2 months ago    Exited (0) 4 weeks ago                               courseplanner-web-pgvectorDB-1
+e6bf185c8a13   postgres:16-alpine        "docker-entrypoint.s…"   3 months ago    Up 8 days                  0.0.0.0:54321->5432/tcp   aitutor_db
+717c1158d1ef   mysql:latest              "docker-entrypoint.s…"   4 months ago    Exited (0) 4 weeks ago                               courseplanner-web-mysql-1
+8ac389f99b82   28ec85e067db              "docker-entrypoint.s…"   14 months ago   Exited (1) 14 months ago                             admiring_brahmagupta
+571d2e24884c   judge0/api:1.10.0-extra   "./docker-entrypoint…"   5 years ago     Up 8 days                  3000/tcp                  api-extra_workers_1
+6968f8b35adb   judge0/api:1.10.0-extra   "./docker-entrypoint…"   5 years ago     Up 8 days                  0.0.0.0:83->3000/tcp      api-extra_server_1
+bd138f05fbc5   redis:4.0                 "docker-entrypoint.s…"   5 years ago     Up 8 days                  6379/tcp                  api-extra_redis_1
+9d5ab948c2c2   postgres:9.6              "docker-entrypoint.s…"   5 years ago     Up 8 days                  5432/tcp                  api-extra_db_1
+===SERVER DIR===
+total 124
+drwxrwxr-x   5 stavan stavan   144 Dec 16 20:13 .
+drwxrwxr-x  10 stavan stavan  4096 Dec 16 20:18 ..
+-rw-rw-r--   1 stavan stavan 36332 Dec 16 17:16 bun.lock
+-rw-rw-r--   1 stavan stavan   438 Dec 16 20:19 .env
+-rw-rw-r--   1 stavan stavan   559 Dec 16 17:23 .env.example
+drwxr-xr-x 148 stavan stavan  4096 Dec 16 16:42 node_modules
+-rw-rw-r--   1 stavan stavan   621 Dec 16 20:13 package.json
+-rw-rw-r--   1 stavan stavan 62759 Dec 15 19:17 package-lock.json
+drwxrwxr-x   3 stavan stavan    60 Dec 16 20:13 prisma
+drwxrwxr-x   8 stavan stavan   127 Dec 16 20:13 src
+===SERVER ENV===
+# Database Configuration
+DATABASE_URL="postgresql://postgres:postgres@localhost:54321/aitutor?schema=public"
+
+# Server Configuration
+PORT=4000
+
+# Authentication
+BETTER_AUTH_URL="http://aitutor.ok.ubc.ca/api/auth"
+COOKIE_DOMAIN="aitutor.ok.ubc.ca"
+
+# UBC eduAI API Configuration
+EDUAI_BASE_URL="https://eduai.ok.ubc.ca/api"
+EDUAI_MODEL="google:gemini-2.5-flash"
+NODE_ENV=production
+===SYSTEMD===
+  docker.service                                        loaded active running Docker Application Container Engine                                          
+  kmod-static-nodes.service                             loaded active exited  Create list of required static device nodes for the current kernel           
+  node_exporter.service                                 loaded active running Node Exporter                                                                
+  systemd-tmpfiles-setup-dev.service                    loaded active exited  Create Static Device Nodes in /dev                                           
+===PORTS===
+State  Recv-Q Send-Q Local Address:Port  Peer Address:PortProcess
+LISTEN 0      511          0.0.0.0:80         0.0.0.0:*          
+LISTEN 0      2048         0.0.0.0:54321      0.0.0.0:*          
+LISTEN 0      2048         0.0.0.0:83         0.0.0.0:*          
+LISTEN 0      128          0.0.0.0:22         0.0.0.0:*          
+LISTEN 0      10         127.0.0.1:25         0.0.0.0:*          
+LISTEN 0      511          0.0.0.0:443        0.0.0.0:*          
+LISTEN 0      80                 *:3306             *:*          
+LISTEN 0      2048               *:9182             *:*          
+LISTEN 0      511                *:4768             *:*          
+===NGINX===
+# PHP-FPM FastCGI server
+# network or unix domain socket configuration
+
+upstream php-fpm {
+        server unix:/run/php-fpm/www.sock;
+}
+php-fpm.conf
+
+---
+
+[stavan@s216 AiTutor]$  echo "===NGINX MAIN===" && sudo cat /etc/nginx/nginx.conf && echo "===PORT 4768===" && ss -tlnp | grep 4768
+===NGINX MAIN===
+cat: /etc/nginx/nginx.conf: No such file or directory
+
+---
+
+[stavan@s216 AiTutor]$  echo "===NGINX MAIN===" && sudo cat /etc/nginx/nginx.conf && echo "===PORT 4768===" && ss -tlnp | grep 4768
+===NGINX MAIN===
+cat: /etc/nginx/nginx.conf: No such file or directory
+[stavan@s216 AiTutor]$ <ttpd.conf 2>/dev/null | tail -50 && echo "===HTTPD VHOSTS===" && sudo ls /etc/httpd/conf.d/ 2>/dev/null && echo<|4768" /etc/httpd/conf.d/ 2>/dev/null | xargs sudo cat 2>/dev/null && echo "===PORT 4768===" && sudo ss -tlnp |<tlnp |  grep 4768 && echo "===CADDY===" && which caddy 2>/dev/null && sudo cat /etc/caddy/Caddyfile 2>/dev/null
+===HTTPD===
+    #
+    AddType text/html .shtml
+    AddOutputFilter INCLUDES .shtml
+</IfModule>
+
+#
+# Specify a default charset for all content served; this enables
+# interpretation of all content as UTF-8 by default.  To use the 
+# default browser choice (ISO-8859-1), or to allow the META tags
+# in HTML content to override this choice, comment out this
+# directive:
+#
+AddDefaultCharset UTF-8
+
+<IfModule mime_magic_module>
+    #
+    # The mod_mime_magic module allows the server to use various hints from the
+    # contents of the file itself to determine its type.  The MIMEMagicFile
+    # directive tells the module where the hint definitions are located.
+    #
+    MIMEMagicFile conf/magic
+</IfModule>
+
+#
+# Customizable error responses come in three flavors:
+# 1) plain text 2) local redirects 3) external redirects
+#
+# Some examples:
+#ErrorDocument 500 "The server made a boo boo."
+#ErrorDocument 404 /missing.html
+#ErrorDocument 404 "/cgi-bin/missing_handler.pl"
+#ErrorDocument 402 http://www.example.com/subscription_info.html
+#
+
+#
+# EnableMMAP and EnableSendfile: On systems that support it, 
+# memory-mapping or the sendfile syscall may be used to deliver
+# files.  This usually improves server performance, but must
+# be turned off when serving from networked-mounted 
+# filesystems or if support for these functions is otherwise
+# broken on your system.
+# Defaults if commented: EnableMMAP On, EnableSendfile Off
+#
+#EnableMMAP off
+EnableSendfile on
+
+# Supplemental configuration
+#
+# Load config files in the "/etc/httpd/conf.d" directory, if any.
+IncludeOptional conf.d/*.conf
+===HTTPD VHOSTS===
+aitutor.conf    courseplanner.conf   datastructures.conf  nuteach.conf    README            ssl.conf      tascheduler.conf  userdir.conf
+autoindex.conf    dataplayground.conf  learncoding.conf     php.conf    rhel-snipolicy.conf  ssl.conf.bak  ulearn.conf        welcome.conf
+===AITUTOR VHOST===
+<VirtualHost *:80>
+    ServerName aitutor.ok.ubc.ca
+    Redirect / https://aitutor.ok.ubc.ca/
+</VirtualHost>
+
+<VirtualHost *:443>
+    # 1. Server Name
+    ServerName aitutor.ok.ubc.ca
+
+    # 2. SSL Configuration
+    SSLEngine on
+    SSLProtocol -All +TLSv1.2 +TLSv1.3
+    SSLCipherSuite HIGH:!aNULL:!MD5
+    SSLCertificateFile /etc/pki/tls/certs/cert_plus_full_chain.pem
+    SSLCertificateKeyFile /etc/pki/tls/private/prvkey.pem
+
+    # 3. BACKEND PROXY (Port 4000 based on your current config)
+    ProxyPreserveHost On
+    ProxyPass /api http://localhost:4000/api
+    ProxyPassReverse /api http://localhost:4000/api
+
+    # 4. FRONTEND SERVING (Updated Path!)
+    # Changed from "/srv/www/AiTutor/build" to "/srv/www/AiTutor/build/client"
+    DocumentRoot "/srv/www/AiTutor/build/client"
+
+    <Directory "/srv/www/AiTutor/build/client">
+        Options -Indexes -MultiViews +FollowSymLinks
+        AllowOverride All
+        Require all granted
+
+        RewriteEngine On
+        RewriteCond %{REQUEST_FILENAME} !-f
+        RewriteCond %{REQUEST_FILENAME} !-d
+        RewriteCond %{REQUEST_URI} !^/api
+        RewriteRule ^ index.html [QSA,L]
+    </Directory>
+
+</VirtualHost>
+<VirtualHost *:80>
+        ServerName tascheduler.ok.ubc.ca
+        ServerAlias s216.ok.ubc.ca    
+
+    # Redirect after working SSL is available
+    Redirect / https://tascheduler.ok.ubc.ca
+</VirtualHost>
+
+
+<VirtualHost *:443>
+        ## General Host Options
+        ##
+        ServerName tascheduler.ok.ubc.ca
+        ServerAlias s216.ok.ubc.ca
+
+    SSLEngine on
+    SSLProtocol -All +TLSv1.2 +TLSv1.3
+    SSLCipherSuite HIGH:!aNULL:!MD5
+        SSLCertificateFile /etc/pki/tls/certs/cert_plus_full_chain.pem
+        SSLCertificateKeyFile /etc/pki/tls/private/prvkey.pem
+
+        DocumentRoot "/srv/www/tascheduler"
+        <Directory "/srv/www/tascheduler">
+            Options -Indexes -MultiViews +FollowSymLinks
+            AllowOverride All
+            Require all granted
+    </Directory>    
+
+    <Location /> 
+        ProxyPass http://localhost:4768/
+        ProxyPassReverse http://localhost:4768/
+    </Location>
+
+
+    ## Timeout
+    Timeout 3600
+</VirtualHost>
+
+
+===PORT 4768===
+LISTEN 0      511                *:4768             *:*    users:(("node",pid=1105463,fd=18))                                                                                                            
+===CADDY===
+
+---
+
+I want the  /srv/www/AiTutor to be the main one
+
+---
+
+[stavan@s216 AiTutor]$ <&& echo "===IS GIT?===" && ls -la /srv/www/AiTutor/.git 2>/dev/null && echo "===SAME?===" && diff <(readlink -f<ww/AiTutor) <(readlink -f ~/AiTutor) && echo "===REMOTE===" && cd /srv/www/AiTutor && git remote -v 2>/dev/null
+===SRV===
+total 440
+drwxrwxr-x  10 stavan stavan   4096 Dec 16 20:18 .
+drwxr-xr-x  12 stavan stavan    231 Apr  4 19:58 ..
+-rw-rw-r--   1 stavan stavan   3049 Dec 15 19:17 AGENTS.md
+drwxrwxr-x   7 stavan stavan    125 Dec 16 20:13 app
+drwxrwxr-x   3 stavan stavan     20 Dec 16 20:18 build
+-rw-rw-r--   1 stavan stavan 176477 Dec 16 17:17 bun.lock
+-rw-rw-r--   1 stavan stavan  23435 Dec 15 19:17 CLAUDE.md
+-rw-rw-r--   1 stavan stavan    509 Dec 15 19:17 components.json
+-rw-rw-r--   1 stavan stavan    377 Dec 16 16:35 docker-compose.yml
+-rw-rw-r--   1 stavan stavan    599 Dec 15 19:17 Dockerfile
+-rw-rw-r--   1 stavan stavan     42 Dec 15 19:17 .dockerignore
+drwxrwxr-x   2 stavan stavan     44 Dec 16 20:13 docs
+-rw-rw-r--   1 stavan stavan     39 Dec 16 17:34 .env
+drwxrwxr-x   8 stavan stavan   4096 Apr 13 13:26 .git
+-rw-rw-r--   1 stavan stavan     97 Dec 15 19:17 .gitignore
+drwxr-xr-x 444 stavan stavan  16384 Dec 16 20:15 node_modules
+-rw-rw-r--   1 stavan stavan   1493 Dec 16 17:17 package.json
+-rw-rw-r--   1 stavan stavan 166072 Dec 15 19:17 package-lock.json
+drwxrwxr-x   2 stavan stavan     43 Dec 16 17:17 public
+-rw-rw-r--   1 stavan stavan    206 Dec 16 17:00 react-router.config.ts
+-rw-rw-r--   1 stavan stavan   2254 Dec 15 19:17 README.md
+drwxrwxr-x   5 stavan stavan    144 Dec 16 20:13 server
+drwxrwxr-x   3 stavan stavan     21 Dec 15 19:17 shared
+-rw-rw-r--   1 stavan stavan    657 Dec 16 20:13 tsconfig.json
+-rw-rw-r--   1 stavan stavan    280 Dec 15 19:17 vite.config.ts
+===IS GIT?===
+total 60
+drwxrwxr-x   8 stavan stavan  4096 Apr 13 13:26 .
+drwxrwxr-x  10 stavan stavan  4096 Dec 16 20:18 ..
+drwxrwxr-x   2 stavan stavan     6 Dec 15 19:17 branches
+-rw-rw-r--   1 stavan stavan    14 Dec 16 17:40 COMMIT_EDITMSG
+-rw-rw-r--   1 stavan stavan   294 Dec 15 19:18 config
+-rw-rw-r--   1 stavan stavan    73 Dec 15 19:17 description
+-rw-rw-r--   1 stavan stavan  1152 Dec 16 20:13 FETCH_HEAD
+-rw-rw-r--   1 stavan stavan    21 Dec 15 19:17 HEAD
+drwxrwxr-x   2 stavan stavan  4096 Dec 15 19:17 hooks
+-rw-rw-r--   1 stavan stavan 13559 Apr 13 13:26 index
+drwxrwxr-x   2 stavan stavan    21 Dec 15 19:17 info
+drwxrwxr-x   3 stavan stavan    30 Dec 15 19:17 logs
+drwxrwxr-x 102 stavan stavan  4096 Dec 16 20:13 objects
+-rw-rw-r--   1 stavan stavan    41 Dec 16 20:13 ORIG_HEAD
+-rw-rw-r--   1 stavan stavan   821 Dec 15 19:17 packed-refs
+drwxrwxr-x   5 stavan stavan    46 Dec 15 19:17 refs
+===SAME?===
+1c1
+< /srv/www/AiTutor
+---
+> /home/stavan/AiTutor
+
+---
+
+[stavan@s216 AiTutor]$ <git status && echo "===REMOTE===" && git remote -v && echo "===LOG===" && git log --oneline -5 && echo "===HOME  LOG===" && cd ~/AiTutor && git log --oneline -5
+===GIT STATUS===
+On branch main
+Your branch is up to date with 'origin/main'.
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+    .env
+
+nothing added to commit but untracked files present (use "git add" to track)
+===REMOTE===
+origin    git@github.com:Whiteknight07/AiTutor.git (fetch)
+origin    git@github.com:Whiteknight07/AiTutor.git (push)
+===LOG===
+WARNING: terminal is not fully functional
+-  (press RETURN)2cf8aed (HEAD -> main, origin/main, origin/HEAD) added admin role, seeded admin to db. Admins can now override/set eduai api key from /admin endpoint
+50bbff5 update api.ts
+06779de added aitutor as trusted
+2b90344 (origin/testing-new-ui) Improve supervisor JSON error handling and context
+1430058 Add AI supervisor toggle and context to review loop
+===HOME  LOG===
+-bash: cd: /home/stavan/AiTutor: No such file or directory
+[stavan@s216 AiTutor]$
