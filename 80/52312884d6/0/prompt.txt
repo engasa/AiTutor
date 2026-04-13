@@ -1,0 +1,5 @@
+I need you to have proper documentation for this project. Use explore subagents. The subagents should be Opus 4.6 and spawn them across the codebase and have documentation where necessary and needed. Also update the README file. Do what is needed, basically ask me questions as needed.
+
+---
+
+lets have api-reference.md and connit and push

@@ -1,0 +1,31 @@
+{
+  "cli_version": "0.5.1",
+  "checkpoint_id": "8052312884d6",
+  "strategy": "manual-commit",
+  "branch": "t3code/project-docs-update",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "AGENTS.md",
+    "CONTRIBUTING.md",
+    "README.md",
+    "app/README.md",
+    "docs/api-reference.md",
+    "docs/two-agent-supervisor-system.md",
+    "server/README.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/80/52312884d6/0/metadata.json",
+      "transcript": "/80/52312884d6/0/full.jsonl",
+      "content_hash": "/80/52312884d6/0/content_hash.txt",
+      "prompt": "/80/52312884d6/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 51193,
+    "cache_read_tokens": 103784,
+    "output_tokens": 3483,
+    "api_call_count": 4
+  }
+}
