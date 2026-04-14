@@ -4,15 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working in this
 
 ## Project Overview
 
-AiTutor is a full-stack tutoring platform with:
-- React Router v7 frontend (`app/`) running in SPA mode (`ssr: false`)
-- Express 5 + Prisma backend (`server/`)
-- Better Auth cookie-based sessions (no JWT bearer token flow)
-- PostgreSQL storage (via Prisma)
+> For a comprehensive, non-technical description of AI Tutor (features, user roles, workflows, future roadmap), see **[SYSTEM_OVERVIEW.md](SYSTEM_OVERVIEW.md)**.
 
-Core learning hierarchy:
-- `CourseOffering -> Module -> Lesson -> Activity`
-- Activities use a required `mainTopic` and optional `secondaryTopics`.
+Stack:
+- React Router v7 frontend (`app/`) — SPA mode (`ssr: false`)
+- Express 5 + Prisma backend (`server/`)
+- Better Auth session cookies (no JWT)
+- PostgreSQL (via Prisma)
 
 ## Current Architecture
 
@@ -59,9 +57,8 @@ Important:
 - `/api/me` is the stable app-level identity endpoint used by route guards/loaders.
 
 ### Role Behavior
-- Roles in schema: `STUDENT`, `INSTRUCTOR`, `ADMIN`.
-- Most API routes require auth.
-- Admin users are intentionally restricted to `/api/me` and `/api/admin/*` endpoints by middleware.
+- Roles: `STUDENT`, `INSTRUCTOR`, `ADMIN` (see [SYSTEM_OVERVIEW.md](SYSTEM_OVERVIEW.md) for full permissions).
+- Most API routes require auth; admin users are restricted to `/api/me` and `/api/admin/*` by middleware.
 
 ## API Surface (Practical Summary)
 

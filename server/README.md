@@ -84,12 +84,7 @@ The middleware chain in `app.js` processes requests in this order:
 
 ### Roles
 
-| Role | Enum | Access |
-|------|------|--------|
-| Student | `STUDENT` | Published courses, answer submission, AI chat, feedback |
-| Professor | `PROFESSOR` | Full course authoring, content management, AI config |
-| TA | `TA` | Not yet supported (redirected to unsupported-role page) |
-| Admin | `ADMIN` | `/api/me`, `/api/admin/*`, `/api/ai-models/*` only |
+`STUDENT`, `PROFESSOR`, `TA` (unsupported), `ADMIN`. See [SYSTEM_OVERVIEW.md](../SYSTEM_OVERVIEW.md) for full permissions.
 
 ### Middleware
 
@@ -142,13 +137,12 @@ All routes are mounted under `/api`. See [docs/api-reference.md](../docs/api-ref
 
 ### Dual-Loop Supervisor
 
-When enabled (configurable via admin AI model policy):
+Configurable via admin AI model policy. See [SYSTEM_OVERVIEW.md](../SYSTEM_OVERVIEW.md) for the conceptual explanation.
 
-1. **Tutor** generates a response using the mode's prompt template.
-2. **Supervisor** reviews against pedagogical rules (never reveal answers, guide via questions).
-3. If rejected, tutor revises with supervisor feedback prepended as `[SUPERVISOR FEEDBACK: ...]`.
-4. Loop up to `maxSupervisorIterations` (configurable 1-5, default 3).
-5. If all iterations fail, a safe fallback message is returned.
+Implementation specifics:
+- Supervisor feedback is prepended to tutor retries as `[SUPERVISOR FEEDBACK: ...]`.
+- Loops up to `maxSupervisorIterations` (configurable 1–5, default 3).
+- If all iterations fail, a safe fallback message is returned.
 
 ### Interaction Logging
 

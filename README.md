@@ -1,8 +1,8 @@
 # AiTutor
 
-AiTutor is a full-stack AI-powered tutoring platform built for university courses. Students interact with an AI study buddy that teaches concepts and guides problem-solving without revealing answers, using a dual-loop tutor-supervisor architecture. Instructors author course content and configure AI behavior per activity. Admins manage users, enrollments, and system-wide AI model policies.
+An AI-powered tutoring extension for the EDU AI ecosystem, built as an Honours Capstone Project at UBC. Deployed at [aitutor.ok.ubc.ca](https://aitutor.ok.ubc.ca).
 
-Deployed at [aitutor.ok.ubc.ca](https://aitutor.ok.ubc.ca).
+> For a comprehensive overview of features, user roles, workflows, and future roadmap, see **[SYSTEM_OVERVIEW.md](SYSTEM_OVERVIEW.md)**.
 
 ## Stack
 
@@ -40,19 +40,6 @@ AiTutor/
   public/                 # Static assets
 ```
 
-### Learning Hierarchy
-
-```
-CourseOffering
-  -> Module (ordered)
-       -> Lesson (ordered)
-            -> Activity (MCQ or SHORT_TEXT)
-                 -> mainTopic (required)
-                 -> secondaryTopics (optional)
-```
-
-Each activity can enable three AI chat modes: **Teach** (concept explanation), **Guide** (problem-solving help), and **Custom** (instructor-authored prompt).
-
 ### Authentication
 
 Cookie-based sessions via Better Auth. No JWT or bearer tokens.
@@ -64,27 +51,11 @@ Cookie-based sessions via Better Auth. No JWT or bearer tokens.
 
 ### Roles
 
-| Role | Access |
-|------|--------|
-| **STUDENT** | View published courses, answer questions, use AI chat, submit feedback |
-| **PROFESSOR** | Author courses/modules/lessons/activities, manage topics, configure AI modes |
-| **ADMIN** | Manage users, enrollments, EduAI API keys, AI model policy, bug reports |
-| **TA** | Redirected to an unsupported-role page (not yet implemented) |
-
-Admins are isolated from student/instructor APIs by middleware.
+Four roles: **STUDENT**, **PROFESSOR**, **ADMIN**, **TA** (not yet supported). Admins are isolated from student/instructor APIs by middleware. See [SYSTEM_OVERVIEW.md](SYSTEM_OVERVIEW.md) for full permissions.
 
 ### AI Tutoring System
 
-The platform uses a **dual-loop tutor-supervisor** pattern:
-
-1. The **Tutor** (AI1) generates a response using a prompt template.
-2. The **Supervisor** (AI2) reviews it against pedagogical rules (never reveal answers, guide via questions).
-3. If rejected, the tutor revises with supervisor feedback (up to N iterations, configurable 1-5).
-4. If all iterations fail, a safe fallback message is returned.
-
-Every interaction is logged to `AiInteractionTrace` for audit and analytics. The supervisor can be toggled on/off and configured via the admin AI model policy panel.
-
-See [docs/two-agent-supervisor-system.md](docs/two-agent-supervisor-system.md) for the full design.
+Uses a dual-loop tutor-supervisor pattern to prevent answer leakage. See [SYSTEM_OVERVIEW.md](SYSTEM_OVERVIEW.md) for a detailed explanation and [docs/two-agent-supervisor-system.md](docs/two-agent-supervisor-system.md) for the technical design.
 
 ## Local Setup
 
@@ -206,6 +177,7 @@ See `server/.env.example` for the full template.
 
 ## Additional Docs
 
+- [System Overview](SYSTEM_OVERVIEW.md) — features, roles, workflows, future work
 - [Frontend Architecture](app/README.md)
 - [Backend API and Operations](server/README.md)
 - [API Reference](docs/api-reference.md)
