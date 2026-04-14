@@ -1,0 +1,43 @@
+Act as an expert Technical Writer. I am finalizing my capstone/term software project and my professor requires a comprehensive "System Overview Document."
+Project Context:
+The application is called "AI Tutor." It is a web application (using React, PostgreSQL, etc.) that acts as a localized tutoring extension. It is meant to eventually be integrated into a larger, Canvas-like centralized system called "EDU AI."
+Document Requirements:
+Target Audience: It must be written in standard, accessible language for anyone with or without technical experience.
+Length: Aim for a comprehensive, detailed structure that would translate to roughly 7-10 pages in a standard document format.
+Formatting: Use clean Markdown, with bolding, lists, and clear headers.
+Required Sections:
+Please structure the document exactly like this:
+Introduction & System Overview: A high-level plain-English explanation of what AI Tutor is and how the system works.
+User Roles & Permissions: Who can use the system and what they can do (e.g., Students vs. Admins/Instructors).
+Navigation & UI Breakdown: "Where you go" — an explanation of the layout and how users navigate the platform.
+Main Features: Detailed descriptions of the core capabilities.
+System Workflows: Step-by-step explanations of the primary user journeys (e.g., signing in, generating a question, submitting an assignment).
+Future Work & Next Integrations: (This section is highly important). It must outline current system gaps and the vision for the future. Specifically note: Currently, components and question banks are localized to the AI Tutor, but the future vision is to centralize these into a shared "EDU AI" database so other extensions (like Question Maker and Rubric Generator) can query them. It should also mention fixing course enrollment processes.
+Next Steps:
+Before you write the document, please ask me up to 5 targeted questions about my specific project (such as specific features, user roles I have implemented, and exact workflows) so you have the context needed to write a highly accurate and tailored 7-10 page document. Once I answer, generate the full document. Ask as many questions as you like
+
+---
+
+1. EDU ai is kinda like a parent app that handles some stuff and apps like Aitutor, Question maker etc are "sister apps" some things like course enrollment, login logout will be handled by eduai as kinda like a centralized system. AS you can see Aitutor does that. 
+2. Currently its only manual course enrollment in Aitutor, the vision is to have course enrollment in AItutor through Eduai. Aitutor will inherit whatever courses is student enrolled in Eduai into Aitutor. (I think we have enrollment sync from eduai into aitutor alr)
+3. ITs mainly for answer leakage and pedagogical ness but mainly yeah the tutor agent doesnt ever give away the answer to student or give too easy of a hint. 
+4. Its still kinda in teh early stages, we have it deployed in UBC servers at aitutor.ok.ubc.ca and it is accessible trough UBC vpn only, and for future devs there is alr a deploy.sh script in use for server. 
+5. TA yes w edont really support could change in the future. Yes no analytics dashbord. 
+
+
+ask me more questions to nail this down if you have more
+
+---
+
+1. Its an honors project and solo just by me Stavan Shah, 
+2. I think we are only sign in w eduai rn in the login page. 
+3. Uhm we inherit AI models from eduai so whichever eduai tells us to use we just choose from there. 
+4. Tour system is done, bug reportingh is done. Ai chat is basically flagshp w the dual loop backend is strongest
+
+---
+
+I think readme and System overview has some overlaps, remove stuff from readme that overlaps so we practice srp
+
+---
+
+there is @README.md here it does exist what are you smoking
