@@ -1,0 +1,13 @@
+Use a Claude Opus 4.7 subagents to get an understanding of this codebase. Let me know if we need to put comments in every single file, and come up with a plan for how we will do it. I need every single thing in my codebase to be documented for future development work, so that someone who comes in later can understand it and needs to get an understanding of this codebase, along with comments, function definitions, etc., wherever necessary
+
+---
+
+Go ahead and do phases 1, 2, and 3 with as many sub-agents as you want, working on the same or different work trees, whatever you feel like. I need it done right now. Everything
+
+---
+
+just give me the status dont do anything Give me an update on what is done and what if left and what do we need to do. Tell it to me in detail
+
+---
+
+Give me a deatiled prompt to paste into a coding agent that will do everything we need to do fully end to end. I cant have you do it cuz u are costing me lot.
