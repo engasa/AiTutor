@@ -1,3 +1,23 @@
+/**
+ * @file Instructor course view — the module list inside a single course.
+ *
+ * Route: /instructor/courses/:courseId
+ * Auth: PROFESSOR
+ * Loads: course detail and its module list, in parallel.
+ * Owns: module CRUD entry points (create form), cross-course module import
+ *       flow, and the per-module publish toggle.
+ * Gotchas:
+ *   - Publish cascade: a module can only be published while its parent
+ *     course is published. The server enforces this; the UI reflects it via
+ *     `blocked` and a tooltip explaining what to publish first. Unpublish
+ *     cascades to lessons server-side — not handled here.
+ *   - Optimistic publish via useOptimistic; failure rolls the base state
+ *     back, which causes the optimistic patch to drop on the next render.
+ *   - The import flow uses a request-id ref (modulesRequestIdRef) to ignore
+ *     stale source-module fetches when the user changes the source course
+ *     mid-load.
+ * Related: routes/instructor.tsx (parent), routes/instructor.topic.tsx (child)
+ */
 import type { FormEvent } from 'react';
 import { useOptimistic, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
@@ -16,6 +36,10 @@ import type { Course, Module } from '../lib/types';
 import type { Route } from './+types/instructor.course';
 import { requireClientUser } from '~/lib/client-auth';
 
+/**
+ * Loads the course header and its modules in parallel. Throws a 400 Response
+ * if the route param isn't numeric so the router renders the error boundary.
+ */
 export async function clientLoader({ params }: Route.ClientLoaderArgs) {
   await requireClientUser('PROFESSOR');
   const courseId = Number(params.courseId);
@@ -31,6 +55,11 @@ export async function clientLoader({ params }: Route.ClientLoaderArgs) {
   return { course, modules };
 }
 
+/**
+ * Module list for one course. Hosts module creation, the cross-course import
+ * panel, and the publish toggle whose enablement depends on the parent
+ * course's published state.
+ */
 export default function InstructorCourseModules({ loaderData }: Route.ComponentProps) {
   const navigate = useNavigate();
   const { courseId } = useParams();
@@ -55,7 +84,10 @@ export default function InstructorCourseModules({ loaderData }: Route.ComponentP
     (state, patch: (items: Module[]) => Module[]) => patch(state),
   );
 
-  // Adjust state during render when loader data changes
+  // React 19 derived-state-during-render pattern: when the loader replaces
+  // `initialModules` (e.g. after a navigation back to this route), reset the
+  // local mutable copy so the optimistic layer is rebuilt from fresh server
+  // truth without an effect-driven flash.
   const [prevInitialModules, setPrevInitialModules] = useState(initialModules);
   if (initialModules !== prevInitialModules) {
     setPrevInitialModules(initialModules);
@@ -87,6 +119,9 @@ export default function InstructorCourseModules({ loaderData }: Route.ComponentP
       .finally(() => setLoadingSourceCourses(false));
   };
 
+  // Picking a different source course triggers a module fetch. The
+  // request-id ref guards against an out-of-order response from a previously
+  // selected course overwriting the current selection's modules.
   const handleSourceCourseSelection = async (nextCourseId: number | null) => {
     const requestId = ++modulesRequestIdRef.current;
     setSelectedSourceCourseId(nextCourseId);

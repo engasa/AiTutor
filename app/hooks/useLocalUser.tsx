@@ -1,3 +1,26 @@
+/**
+ * @file Authenticated-user React context backed by the `/api/me` endpoint.
+ *
+ * Responsibility: Provides `{ user, isInitializing, saveAuth, logout, setUser }`
+ *   to the SPA so any component can read or mutate the current session
+ *   without re-fetching.
+ * Callers: Root layout wraps the tree with `AuthProvider`; route components
+ *   and headers consume via `useLocalUser()`.
+ * Gotchas:
+ *   - The name is historical. This is NOT JWT/localStorage auth — there is
+ *     no token in storage. Identity comes from the Better Auth session
+ *     cookie, resolved server-side by `/api/me`.
+ *   - Mount-time fetch is skipped when `initialUser` is supplied (e.g. when
+ *     the host already knows the user); otherwise we hit `/api/me` exactly
+ *     once and use a `cancelled` flag to suppress setState if the provider
+ *     unmounts mid-request.
+ *   - `logout` uses `api.logout`, which intentionally bypasses the
+ *     redirect-on-401 path in `app/lib/api.ts`. Don't replace it with a
+ *     plain `http()` call.
+ * Related: `app/lib/api.ts` (`me`, `logout`), `app/lib/client-auth.ts`
+ *   (loader-side `requireClientUser`).
+ */
+
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import api from '~/lib/api';
 import type { User } from '~/lib/types';
@@ -29,6 +52,8 @@ export function AuthProvider({ initialUser, children }: AuthProviderProps) {
       return;
     }
 
+    // Guard against late `setState` if the provider unmounts before the
+    // in-flight `/api/me` resolves (e.g. fast route swap during hydration).
     let cancelled = false;
 
     api

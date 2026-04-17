@@ -1,3 +1,15 @@
+/**
+ * @file Better Auth client wired for cookie-session use against our API.
+ *
+ * Responsibility: Exposes the singleton `authClient` (Better Auth) and the
+ *   EduAI OAuth bootstrap helper used by the landing page.
+ * Callers: Landing/sign-in UI, anywhere a Better Auth client method is needed.
+ * Gotchas: `signInWithEduAi` passes `disableRedirect: true` and does the
+ *   redirect manually — see the helper's JSDoc for why.
+ * Related: `app/lib/api.ts` (shares `API_BASE`), `server/src/auth.js` (server
+ *   side of the same flow).
+ */
+
 import { createAuthClient } from 'better-auth/client';
 import { genericOAuthClient } from 'better-auth/client/plugins';
 import { API_BASE } from './api';
@@ -10,6 +22,16 @@ export const authClient = createAuthClient({
   plugins: [genericOAuthClient()],
 });
 
+/**
+ * Initiates the EduAI OAuth flow.
+ *
+ * We set `disableRedirect: true` so Better Auth returns the provider URL
+ * instead of navigating away itself. The reason: when Better Auth performs
+ * the navigation internally, any backend error response is silently swallowed
+ * by the in-flight redirect. Doing it manually lets us inspect `response`
+ * first (and surface a thrown error to the caller for UI display) before
+ * sending the user to the provider.
+ */
 export async function signInWithEduAi() {
   const callbackURL = `${window.location.origin}/`;
   const errorCallbackURL = `${window.location.origin}/?authError=eduai_sign_in_failed`;

@@ -1,12 +1,60 @@
+/**
+ * @file Dual-loop AI tutor↔supervisor orchestrator for student-facing guidance.
+ *
+ * Responsibility: Drives the Socratic-tutoring pipeline. Picks the right prompt
+ *   template per mode (teach/guide/custom), calls the EduAI chat endpoint as the
+ *   "tutor", then optionally calls it again as the "supervisor" to review and
+ *   either approve or revise the tutor's draft. Surfaces only safe responses
+ *   (or a curated fallback) back to the student.
+ * Callers: Route handlers in `server/src/routes/activities.js` and any other
+ *   feature that needs an AI-mediated reply for a student message. Tests
+ *   import `_testExports` for unit-level coverage of the pure helpers.
+ * Gotchas:
+ *   - Per-user provider API keys (apiKeys[provider]) are forwarded to EduAI on
+ *     every request and never persisted server-side. The user's Better Auth
+ *     EduAI OAuth access token is sent as a Bearer header — both must be
+ *     present or `callEduAI` throws.
+ *   - Prompt templates `learning-prompt`, `exercise-prompt`, and
+ *     `supervisor-prompt` MUST exist as `PromptTemplate` rows; missing rows
+ *     throw and surface as a user-visible error in the catch blocks.
+ *   - Supervisor returns JSON; we strip ```json fences then parse, with one
+ *     retry on parse failure. After two parse failures we synthesize a
+ *     conservative deny-verdict instead of crashing.
+ *   - When the supervisor rejects, the next iteration's user message is
+ *     prefixed with `[SUPERVISOR FEEDBACK: ...]` so the tutor can self-correct.
+ *   - On exhaustion (max iterations w/o approval) we return the supervisor's
+ *     last `safeResponseToStudent` rather than the latest unapproved tutor
+ *     draft — i.e. we'd rather be vague than leak the answer.
+ *   - Iteration cap is configurable per AI model policy (1–5, see
+ *     aiModelPolicy.js); supervisor loop is short-circuited when
+ *     dualLoopEnabled is false.
+ * Related: `aiModelPolicy.js` (iteration/model selection), `eduaiClient.js`
+ *   (chat URL + HTTP), `eduaiAuth.js` (OAuth token retrieval),
+ *   `routes/activities.js` (HTTP entry points).
+ */
+
 import { randomUUID } from 'crypto';
 import { prisma } from '../config/database.js';
 import { getEduAiChatUrl } from './eduaiClient.js';
 
+// Surfaced when the supervisor itself errors out — distinct from a fallback
+// the supervisor produced on purpose.
 const SUPERVISOR_ERROR_MESSAGE =
   'AI study buddy encountered an issue reviewing the response. Please try again.';
+// Last-resort student-facing message when iteration loop never produced a
+// supervisor verdict (e.g. dual-loop disabled and tutor itself failed).
 const FALLBACK_MESSAGE =
   "I'm having trouble formulating a helpful response right now. Please try rephrasing your question, or ask your instructor for guidance.";
 
+/**
+ * Single round-trip to the EduAI chat completion endpoint.
+ *
+ * Why both an OAuth token AND an apiKey: EduAI authenticates the *caller*
+ * (this server, on behalf of a logged-in user) via Bearer token, but the
+ * actual upstream LLM call is billed against the *user's* personal provider
+ * key (OpenAI/Anthropic/Google). The provider key never lands in our DB —
+ * it transits straight through to EduAI in the request body.
+ */
 async function callEduAI({
   systemPrompt,
   userMessage,
@@ -34,6 +82,8 @@ async function callEduAI({
     throw error;
   }
 
+  // Model IDs are namespaced "provider:model" (e.g. "google:gemini-2.5-flash");
+  // the provider half indexes into the apiKeys map sent to EduAI.
   const [provider] = model.split(':');
   if (!provider) {
     console.error('[aiGuidance] Invalid model ID format:', model);
@@ -96,6 +146,11 @@ async function getPromptTemplateBySlug(slug) {
   return prisma.promptTemplate.findUnique({ where: { slug } });
 }
 
+/**
+ * LLMs frequently wrap JSON output in ```json ... ``` fences despite explicit
+ * "respond with JSON only" instructions. Stripping the fence before parsing
+ * is cheaper and more reliable than retrying.
+ */
 function stripMarkdownFence(rawText) {
   let value = rawText.trim();
   if (value.startsWith('```')) {
@@ -107,6 +162,11 @@ function stripMarkdownFence(rawText) {
   return value;
 }
 
+/**
+ * Coerce supervisor JSON into a guaranteed-shape object with safe defaults.
+ * Even a partially-valid verdict yields usable feedback + a benign
+ * student-facing fallback so callers never need to null-check.
+ */
 function normalizeSupervisorVerdict(verdict) {
   return {
     approved: Boolean(verdict.approved),
@@ -121,6 +181,15 @@ function normalizeSupervisorVerdict(verdict) {
   };
 }
 
+/**
+ * Run the supervisor pass over a tutor draft and return a normalized verdict.
+ *
+ * Strategy: ask once, parse; on parse failure, ask again with the parse error
+ * appended to the prompt so the model can self-correct. After two failed
+ * parses we synthesize a conservative deny verdict (approved=false with a
+ * generic safe response) — better to be vague than to leak the answer or
+ * surface a 5xx to the student.
+ */
 async function callSupervisor({
   studentMessage,
   visibleContext,
@@ -196,6 +265,12 @@ RESPOND WITH ONLY VALID JSON.`;
   };
 }
 
+/**
+ * Substitute well-known placeholder tokens in a stored prompt template.
+ * Tokens (`[INSERT TOPIC HERE]`, `[ENTER TOPIC]`, `[ENTER KNOWLEDGE LEVEL]`)
+ * are a contract with the prompt-template authoring UI — keep in sync if
+ * either side changes.
+ */
 function buildSystemPrompt(templateContent, context = {}) {
   let systemPrompt =
     templateContent ||
@@ -218,6 +293,12 @@ function buildTeachUserMessage({ topicName, message }) {
   return `${topicText}Student request: ${message}`;
 }
 
+/**
+ * Render a guide-mode user message: the question, MCQ options (if any), the
+ * student's current answer, and the student's natural-language ask. The
+ * tutor sees the answer choices but NOT the answer key — that lives in the
+ * supervisor's hidden context only.
+ */
 function buildGuideUserMessage(activity, { message, studentAnswer }) {
   const config = activity.config || {};
   const questionType = config.questionType || 'MCQ';
@@ -225,6 +306,7 @@ function buildGuideUserMessage(activity, { message, studentAnswer }) {
 
   let base = `Question: ${question}`;
   if (questionType === 'MCQ') {
+    // Tolerate two historical shapes: `options: [...]` and `options: { choices: [...] }`.
     const options = Array.isArray(config.options)
       ? config.options
       : config.options && Array.isArray(config.options.choices)
@@ -241,6 +323,7 @@ function buildGuideUserMessage(activity, { message, studentAnswer }) {
   }
 
   if (studentAnswer !== null && studentAnswer !== undefined && String(studentAnswer).length > 0) {
+    // Numeric answers are MCQ option indices; map to A/B/C/... letters.
     const answerText =
       typeof studentAnswer === 'number'
         ? String.fromCharCode(65 + studentAnswer)
@@ -252,6 +335,11 @@ function buildGuideUserMessage(activity, { message, studentAnswer }) {
   return base;
 }
 
+/**
+ * Render the answer key block for the supervisor's hidden context.
+ * This text is supervisor-only — the tutor must never see the correct answer
+ * for guide-mode questions or it will reveal it.
+ */
 function formatAnswerKey(activity, studentAnswer) {
   const config = activity.config || {};
   const questionType = config.questionType || 'MCQ';
@@ -292,6 +380,11 @@ function buildTeachSupervisorContexts({ topicName, knowledgeLevel, message }) {
   return { visibleContext, hiddenContext };
 }
 
+/**
+ * Build the visible/hidden context pair for guide-mode supervision. The
+ * hidden block injects the answer key — only the supervisor sees this; the
+ * tutor receives `visibleContext` (plus optional supervisor feedback).
+ */
 function buildGuideSupervisorContexts(activity, { knowledgeLevel, message, studentAnswer }) {
   const visibleContext = buildGuideUserMessage(activity, { message, studentAnswer });
   const hiddenContext = `${visibleContext}\n\nKnowledge level: ${knowledgeLevel}\n\nANSWER KEY FOR SUPERVISOR ONLY:\n${formatAnswerKey(
@@ -301,6 +394,20 @@ function buildGuideSupervisorContexts(activity, { knowledgeLevel, message, stude
   return { visibleContext, hiddenContext };
 }
 
+/**
+ * The dual-loop driver: ask the tutor, ask the supervisor, repeat up to N
+ * times if the supervisor rejects, otherwise short-circuit on first approval
+ * or fall back to the supervisor's safe response on exhaustion.
+ *
+ * Why a `trace` object: every iteration's draft + verdict is captured so the
+ * route handler can persist it for instructor review of model behavior.
+ *
+ * Returned shape always includes a `finalOutcome` discriminator:
+ *   - 'single_pass'  — dual-loop disabled, tutor draft returned as-is
+ *   - 'approved'     — supervisor approved within iteration budget
+ *   - 'safe_fallback'— iterations exhausted, returning supervisor safe text
+ *   - 'error'        — set by callers on thrown errors (see catch blocks)
+ */
 async function supervisedGenerate(generateFn, context) {
   let currentChatId = context.chatId;
   const trace = {
@@ -313,6 +420,7 @@ async function supervisedGenerate(generateFn, context) {
     maxSupervisorIterations: context.maxSupervisorIterations,
   };
 
+  // Dual-loop disabled: skip supervision entirely (admin policy override).
   if (!context.dualLoopEnabled) {
     const tutorResult = await generateFn(currentChatId || null, false);
     currentChatId = tutorResult.chatId || currentChatId;
@@ -333,6 +441,8 @@ async function supervisedGenerate(generateFn, context) {
     };
   }
 
+  // Track the last safe response across iterations so we can return it on
+  // exhaustion even if the final supervisor verdict is malformed.
   let lastSafeResponse = FALLBACK_MESSAGE;
 
   for (let iteration = 0; iteration < context.maxSupervisorIterations; iteration += 1) {
@@ -374,6 +484,8 @@ async function supervisedGenerate(generateFn, context) {
         };
       }
 
+      // Carry feedback into next iteration; generateFn prepends it as
+      // `[SUPERVISOR FEEDBACK: ...]` to the user message.
       context.lastFeedback = verdict.feedbackToTutor;
     } catch (supervisorError) {
       console.error('[supervisor] Error during review:', supervisorError);
@@ -393,6 +505,11 @@ async function supervisedGenerate(generateFn, context) {
   };
 }
 
+/**
+ * Adapter that closes over per-mode prompt + user-message builders and hands
+ * them to `supervisedGenerate`. Each public `generate*Response` function
+ * funnels through here so the dual-loop semantics are identical across modes.
+ */
 async function generateWithSupervisor({
   systemPrompt,
   buildUserMessage,
@@ -426,6 +543,8 @@ async function generateWithSupervisor({
   const generateFn = async (currentChatId, isRevision, lastFeedback) => {
     let userMessage = buildUserMessage();
 
+    // On revision passes we inline the supervisor's feedback so the tutor
+    // can self-correct without us mutating its system prompt.
     if (isRevision && lastFeedback) {
       userMessage = `[SUPERVISOR FEEDBACK: ${lastFeedback}]\n\n${userMessage}`;
     }
@@ -437,6 +556,8 @@ async function generateWithSupervisor({
       eduAiAccessToken,
       userApiKey: apiKey,
       chatId: currentChatId,
+      // Each revision needs a fresh messageId so EduAI doesn't dedupe it as
+      // the same turn; only the original turn reuses the caller's messageId.
       messageId: isRevision ? randomUUID() : messageId,
       courseCode,
     });
@@ -445,6 +566,11 @@ async function generateWithSupervisor({
   return supervisedGenerate(generateFn, context);
 }
 
+/**
+ * Teach mode — open-ended exposition on a topic. Uses `learning-prompt`.
+ * Supervisor sees a hidden context augmented with the student's knowledge
+ * level so it can flag tutoring that's pitched too high or too low.
+ */
 export async function generateTeachResponse({
   activity,
   topicName,
@@ -511,6 +637,11 @@ export async function generateTeachResponse({
   }
 }
 
+/**
+ * Guide mode — Socratic help on a graded activity. Uses `exercise-prompt`.
+ * Supervisor receives the answer key in its hidden context and is expected
+ * to reject any draft that reveals it.
+ */
 export async function generateGuideResponse({
   activity,
   knowledgeLevel,
@@ -576,6 +707,12 @@ export async function generateGuideResponse({
   }
 }
 
+/**
+ * Custom mode — instructor-authored prompt overrides the default templates.
+ * Throws if `activity.customPrompt` is empty (caller should not have routed
+ * here without one). Reuses guide-mode supervisor contexts because custom
+ * prompts almost always wrap a graded question.
+ */
 export async function generateCustomResponse({
   activity,
   topicName,
@@ -642,7 +779,9 @@ export async function generateCustomResponse({
   }
 }
 
-// Exposed for unit testing only — not part of the public API.
+// Exposed for unit testing only — not part of the public API. These are
+// pure helpers (no I/O) that are awkward to exercise via the public surface
+// because they're called inside the supervisor/tutor request-building flow.
 export const _testExports = {
   stripMarkdownFence,
   normalizeSupervisorVerdict,

@@ -1,3 +1,35 @@
+/**
+ * @file Admin triage table for incoming bug reports.
+ *
+ * Responsibility: Sortable table view of all reports plus modal viewers for
+ *   the description, captured console logs, captured network logs, and
+ *   screenshot. Lets admins move each report through status (unhandled →
+ *   in progress → resolved) and copy a self-contained text dossier.
+ * Used by: `app/routes/admin.tsx` as one tab of the admin dashboard.
+ * Gotchas:
+ *   - **Anonymous reports**: when a reporter checks "submit anonymously",
+ *     the server in `server/src/utils/bugReportMappers.js` strips identifying
+ *     fields. This component only RENDERS; the masking is server-side. The
+ *     `getReporterLabel` helper still falls through to the userId so admins
+ *     can correlate without seeing the name/email.
+ *   - **Sort**: `createdAt` sorts as Date timestamps; everything else uses
+ *     `String(...).localeCompare` (case-insensitive via locale). Null/undefined
+ *     fields fall through to `''` to keep them at the start of asc / end of desc.
+ *   - **Console filter**: levels are normalized to lowercase before comparison
+ *     so a stored "WARN" matches the "warn" filter chip.
+ *   - **Network viewer**: the entries dropdown switches the inner tab back to
+ *     "meta" on change so a heavy response body from the previous request
+ *     doesn't flash before the user can navigate.
+ *   - The clipboard helper falls back to a hidden textarea + execCommand for
+ *     contexts where `navigator.clipboard` is unavailable (older Safari,
+ *     non-secure contexts).
+ *   - The copy dossier respects anonymity: identifying fields are omitted
+ *     from the raw appendix when `report.isAnonymous` is true.
+ * Related: `server/src/routes/admin.js` (PATCH bug-report endpoint),
+ *   `server/src/utils/bugReportMappers.js` (anonymity masking),
+ *   `app/components/bug-report/BugReportDialog.tsx` (capture-side counterpart)
+ */
+
 import { useMemo, useState } from 'react';
 import { Button } from '~/components/ui/button';
 import {
@@ -121,6 +153,8 @@ function buildContextSummary(report: AdminBugReportRow) {
   ].filter(Boolean);
 }
 
+// Builds the plain-text dossier copied to the clipboard. Honors anonymity by
+// omitting reporter name/email (but keeping the internal userId for triage).
 function buildBugReportCopyText(report: AdminBugReportRow) {
   const includeReporterIdentity = !report.isAnonymous;
   const reporterLabel = getReporterLabel(report);
@@ -223,6 +257,9 @@ async function copyTextToClipboard(text: string) {
   }
 }
 
+// Generic sort across heterogeneous columns. Date column compares by epoch
+// (so "11" sorts after "2"); other columns use locale-aware string compare
+// to give case-insensitive ordering. Null/undefined coerce to '' (top of asc).
 function sortReports(rows: AdminBugReportRow[], key: SortKey, direction: SortDirection) {
   const dir = direction === 'asc' ? 1 : -1;
   return [...rows].sort((a, b) => {
@@ -303,6 +340,8 @@ function DescriptionViewer({ report }: { report: AdminBugReportRow }) {
   );
 }
 
+// Modal panel for browsing captured console output. Filter chips narrow by level;
+// stack traces are collapsed by default to keep the list scannable.
 function ConsoleViewer({ report }: { report: AdminBugReportRow }) {
   const entries = safeJsonParse<ConsoleLogEntry[]>(report.consoleLogs, []);
   const [levelFilter, setLevelFilter] = useState<(typeof CONSOLE_LEVELS)[number]>('all');
@@ -310,6 +349,7 @@ function ConsoleViewer({ report }: { report: AdminBugReportRow }) {
 
   const filtered = entries.filter((entry) => {
     if (levelFilter === 'all') return true;
+    // Normalize stored level casing so "WARN"/"Warn"/"warn" all match the chip.
     return (entry.level ?? 'log').toLowerCase() === levelFilter;
   });
 
@@ -384,6 +424,8 @@ function ConsoleViewer({ report }: { report: AdminBugReportRow }) {
   );
 }
 
+// Modal panel for browsing captured network entries. The inner tab resets to
+// "meta" when a different request is selected so heavy bodies don't flash.
 function NetworkViewer({ report }: { report: AdminBugReportRow }) {
   const entries = safeJsonParse<NetworkLogEntry[]>(report.networkLogs, []);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -515,6 +557,10 @@ function ScreenshotViewer({ report }: { report: AdminBugReportRow }) {
   );
 }
 
+/**
+ * Top-level table component. `initialReports` is provided by the admin route
+ * loader; subsequent mutations (status PATCH) update the local list optimistically.
+ */
 export default function BugReportsTab({ initialReports }: { initialReports: AdminBugReportRow[] }) {
   const [reports, setReports] = useState<AdminBugReportRow[]>(initialReports);
   const [sortKey, setSortKey] = useState<SortKey>('createdAt');
@@ -540,6 +586,7 @@ export default function BugReportsTab({ initialReports }: { initialReports: Admi
       setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'));
       return;
     }
+    // Date defaults to descending (newest first); everything else to ascending (A-Z).
     setSortKey(nextSortKey);
     setSortDirection(nextSortKey === 'createdAt' ? 'desc' : 'asc');
   };

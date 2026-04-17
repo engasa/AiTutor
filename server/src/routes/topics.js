@@ -1,3 +1,24 @@
+/**
+ * @file Course-scoped topic management: list, create, EduAI sync, and remap.
+ *
+ * Responsibility: Owns the Topic table for a course offering — both
+ *   instructor-authored topics for native courses and EduAI-synced topics for
+ *   imported courses.
+ * Callers: Mounted under `/api`; consumed by the instructor topic UI and any
+ *   activity-create flow that picks a `mainTopicId`/`secondaryTopicIds`.
+ * Gotchas:
+ *   - Topics for imported (EduAI) courses are managed exclusively by sync;
+ *     manual creation is rejected (POST /courses/:id/topics).
+ *   - Sync is name-keyed and additive — it never deletes local topics that
+ *     drift away upstream. Drift is surfaced via the `missingTopics` array so
+ *     the instructor can act on it deliberately.
+ *   - Remap rewrites both `Activity.mainTopicId` and the
+ *     `ActivitySecondaryTopic` join table inside a transaction, then drops the
+ *     source topic. If the source is still referenced (e.g. another module),
+ *     the delete is best-effort and silently skipped.
+ * Related: services/topicSync.js, services/eduaiAuth.js
+ */
+
 import express from 'express';
 import { prisma } from '../config/database.js';
 import { requireRole } from '../middleware/auth.js';
@@ -25,6 +46,14 @@ async function ensureCourseAccess(courseId, userId) {
   return { course, authorized: isInstructor || isStudent, isInstructor };
 }
 
+/**
+ * GET /courses/:courseId/topics — list topics for a course.
+ *
+ * Auth: enrolled student or course instructor.
+ *
+ * Why: deliberately does NOT auto-sync from EduAI; sync is an explicit
+ * instructor action so the topic list never changes underneath an active UI.
+ */
 router.get('/courses/:courseId/topics', async (req, res) => {
   const courseId = Number(req.params.courseId);
   if (!Number.isFinite(courseId)) {
@@ -56,6 +85,15 @@ router.get('/courses/:courseId/topics', async (req, res) => {
   }
 });
 
+/**
+ * POST /courses/:courseId/topics — create a topic on a native course.
+ *
+ * Auth: instructor on the course.
+ * Side effects: inserts a Topic row; 409 on unique-name collision.
+ *
+ * Why: blocked for imported courses — those topics are owned by EduAI and a
+ * manual addition would be wiped on next sync (or worse, drift silently).
+ */
 router.post('/courses/:courseId/topics', requireRole('PROFESSOR'), async (req, res) => {
   const instructor = req.user;
   const courseId = Number(req.params.courseId);
@@ -102,7 +140,17 @@ router.post('/courses/:courseId/topics', requireRole('PROFESSOR'), async (req, r
 
 export default router;
 
-// Sync topics from EduAI for an imported course (instructor only)
+/**
+ * POST /courses/:courseId/topics/sync — pull EduAI topic list into local DB.
+ *
+ * Auth: instructor on the course; course must be EduAI-imported.
+ * Returns: `{ ok, topics, missingTopics }` — `missingTopics` are local topics
+ *   no longer present upstream (informational; nothing is deleted).
+ * Side effects: upserts Topic rows by name within the course scope.
+ *
+ * Why: name-keyed additive sync preserves activity references even if a topic
+ * is renamed upstream — the instructor can use `/topics/remap` to consolidate.
+ */
 router.post('/courses/:courseId/topics/sync', requireRole('PROFESSOR'), async (req, res) => {
   const instructor = req.user;
   const courseId = Number(req.params.courseId);
@@ -151,7 +199,19 @@ router.post('/courses/:courseId/topics/sync', requireRole('PROFESSOR'), async (r
   }
 });
 
-// Remap activities from one topic to another and remove the old topic
+/**
+ * POST /courses/:courseId/topics/remap — move activities between topics.
+ *
+ * Auth: instructor on the course.
+ * Body: `{ mappings: [{ fromTopicId, toTopicId }, ...] }`
+ * Side effects: in a single transaction, reassigns `Activity.mainTopicId`,
+ *   migrates `ActivitySecondaryTopic` rows (creating missing target rows,
+ *   deleting source rows), then deletes each source topic if no longer used.
+ *
+ * Why: post-sync cleanup tool — when EduAI renames or splits a topic, the
+ * instructor uses this to consolidate the orphaned local topic into the new
+ * upstream-synced one without losing activity associations.
+ */
 router.post('/courses/:courseId/topics/remap', requireRole('PROFESSOR'), async (req, res) => {
   const instructor = req.user;
   const courseId = Number(req.params.courseId);

@@ -1,8 +1,38 @@
+/**
+ * @file Lists tutor-eligible AI models and validates user-supplied API keys.
+ *
+ * Responsibility: Provides the model picker its catalog (filtered by AI policy
+ *   for students) and a way to confirm an API key works before the user wires
+ *   it into a chat.
+ * Callers: Mounted under `/api`; consumed by the model selector and the
+ *   "bring-your-own-key" flow in the student/instructor activity UI.
+ * Gotchas:
+ *   - Model visibility is role-divergent: STUDENT sees only models the admin
+ *     policy marks `allowedTutorModelIds`; instructors/admins see everything
+ *     so they can preview disallowed models.
+ *   - `/validate-key` always returns HTTP 200 with `{ valid: boolean, error? }`
+ *     for any 4xx response from the upstream provider — only true network
+ *     failures bubble out as 5xx. Consumers should branch on `valid`, NOT on
+ *     status code.
+ * Related: services/aiModelPolicy.js, routes/admin.js (policy editor)
+ */
+
 import express from 'express';
 import { getAiModelPolicyState } from '../services/aiModelPolicy.js';
 
 const router = express.Router();
 
+/**
+ * GET /ai-models — list tutor-eligible models for the current user.
+ *
+ * Auth: any authenticated user.
+ * Returns: array of models annotated with `studentSelectable` and
+ *   `availability` ('allowed' | 'admin-only').
+ *
+ * Why: students never see the disallowed entries, so the picker can't even
+ * tempt them; instructors see all models with `availability` so they can
+ * understand what their students will actually see.
+ */
 router.get('/ai-models', async (req, res) => {
   try {
     const { policy, availableModels, availableModelsError } = await getAiModelPolicyState();
@@ -32,11 +62,19 @@ router.get('/ai-models', async (req, res) => {
 });
 
 /**
- * Validate an API key by making a minimal request to the provider.
- * Uses lightweight endpoints (list models) that don't consume tokens.
+ * POST /ai-models/validate-key — confirm a user-supplied API key works.
  *
- * Returns 200 with { valid: true/false, error? } so the client can read
- * provider-specific error messages. Only returns 4xx/5xx for actual request errors.
+ * Auth: any authenticated user.
+ * Body: `{ provider: 'google' | 'openai', apiKey: string }`.
+ * Returns: HTTP 200 with `{ valid, error? }` for any provider response — even
+ *   on bad keys. 4xx/5xx are reserved for actual request-shape problems.
+ * Side effects: outbound call to the provider's free list-models endpoint
+ *   (no token consumption).
+ *
+ * Why: the always-200 convention lets the client surface provider-specific
+ * error text (e.g. "API key not valid") via a normal `await resp.json()`
+ * without try/catching on HTTP status. Do not change this contract without
+ * updating every consumer.
  */
 router.post('/ai-models/validate-key', async (req, res) => {
   const { provider, apiKey } = req.body;

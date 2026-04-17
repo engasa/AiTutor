@@ -1,3 +1,24 @@
+/**
+ * @file Admin console for system settings, enrollments, and bug-report triage.
+ *
+ * Route: /admin
+ * Auth: ADMIN
+ * Loads: EduAI API key status, admin users, courses, bug reports, and optional
+ *   AI model policy/model-catalog data when the backend exposes those endpoints
+ * Owns: Tabbed admin workflows for read-only user oversight, enrollment
+ *   management, AI loop policy controls, API key overrides, and bug-report review
+ * Gotchas:
+ *   - Newer admin AI-policy methods are probed defensively so older backends can
+ *     still render the rest of the admin console instead of crashing on missing
+ *     client API functions.
+ *   - Role management is intentionally informational only here; EduAI owns role
+ *     assignments, so the UI shows current roles without attempting a local PATCH.
+ *   - AI policy inputs are normalized and clamped in the route so partial or
+ *     stale backend payloads still produce a usable form state.
+ * Related: `docs/ARCHITECTURE.md`, `server/src/routes/admin.js`,
+ *   `server/src/services/aiModelPolicy.js`, `app/lib/api.ts`
+ */
+
 import { useEffect, useMemo, useState } from 'react';
 import BugReportsTab from '~/components/admin/BugReportsTab';
 import Nav from '~/components/Nav';
@@ -61,9 +82,18 @@ function getAdminSettingsApi(): AdminSettingsApi {
   return api as typeof api & AdminSettingsApi;
 }
 
+/**
+ * Load the admin console data needed to render every tab.
+ *
+ * Why: The route intentionally probes optional admin AI-policy methods before
+ * calling them so deployments with an older backend can still serve users,
+ * courses, enrollments, and bug reports instead of failing the whole page load.
+ */
 export async function clientLoader(_: Route.ClientLoaderArgs) {
   await requireClientUser('ADMIN');
   const settingsApi = getAdminSettingsApi();
+  // These methods landed after the rest of the admin API. Treat them as
+  // optional so the page degrades gracefully against older servers.
   const aiPolicyAvailable =
     typeof settingsApi.getAdminAiModelPolicy === 'function' &&
     typeof settingsApi.setAdminAiModelPolicy === 'function';
@@ -96,6 +126,13 @@ function formatTime(value: string | null) {
   return date.toLocaleString();
 }
 
+/**
+ * Render the admin control surface over users, enrollments, AI settings, and bug reports.
+ *
+ * Why: Admins are intentionally isolated from student/instructor workflows, so
+ * this route centralizes the small set of system-level tasks they are allowed to
+ * perform without exposing content-authoring or learner-facing screens.
+ */
 export default function AdminHome({ loaderData }: Route.ComponentProps) {
   const settingsApi = getAdminSettingsApi();
   const [activeTab, setActiveTab] = useState<'users' | 'enrollments' | 'settings' | 'bugReports'>(
@@ -923,6 +960,8 @@ function normalizePolicy(raw: unknown, models: AdminAiModelOption[]): AdminAiMod
       typeof (raw as { dualLoopEnabled?: unknown })?.dualLoopEnabled === 'boolean'
         ? (raw as { dualLoopEnabled: boolean }).dualLoopEnabled
         : true,
+    // The backend clamps this too, but the form state does it locally so older
+    // payloads or partial saves never leave the admin UI in an impossible state.
     maxSupervisorIterations:
       typeof (raw as { maxSupervisorIterations?: unknown })?.maxSupervisorIterations === 'number'
         ? Math.max(
@@ -933,6 +972,13 @@ function normalizePolicy(raw: unknown, models: AdminAiModelOption[]): AdminAiMod
   };
 }
 
+/**
+ * Fetch the persisted AI policy when the client API exposes that capability.
+ *
+ * Why: This route treats policy loading as optional because the rest of the
+ * admin console remains useful even against a backend that has not shipped the
+ * newer AI-policy endpoints yet.
+ */
 async function loadAdminAiPolicy(settingsApi: AdminSettingsApi) {
   if (typeof settingsApi.getAdminAiModelPolicy !== 'function') {
     return { policy: null, error: null };
@@ -950,6 +996,12 @@ async function loadAdminAiPolicy(settingsApi: AdminSettingsApi) {
   }
 }
 
+/**
+ * Fetch the AI model catalog for admin policy controls when supported by the API.
+ *
+ * Why: Model metadata is helpful but not essential, so failures collapse to an
+ * empty list instead of blocking unrelated admin tasks.
+ */
 async function loadAdminAiModels(settingsApi: AdminSettingsApi) {
   if (typeof settingsApi.listAiModels !== 'function') {
     return { models: [] as AdminAiModelOption[] };
@@ -969,6 +1021,13 @@ async function loadAdminAiModels(settingsApi: AdminSettingsApi) {
   }
 }
 
+/**
+ * Normalize heterogeneous model payloads into the shape the admin UI expects.
+ *
+ * Why: Older or alternate backends may name fields differently (`id` vs
+ * `modelId`, `name` vs `modelName`), so the UI canonicalizes them once here
+ * instead of scattering compatibility logic across the form.
+ */
 function normalizeModelOption(raw: unknown, index: number): AdminAiModelOption | null {
   if (!raw || typeof raw !== 'object') return null;
 
@@ -1016,6 +1075,13 @@ function inferProvider(modelId: string) {
   return provider || 'provider';
 }
 
+/**
+ * Approximate cost tiers for model-policy badges when the backend did not send one.
+ *
+ * Why: The labels are meant to guide admin choices, not encode vendor pricing,
+ * so a small heuristic keeps the UI informative without depending on an exact
+ * upstream contract.
+ */
 function inferCostTier(modelId: string, modelName: string): CostTier {
   const haystack = `${modelId} ${modelName}`.toLowerCase();
   if (haystack.includes('flash') || haystack.includes('mini') || haystack.includes('nano'))
@@ -1037,6 +1103,12 @@ function costTierClassName(costTier: CostTier | null | undefined) {
   return 'tag';
 }
 
+/**
+ * Bound free-form numeric input to the backend's supported supervisor range.
+ *
+ * Why: Keeping the same 1-5 clamp in the form prevents admins from queuing a
+ * save the service will reject and keeps the control aligned with policy rules.
+ */
 function clampIterations(value: string) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return DEFAULT_POLICY.maxSupervisorIterations;

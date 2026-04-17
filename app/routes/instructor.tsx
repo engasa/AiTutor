@@ -1,3 +1,22 @@
+/**
+ * @file Instructor dashboard — the entry point for everything teaching-side.
+ *
+ * Route: /instructor
+ * Auth: PROFESSOR (the role string used for instructor accounts)
+ * Loads: api.listCourses() — the backend already filters to courses this
+ *        instructor has been assigned to, so no additional client filter.
+ * Owns: course-card grid, EduAI import panel (browse external EduAI courses
+ *       and pull them in), and the publish/unpublish toggle for each course.
+ * Gotchas:
+ *   - Publish toggle uses React 19's useOptimistic so the badge flips
+ *     instantly; on server error the base state is restored, which causes
+ *     the optimistic value to drop on the next render.
+ *   - parseErrorMessage tolerates either JSON-encoded server errors
+ *     (`{"error": "..."}`) or plain Error.message strings.
+ *   - The EduAI import panel lazily fetches its catalog the first time it is
+ *     opened (ensureEduAiCourses) to keep the initial route snappy.
+ * Related: routes/instructor.course.tsx (drilldown), components/PublishStatusButton
+ */
 import { useOptimistic, useState } from 'react';
 import { useNavigate } from 'react-router';
 import Nav from '../components/Nav';
@@ -7,12 +26,21 @@ import type { Course, EduAiCourse } from '../lib/types';
 import type { Route } from './+types/instructor';
 import { requireClientUser } from '~/lib/client-auth';
 
+/**
+ * Loads the instructor's course list. The backend scopes /courses to the
+ * authenticated user's role, so this is the full set the instructor can act on.
+ */
 export async function clientLoader(_: Route.ClientLoaderArgs) {
   await requireClientUser('PROFESSOR');
   const courses = (await api.listCourses()) as Course[];
   return { courses };
 }
 
+/**
+ * Instructor home. Shows owned courses, the EduAI import panel, and the
+ * publish toggle for each course. Clicking a card navigates to the course
+ * drilldown route.
+ */
 export default function InstructorHome({ loaderData }: Route.ComponentProps) {
   const navigate = useNavigate();
   const [courses, setCourses] = useState<Course[]>(loaderData.courses ?? []);
@@ -29,6 +57,10 @@ export default function InstructorHome({ loaderData }: Route.ComponentProps) {
     (state, patch: (items: Course[]) => Course[]) => patch(state),
   );
 
+  // The API client throws Errors whose .message is sometimes a raw JSON
+  // payload (`{"error":"..."}`) and sometimes a plain string. Try to surface
+  // the structured `error` field when present; otherwise fall back to the
+  // raw message. Returns a generic line for non-Error values.
   const parseErrorMessage = (error: unknown) => {
     if (error instanceof Error) {
       try {
@@ -91,6 +123,10 @@ export default function InstructorHome({ loaderData }: Route.ComponentProps) {
     }
   };
 
+  // Optimistic publish toggle: addCourseOpt flips the badge instantly via
+  // useOptimistic, then the server response confirms or the catch branch
+  // restores the prior published state. Reverting the base state is what
+  // causes useOptimistic to drop the now-stale optimistic value.
   const togglePublish = async (courseId: number, currentlyPublished: boolean) => {
     addCourseOpt((items) =>
       items.map((course) =>

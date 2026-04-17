@@ -1,3 +1,25 @@
+/**
+ * @file Captures console logs, network traffic, and an on-demand screenshot
+ *   so the bug-report dialog can attach diagnostic context.
+ *
+ * Responsibility: Owns the rolling diagnostic buffers and exposes
+ *   `{ captureScreenshot, getCapturedData }` to the bug-report UI.
+ * Callers: The bug-report capture host (mounted near the app root) and the
+ *   bug-report dialog that consumes the snapshot.
+ * Gotchas:
+ *   - On mount this hook **monkey-patches `console.{log, warn, error}` and
+ *     `window.fetch` globally** and restores the originals on unmount. The
+ *     patch/restore contract MUST stay symmetric — leaking a patched
+ *     reference will corrupt logging app-wide. Mount this hook exactly once.
+ *   - Buffers are bounded: `MAX_CONSOLE_ENTRIES = 200`,
+ *     `MAX_NETWORK_ENTRIES = 100`. Older entries fall off the front.
+ *   - Screenshots are cached for `SCREENSHOT_CACHE_WINDOW_MS` (5s) so
+ *     reopening the dialog quickly does not re-render the page.
+ *   - `html2canvas` is imported lazily on first screenshot request so it
+ *     never lands in the main JS chunk.
+ * Related: `app/lib/api.ts` (`submitBugReport`), bug-report dialog component.
+ */
+
 import { useCallback, useEffect, useRef } from 'react';
 
 type ConsoleEntry = {
@@ -83,6 +105,9 @@ export function useBugReportCapture() {
     }
     patchedRef.current = true;
 
+    // Snapshot the originals BEFORE installing patches so the cleanup
+    // function below can restore exactly what was there at mount time.
+    // Skipping this snapshot would leave wrappers installed after unmount.
     const originalLog = console.log;
     const originalWarn = console.warn;
     const originalError = console.error;
@@ -178,10 +203,15 @@ export function useBugReportCapture() {
   const captureScreenshot = useCallback(async () => {
     if (typeof window === 'undefined') return null;
     const now = Date.now();
+    // Reuse the most recent screenshot within the cache window to avoid the
+    // visible flash and CPU cost of re-rendering the DOM via html2canvas
+    // when the user toggles the bug-report dialog quickly.
     if (screenshotRef.current && now - lastScreenshotAtRef.current <= SCREENSHOT_CACHE_WINDOW_MS) {
       return screenshotRef.current;
     }
     try {
+      // Lazy import keeps html2canvas out of the main bundle; it is large
+      // and only needed when a user actually files a bug report.
       const html2canvas = (await import('html2canvas')).default;
       const canvas = await html2canvas(document.body, {
         logging: false,

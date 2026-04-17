@@ -1,3 +1,28 @@
+/**
+ * @file Activity CRUD plus the three AI tutoring chat endpoints (teach/guide/custom)
+ *       and student answer submission.
+ *
+ * Responsibility: Owns the per-activity surface a student or instructor touches:
+ *   listing/creating/editing activities, submitting answers, requesting AI help
+ *   in any of the three modes, and recording activity-level feedback.
+ * Callers: Mounted in `server/src/index.js` under `/api`; consumed by the React
+ *   Router student/instructor routes via `app/lib/api.ts`.
+ * Gotchas:
+ *   - The three AI endpoints (`/teach`, `/guide`, `/custom`) all funnel through
+ *     `handleAiInteraction`, which orchestrates supervisor/tutor model resolution,
+ *     EduAI access-token retrieval, per-(user,activity,mode) chat-session upsert,
+ *     trace persistence, and student AI-help metric tracking.
+ *   - Wire-contract schemas for AI requests live in `../../../shared/schemas/aiGuidance.js`
+ *     and are imported on both client and server — keep them in sync.
+ *   - Every Activity must have at least one of `enableTeachMode/GuideMode/CustomMode`
+ *     true; both create and patch enforce this.
+ *   - Legacy clients sent `prompt`; create accepts it as an alias for `question`.
+ *   - Topic IDs (main + secondary) must belong to the same course as the lesson;
+ *     mismatches return 400.
+ * Related: services/aiGuidance.js, services/aiModelPolicy.js, services/eduaiAuth.js,
+ *   services/activityAnalytics.js, shared/schemas/aiGuidance.js, shared/schemas/activity.js
+ */
+
 import { randomUUID } from 'crypto';
 import express from 'express';
 import { prisma } from '../config/database.js';
@@ -59,6 +84,8 @@ function getActivityAccess(course, authUser) {
   return { isInstructorForCourse, isEnrolledStudent };
 }
 
+// The student may pick a secondary topic to focus on for an AI session;
+// fall back to the activity's main topic if the requested id is unknown.
 function resolveTopicName(activity, topicId) {
   if (!topicId) {
     return activity.mainTopic?.name;
@@ -76,6 +103,9 @@ function resolveTopicName(activity, topicId) {
   return activity.mainTopic?.name;
 }
 
+// Chat sessions are keyed by (user, activity, mode) so a student keeps a single
+// continuous conversation per AI mode on a given activity. Skipped when no
+// upstream chatId came back (nothing meaningful to remember).
 async function upsertChatSession({ userId, activityId, mode, chatId, tutorModelId }) {
   if (!chatId) return null;
 
@@ -101,6 +131,8 @@ async function upsertChatSession({ userId, activityId, mode, chatId, tutorModelI
   });
 }
 
+// Trace persistence is best-effort — losing a row is preferable to failing the
+// student's chat response, so errors are swallowed after logging.
 async function persistAiTrace({
   userId,
   activityId,
@@ -183,6 +215,25 @@ async function loadActivityForChat(activityId) {
   });
 }
 
+/**
+ * Shared pipeline for the three AI tutor modes (teach/guide/custom).
+ *
+ * Stages:
+ *   1. Authorize: caller must be enrolled student or course instructor.
+ *   2. Resume any prior session for (user,activity,mode) so the EduAI chat
+ *      thread carries forward across requests.
+ *   3. Resolve supervisor + tutor model selections from the admin-controlled
+ *      AI policy (clients propose `modelId`; policy may override).
+ *   4. Mint or reuse `chatId`/`messageId` for EduAI continuity.
+ *   5. Delegate to mode-specific `generateResponse` (teach/guide/custom),
+ *      which performs the actual EduAI call.
+ *   6. Persist updated chat session + interaction trace; track AI-help metric
+ *      for students only (instructors testing don't pollute analytics).
+ *
+ * Why a single helper: the three modes share orchestration but differ only in
+ * which prompt slug + payload they send. Centralizing avoids drift in
+ * model-policy/supervisor handling.
+ */
 async function handleAiInteraction({ req, res, activity, mode, payload, generateResponse }) {
   const authUser = req.user;
   const activityId = activity.id;
@@ -198,6 +249,8 @@ async function handleAiInteraction({ req, res, activity, mode, payload, generate
   }
 
   try {
+    // Stage 2: lookup prior session only when the client already holds a chatId,
+    // so the very first call doesn't pay the DB roundtrip.
     const existingSession =
       payload.chatId && payload.chatId.trim().length > 0
         ? await prisma.aiChatSession.findUnique({
@@ -211,6 +264,8 @@ async function handleAiInteraction({ req, res, activity, mode, payload, generate
           })
         : null;
 
+    // Stage 3: model + policy resolution. Tutor selection respects student picks
+    // when policy allows, otherwise falls back to the policy default.
     const { dualLoopEnabled, maxSupervisorIterations, supervisorModelId } =
       await resolveSupervisorSettings();
     const tutorModelId = await resolveTutorModelSelection(payload.modelId);
@@ -218,6 +273,7 @@ async function handleAiInteraction({ req, res, activity, mode, payload, generate
     const chatId = payload.chatId || existingSession?.chatId || null;
     const messageId = payload.messageId || randomUUID();
 
+    // Stage 5: mode-specific EduAI call.
     const aiResult = await generateResponse({
       tutorModelId,
       supervisorModelId,
@@ -229,6 +285,7 @@ async function handleAiInteraction({ req, res, activity, mode, payload, generate
       courseCode: getCourseCode(course),
     });
 
+    // EduAI may mint a new chatId on the first reply; prefer that over the prior one.
     const nextChatId = aiResult.chatId || chatId || null;
     const session = await upsertChatSession({
       userId: authUser.id,
@@ -254,6 +311,7 @@ async function handleAiInteraction({ req, res, activity, mode, payload, generate
       trace: aiResult.trace || {},
     });
 
+    // Only count student help requests for analytics; instructor previews don't.
     if (authUser.role === 'STUDENT') {
       await trackAiHelpRequest(authUser.id, activityId);
     }
@@ -272,6 +330,17 @@ async function handleAiInteraction({ req, res, activity, mode, payload, generate
   }
 }
 
+/**
+ * GET /lessons/:lessonId/activities — list activities for a lesson.
+ *
+ * Auth: any authenticated user; PROFESSOR must instruct the course, STUDENT
+ *   must be enrolled AND lesson must be published.
+ * Returns: For students, each activity is enriched with `completionStatus`
+ *   so the lesson page can render attempt indicators without N+1 calls.
+ *
+ * Why: completion status only matters for students, so the join is skipped
+ * for instructors to keep the instructor authoring view fast.
+ */
 router.get('/lessons/:lessonId/activities', async (req, res) => {
   const authUser = req.user;
   if (!authUser) {
@@ -357,13 +426,23 @@ router.get('/lessons/:lessonId/activities', async (req, res) => {
   }
 });
 
+/**
+ * POST /lessons/:lessonId/activities — create a new activity.
+ *
+ * Auth: PROFESSOR who instructs the lesson's course.
+ * Side effects: writes Activity + ActivitySecondaryTopic rows.
+ *
+ * Why: at-least-one-mode invariant is enforced here (and in PATCH) so the
+ * frontend never has to render a tutor screen with no available modes.
+ */
 router.post('/lessons/:lessonId/activities', requireRole('PROFESSOR'), async (req, res) => {
   const lessonId = Number(req.params.lessonId);
   if (!Number.isFinite(lessonId)) {
     return res.status(400).json({ error: 'Invalid lesson id' });
   }
 
-  // Accept legacy `prompt` field by mapping it to question before validation
+  // Older clients sent `prompt`; remap to the current `question` field before
+  // schema validation so they continue to work.
   const raw = { ...req.body };
   if (!raw.question && raw.prompt) raw.question = raw.prompt;
   let payload;
@@ -462,6 +541,17 @@ router.post('/lessons/:lessonId/activities', requireRole('PROFESSOR'), async (re
   }
 });
 
+/**
+ * PATCH /activities/:activityId — partial update of an activity.
+ *
+ * Auth: PROFESSOR who instructs the activity's course.
+ * Side effects: when `secondaryTopicIds` is provided the entire join table is
+ *   rewritten (deleteMany + create) for that activity.
+ *
+ * Why: question/options/answer/hints are stored inside the JSON `config`
+ * column, so the handler reads-modifies-writes that blob whenever any of those
+ * fields appear, leaving other config keys untouched.
+ */
 router.patch('/activities/:activityId', requireRole('PROFESSOR'), async (req, res) => {
   const instructor = req.user;
   const activityId = Number(req.params.activityId);
@@ -771,6 +861,18 @@ router.delete('/activities/:activityId', requireRole('PROFESSOR'), async (req, r
   }
 });
 
+/**
+ * POST /questions/:id/answer — submit an answer attempt for an activity.
+ *
+ * Auth: enrolled STUDENT or course instructor (instructors can self-test).
+ * Side effects: creates a Submission row with monotonic `attemptNumber`,
+ *   updates submission analytics for students, and signals whether
+ *   per-activity feedback is still owed.
+ *
+ * Why: `attemptNumber` is computed server-side from the latest existing
+ * submission rather than trusted from the client, so retries can't collide
+ * or be spoofed.
+ */
 router.post('/questions/:id/answer', async (req, res) => {
   const activityId = Number(req.params.id);
   if (!Number.isFinite(activityId)) {
@@ -872,6 +974,15 @@ router.post('/questions/:id/answer', async (req, res) => {
   }
 });
 
+/**
+ * POST /activities/:activityId/teach — AI explanation/teaching mode.
+ *
+ * Auth: enrolled STUDENT or course instructor.
+ * Side effects: see `handleAiInteraction` (chat session, trace, AI-help metric).
+ *
+ * Why: maps to the `teach` prompt slug in EduAI; expects a `topicName` so the
+ * tutor can scope its explanation to the chosen secondary topic when present.
+ */
 router.post('/activities/:activityId/teach', async (req, res) => {
   const authUser = req.user;
   const activityId = Number(req.params.activityId);
@@ -922,6 +1033,15 @@ router.post('/activities/:activityId/teach', async (req, res) => {
   }
 });
 
+/**
+ * POST /activities/:activityId/guide — Socratic guide mode.
+ *
+ * Auth: enrolled STUDENT or course instructor.
+ * Side effects: see `handleAiInteraction`.
+ *
+ * Why: takes the student's current `studentAnswer` so the AI can probe with
+ * targeted hints rather than restate the question.
+ */
 router.post('/activities/:activityId/guide', async (req, res) => {
   const authUser = req.user;
   const activityId = Number(req.params.activityId);
@@ -971,6 +1091,15 @@ router.post('/activities/:activityId/guide', async (req, res) => {
   }
 });
 
+/**
+ * POST /activities/:activityId/custom — instructor-authored prompt mode.
+ *
+ * Auth: enrolled STUDENT or course instructor.
+ * Side effects: see `handleAiInteraction`.
+ *
+ * Why: requires both `enableCustomMode` and a non-empty `customPrompt`; the
+ * prompt is composed by the AI service using the activity's stored template.
+ */
 router.post('/activities/:activityId/custom', async (req, res) => {
   const authUser = req.user;
   const activityId = Number(req.params.activityId);
@@ -1032,6 +1161,15 @@ router.post('/activities/:activityId/custom', async (req, res) => {
   }
 });
 
+/**
+ * POST /activities/:activityId/feedback — student feedback on the activity.
+ *
+ * Auth: enrolled STUDENT only (instructors cannot feedback their own work).
+ * Side effects: creates ActivityFeedback row tied to the latest Submission.
+ *
+ * Why: feedback is one-per-(user,activity) — relies on a unique index for the
+ * race-safe path (P2002 → 409). The pre-check is just for a friendlier error.
+ */
 router.post('/activities/:activityId/feedback', async (req, res) => {
   const authUser = req.user;
   const activityId = Number(req.params.activityId);

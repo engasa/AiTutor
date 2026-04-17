@@ -1,8 +1,37 @@
+/**
+ * @file Validate, authorize, and persist user-submitted bug reports.
+ *
+ * Responsibility: Normalize bug-report payloads, enforce context hierarchy and
+ * role-based access rules, and expose admin read/update helpers over the
+ * resulting records.
+ * Callers: Bug-report routes for student/instructor submission plus admin
+ * review/status-management endpoints.
+ * Gotchas:
+ *   - Context ids must describe a real course -> module -> lesson -> activity
+ *     chain. Partial or mismatched ids are rejected so reports cannot be filed
+ *     against unrelated content.
+ *   - RBAC is content-aware: students must be enrolled in the course and
+ *     professors must instruct it before a contextual report is accepted.
+ *   - `BugReportError` is the service-level error contract; route handlers rely
+ *     on its `status` field to map validation/auth failures cleanly.
+ *   - Anonymous mode hides identity only in downstream admin mapping; the raw
+ *     row still belongs to the submitting user so authorization/audit remain intact.
+ * Related: `docs/ARCHITECTURE.md`, `server/src/routes/bugReports.js`,
+ *   `server/src/utils/bugReportMappers.js`.
+ */
+
 import { prisma } from '../config/database.js';
 
 export const BUG_REPORT_STATUSES = ['unhandled', 'in progress', 'resolved'];
 const BUG_REPORT_STATUS_SET = new Set(BUG_REPORT_STATUSES);
 
+/**
+ * Error shape consumed by route handlers to produce clean bug-report HTTP responses.
+ *
+ * Why: Validation and authorization failures are expected outcomes here, so the
+ * service throws a typed status-bearing error instead of forcing each route to
+ * reverse-engineer generic exceptions.
+ */
 export class BugReportError extends Error {
   constructor(status, message) {
     super(message);
@@ -67,7 +96,10 @@ function normalizeContext(context) {
   };
 
   if (normalized.activityId !== null && normalized.lessonId === null) {
-    throw new BugReportError(400, 'context.lessonId is required when context.activityId is present');
+    throw new BugReportError(
+      400,
+      'context.lessonId is required when context.activityId is present',
+    );
   }
   if (normalized.lessonId !== null && normalized.moduleId === null) {
     throw new BugReportError(400, 'context.moduleId is required when context.lessonId is present');
@@ -142,6 +174,8 @@ async function validateContextAndAccess(user, context) {
     const dbLessonId = activity.lessonId;
     const dbModuleId = activity.lesson.moduleId;
     const dbCourseOfferingId = activity.lesson.module.courseOfferingId;
+    // The deepest provided context must agree with every parent id so reports
+    // cannot be attached to a valid activity under the wrong course/module.
     if (
       dbLessonId !== context.lessonId ||
       dbModuleId !== context.moduleId ||
@@ -226,6 +260,16 @@ async function validateContextAndAccess(user, context) {
   return context;
 }
 
+/**
+ * Persist a user-submitted bug report after validating content, hierarchy, and access.
+ *
+ * @throws BugReportError - When the payload is malformed or the user is not
+ * authorized for the supplied course context.
+ *
+ * Why: The bug-report dialog can be opened from many surfaces, so the service
+ * re-derives trust from ids in the payload instead of assuming the frontend's
+ * contextual metadata is correct.
+ */
 export async function createBugReport(user, payload) {
   const description = normalizeDescription(payload?.description);
   const consoleLogs = normalizeOptionalString(payload?.consoleLogs, 'consoleLogs');
@@ -256,6 +300,12 @@ export async function createBugReport(user, payload) {
   });
 }
 
+/**
+ * Load the full bug-report list for the admin review console.
+ *
+ * Why: Admin triage needs the related course/module/lesson/activity labels in
+ * one query so the UI can sort and inspect reports without N+1 follow-up calls.
+ */
 export async function listAdminBugReports() {
   return prisma.bugReport.findMany({
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -279,6 +329,12 @@ export async function listAdminBugReports() {
   });
 }
 
+/**
+ * Validate a status transition against the fixed admin-visible workflow states.
+ *
+ * Why: Keeping the enum check in one place prevents route/UI drift when the
+ * admin table patches bug reports.
+ */
 export function validateBugReportStatus(status) {
   if (typeof status !== 'string' || !BUG_REPORT_STATUS_SET.has(status)) {
     throw new BugReportError(400, `status must be one of: ${BUG_REPORT_STATUSES.join(', ')}`);
@@ -286,6 +342,16 @@ export function validateBugReportStatus(status) {
   return status;
 }
 
+/**
+ * Update a bug report's triage status for the admin console.
+ *
+ * @throws BugReportError - When the id is invalid, the status is unsupported,
+ * or the target report does not exist.
+ *
+ * Why: Status changes are the only mutable admin action on bug reports, so this
+ * helper preserves the same include shape as listing to let the UI refresh from
+ * the PATCH response directly.
+ */
 export async function updateBugReportStatus(bugReportId, nextStatus) {
   if (typeof bugReportId !== 'string' || bugReportId.trim().length === 0) {
     throw new BugReportError(400, 'Invalid bug report id');

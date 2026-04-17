@@ -1,3 +1,24 @@
+/**
+ * @file Modal that resolves topic drift after an EduAI topic-sync.
+ *
+ * Responsibility: When upstream EduAI removes topics that local activities
+ *   still reference, this dialog asks the instructor to map each missing
+ *   topic to a still-existing one so activity tags stay valid.
+ * Used by: `app/routes/instructor.course.tsx` (and any other place that
+ *   triggers a topics sync). Opened with the `missingTopics` payload that
+ *   the sync endpoint returns.
+ * Gotchas:
+ *   - `toTopicId` is held as a string in local state (`Mapping`) because the
+ *     native <select> emits strings; it's coerced to number only when the
+ *     payload is built for `onApply`.
+ *   - Apply is disabled until every missing row has a replacement, mirroring
+ *     the server-side requirement that `/topics/remap` receive a complete
+ *     mapping for the provided missing list.
+ *   - The dialog is the user-facing half of the sync flow; the server-side
+ *     remap logic lives in `server/src/routes/topics.js`.
+ * Related: `server/src/routes/topics.js`, `app/lib/api.ts` (syncTopics, remapTopics)
+ */
+
 import { useMemo, useState } from 'react';
 import type { Topic } from '~/lib/types';
 
@@ -5,6 +26,11 @@ type MissingTopic = { id: number; name: string };
 
 type Mapping = { fromTopicId: number; toTopicId: string };
 
+/**
+ * Renders the remap form. The parent passes `missing` (from the sync
+ * response) and an `onApply` that POSTs the chosen mappings; this component
+ * just manages selection state and validation.
+ */
 export default function TopicSyncMappingDialog({
   open,
   onClose,

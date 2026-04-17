@@ -1,3 +1,28 @@
+/**
+ * @file Inline form for instructors to author MCQ or short-text activities.
+ *
+ * Responsibility: Captures a question, choices/answer, hints, topic tagging
+ *   (one main + N secondary), and the AI assistance modes the student is
+ *   allowed to use. POSTs to `api.createActivity` and notifies the parent.
+ * Used by: `app/routes/instructor.topic.tsx` (the lesson editor view).
+ * Gotchas:
+ *   - The `topics !== prevTopics` block (around line 30) uses the React
+ *     "derived state during render" pattern to reset/repair the selected
+ *     main+secondary topics when the topics prop reference changes (e.g.,
+ *     after a topic sync). Doing this in `useEffect` would render once with
+ *     stale state, then a second time after the cleanup — visibly flickering
+ *     the dropdown. Comparing prev props during render and calling setState
+ *     conditionally is the React-recommended fix.
+ *   - At least one AI mode (Teach or Guide) MUST stay enabled. The toggles
+ *     and the submit handler both enforce this client-side; the server also
+ *     re-validates so a stale tab can't bypass the check.
+ *   - `selectedSecondaryTopicIds` is independently de-duped against the chosen
+ *     main topic on submit so changing the main topic doesn't strand a
+ *     duplicate id in the secondary list.
+ * Related: `app/lib/api.ts` (createActivity), `app/hooks/useCourseTopics.tsx`,
+ *   `server/src/routes/activities.js`
+ */
+
 import type { FormEvent } from 'react';
 import { useMemo, useState } from 'react';
 import api from '../lib/api';
@@ -7,6 +32,11 @@ interface AddActivityPanelProps {
   onActivityCreated: () => void;
 }
 
+/**
+ * Authoring panel mounted alongside the existing-activity list. Self-resets
+ * its inputs after a successful create so multiple activities can be added
+ * back-to-back without a remount.
+ */
 export default function AddActivityPanel({ lessonId, onActivityCreated }: AddActivityPanelProps) {
   const { topics, loading: loadingTopics, error: topicsError } = useCourseTopicsContext();
   const [type, setType] = useState<'MCQ' | 'SHORT_TEXT'>('MCQ');
@@ -25,7 +55,9 @@ export default function AddActivityPanel({ lessonId, onActivityCreated }: AddAct
   const [enableTeachMode, setEnableTeachMode] = useState(true);
   const [enableGuideMode, setEnableGuideMode] = useState(true);
 
-  // Adjust main topic selection during render when topics change
+  // Derived-state-during-render pattern (intentional): when the topics prop
+  // identity changes we either clear or repair the current selection in the
+  // same render so the <select> never momentarily shows a stale id.
   const [prevTopics, setPrevTopics] = useState(topics);
   if (topics !== prevTopics) {
     setPrevTopics(topics);

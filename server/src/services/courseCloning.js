@@ -1,3 +1,27 @@
+/**
+ * @file Deep-copy course content while remapping topic references into the target course.
+ *
+ * Responsibility: Clone modules, lessons, and activities from one course tree
+ * into another, ensuring every cloned activity points at topic ids owned by
+ * the target course rather than the source course.
+ * Callers: Instructor course/module import flows and any route that copies
+ * existing authored content into another course context.
+ * Gotchas:
+ *   - Topic remapping is name-based, not id-based, because source and target
+ *     courses own different topic rows. Matching target topics are reused and
+ *     missing names are created on demand inside the transaction.
+ *   - `topicIdMap` caches source-topic-id -> target-topic-id mappings so
+ *     repeated activity/topic combinations stay consistent and avoid duplicate
+ *     topic creation.
+ *   - `targetTopicsByName` is also transaction-scoped so newly-created target
+ *     topics are immediately visible to later clones in the same run.
+ *   - Main-topic remapping is mandatory; if a source activity references a
+ *     topic we cannot resolve, the whole clone aborts rather than creating an
+ *     activity with a broken foreign key.
+ * Related: `docs/ARCHITECTURE.md`, `server/src/routes/courses.js`,
+ *   `server/src/routes/modules.js`.
+ */
+
 import { prisma } from '../config/database.js';
 
 async function ensureTopicMapping(tx, options) {
@@ -28,6 +52,16 @@ async function ensureTopicMapping(tx, options) {
   return targetTopic.id;
 }
 
+/**
+ * Clone course modules and their descendant lessons/activities into another course.
+ *
+ * @param moduleIds - Optional subset of source modules to import; when omitted,
+ * the full source course structure is copied.
+ *
+ * Why: Cross-course imports need authored content, not source-course foreign
+ * keys. This helper recreates the tree so later edits in either course remain
+ * isolated while preserving topic semantics through name-based remapping.
+ */
 export async function cloneCourseContent(sourceCourseId, targetCourseId, options = {}) {
   const { moduleIds = null } = options;
 
@@ -92,6 +126,8 @@ export async function cloneCourseContent(sourceCourseId, targetCourseId, options
         });
 
         for (const activity of lesson.activities) {
+          // Activity topic foreign keys must always point at the target course,
+          // even when the source and target happened to start from the same import.
           const targetMainTopicId = await ensureTopicMapping(tx, {
             sourceTopicId: activity.mainTopicId,
             sourceTopicById,
@@ -143,6 +179,13 @@ export async function cloneCourseContent(sourceCourseId, targetCourseId, options
   });
 }
 
+/**
+ * Clone selected lessons into an existing target module.
+ *
+ * Why: Lesson-level imports reuse the same topic-remapping contract as
+ * course-level cloning so imported activities can safely reference the target
+ * module's course topics without leaking source-course ids.
+ */
 export async function cloneLessonsFromOffering(sourceLessonIds, targetModuleId) {
   const targetModule = await prisma.module.findUnique({
     where: { id: targetModuleId },
@@ -203,6 +246,8 @@ export async function cloneLessonsFromOffering(sourceLessonIds, targetModuleId) 
       });
 
       for (const activity of lesson.activities) {
+        // Lessons can originate from multiple source courses, so the mapping
+        // cache is keyed by source topic id and normalized onto the target course.
         const targetMainTopicId = await ensureTopicMapping(tx, {
           sourceTopicId: activity.mainTopicId,
           sourceTopicById,

@@ -1,3 +1,20 @@
+/**
+ * @file Pure helpers translating between an `Activity` and its editor form values.
+ *
+ * Responsibility: Converts server `Activity` records into MCQ/SHORT_TEXT form
+ *   state and back into the canonical update payload that
+ *   `api.updateActivity` expects.
+ * Callers: Instructor activity editor components.
+ * Gotchas:
+ *   - When MCQ choices are submitted, blank entries are dropped and the
+ *     remaining list is re-indexed; `correctIndex` MUST be re-mapped to its
+ *     new position (see `buildUpdatePayload`). This invariant is the most
+ *     bug-prone part of the form.
+ *   - Output of `buildUpdatePayload` is the shape `api.updateActivity`
+ *     accepts; do not re-wrap `options` here.
+ * Related: `app/lib/api.ts` (`updateActivity`), `app/lib/types.ts` (`Activity`).
+ */
+
 import type { Activity } from './types';
 
 export type ActivityFormValues = {
@@ -69,6 +86,15 @@ export function parseHintsInput(value: string) {
     .filter((hint) => hint.length > 0);
 }
 
+/**
+ * Validates the editor state and produces the canonical update payload, or
+ * an error string describing why the form is not yet submittable.
+ *
+ * For MCQ activities, blank choices are stripped before submission and the
+ * surviving `correctIndex` is recomputed against the trimmed list — without
+ * this remap, the previously selected answer would point at the wrong (or
+ * non-existent) choice once gaps are removed.
+ */
 export function buildUpdatePayload(values: ActivityFormValues): {
   payload?: ActivityUpdatePayload;
   error?: string;
@@ -87,6 +113,8 @@ export function buildUpdatePayload(values: ActivityFormValues): {
 
     trimmedChoices.forEach((choice, index) => {
       if (choice.length > 0) {
+        // Capture the correct answer's NEW position in the compacted list
+        // before we push — `options.length` here is the pre-push index.
         if (index === values.correctIndex && nextCorrectIndex === -1) {
           nextCorrectIndex = options.length;
         }

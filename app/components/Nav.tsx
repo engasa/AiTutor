@@ -1,3 +1,27 @@
+/**
+ * @file Sticky top-nav header rendered on every authenticated page.
+ *
+ * Responsibility: Displays the brand mark, role-aware section links, the
+ *   EduAI connectivity badge, the user identity chip, and the bug-report /
+ *   sign-out actions. Also owns the `BugReportDialog` mount because the
+ *   pre-dialog screenshot must be taken BEFORE the modal opens.
+ * Used by: `app/root.tsx` (rendered globally for logged-in routes).
+ * Gotchas:
+ *   - Admin users skip the EduAI probe entirely. The admin-isolation
+ *     middleware blocks them from `/api/ai-models*`, so calling it would
+ *     produce a noisy 403 and a misleading red "disconnected" badge.
+ *     We hard-code "connected" for admins because the probe wouldn't tell
+ *     them anything useful anyway (admins don't run the chat features).
+ *   - The bug-report flow captures the screenshot in this component (not
+ *     in `BugReportDialog`) so the dialog itself is not part of the capture.
+ *     Opening the dialog before the capture would leak the modal chrome
+ *     into every report.
+ *   - `canReportBug` is gated to STUDENT/PROFESSOR; admins use a different
+ *     triage surface.
+ * Related: `app/components/bug-report/BugReportDialog.tsx`,
+ *   `app/components/bug-report/useBugReport.ts`, `app/hooks/useLocalUser.tsx`
+ */
+
 import { Link, useLocation, useNavigate } from 'react-router';
 import { useLocalUser } from '../hooks/useLocalUser';
 import { useEffect, useState } from 'react';
@@ -7,6 +31,10 @@ import TourButton from './TourButton';
 import { BugReportDialog } from './bug-report/BugReportDialog';
 import { useBugReport } from './bug-report/useBugReport';
 
+/**
+ * Top-of-page navigation header. Self-contained: pulls auth from
+ * `useLocalUser()` and routing context from React Router; no props.
+ */
 export default function Nav() {
   const [eduAiStatus, setEduAiStatus] = useState<'loading' | 'connected' | 'disconnected'>(
     'loading',

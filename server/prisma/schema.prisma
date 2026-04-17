@@ -7,6 +7,11 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+/// Application-level role enum. STUDENT/PROFESSOR/TA participate in courses;
+/// ADMIN is a tooling persona confined to /api/admin/* and /api/ai-models*
+/// by the admin-isolation gate in app.js. Adding a value here also requires
+/// updating `normalizeEduAiRole` in `auth.js`, otherwise EduAI will silently
+/// downgrade unrecognized roles to STUDENT.
 enum Role {
   STUDENT
   PROFESSOR
@@ -19,6 +24,14 @@ enum InstructorRole {
   ASSISTANT
 }
 
+/// Application user. Identity is provisioned via Better Auth (EduAI OIDC);
+/// the `password` column is retained only for legacy compatibility and is
+/// always null in current flows.
+///
+/// `id` is a String/cuid (migrated from int in `20260311050000_user_ids_to_string`).
+/// The change was needed so EduAI's externally-issued `sub` values can be
+/// stored verbatim and to keep IDs URL-safe / non-enumerable. Every FK to
+/// User is `String` for the same reason — do not reintroduce Int FKs.
 model User {
   id        String   @id @default(cuid())
   name      String
@@ -44,6 +57,12 @@ model User {
   @@map("User")
 }
 
+/// Reusable system-prompt definitions for AI tutor modes.
+///
+/// The slugs `learning-prompt`, `exercise-prompt`, and `supervisor-prompt`
+/// MUST exist for the AI dual-loop (tutor + supervisor) to function. They
+/// are inserted by `prisma/seed.ts`; deleting or renaming them will break
+/// every chat session at runtime, not at deploy time.
 model PromptTemplate {
   id           Int      @id @default(autoincrement())
   name         String
@@ -58,6 +77,17 @@ model PromptTemplate {
   activities Activity[]
 }
 
+/// A single offering of a course (e.g. "CPSC 110, Fall 2025").
+///
+/// `isPublished` gates student visibility — unpublished offerings are
+/// invisible to STUDENT role even when an enrollment row exists. Instructors
+/// always see their own offerings regardless of this flag.
+///
+/// `externalId`, `externalSource`, and `externalMetadata` are populated when
+/// the offering was imported from an external system (currently EduAI).
+/// Native offerings created in-app leave them null. The frontend uses
+/// `externalId` truthy-vs-null to decide whether to show "imported" badges
+/// and to suppress edit affordances that would diverge from the source.
 model CourseOffering {
   id               Int       @id @default(autoincrement())
   title            String
@@ -80,6 +110,12 @@ model CourseOffering {
   @@index([externalId])
 }
 
+/// Topic taxonomy scoped to a single CourseOffering.
+///
+/// Uniqueness is on `(courseOfferingId, name)`: topic identity is the
+/// human-readable name within a course. The topic-sync workflow (used to
+/// reconcile topics with EduAI or instructor edits) is name-keyed for the
+/// same reason — renaming a topic is functionally a delete + insert.
 model Topic {
   id               Int            @id @default(autoincrement())
   name             String
@@ -126,7 +162,7 @@ model Module {
   courseOffering   CourseOffering @relation(fields: [courseOfferingId], references: [id], onDelete: Cascade)
   courseOfferingId Int
 
-  lessons Lesson[]
+  lessons    Lesson[]
   bugReports BugReport[]
 }
 
@@ -145,6 +181,22 @@ model Lesson {
   bugReports BugReport[]
 }
 
+/// A single learner-facing activity (question/exercise) under a Lesson.
+///
+/// `mainTopicId` is REQUIRED (non-nullable). Every activity must belong to
+/// exactly one primary topic; secondary topics go through the
+/// `ActivitySecondaryTopic` M:N join.
+///
+/// `config Json?` carries the question payload in the shape
+/// `{ question, questionType, options, answer, hints }`. The structure is
+/// flexible by design — `mapActivity` in `utils/mappers.js` is the single
+/// chokepoint that flattens it into a stable client DTO; do not consume
+/// `config` directly from route handlers.
+///
+/// `enableTeachMode` / `enableGuideMode` / `enableCustomMode` toggle which
+/// AI tutor modes are available. Route validation enforces "at least one
+/// mode enabled" — disabling all three at the schema level is allowed but
+/// will be rejected on write.
 model Activity {
   id                Int             @id @default(autoincrement())
   title             String?
@@ -178,27 +230,27 @@ model Activity {
 }
 
 model BugReport {
-  id               String   @id @default(cuid())
-  description      String   @db.VarChar(2000)
-  status           String   @default("unhandled")
+  id               String          @id @default(cuid())
+  description      String          @db.VarChar(2000)
+  status           String          @default("unhandled")
   consoleLogs      String?
   networkLogs      String?
   screenshot       String?
   pageUrl          String?
   userAgent        String?
-  isAnonymous      Boolean  @default(false)
+  isAnonymous      Boolean         @default(false)
   userId           String
   courseOfferingId Int?
   moduleId         Int?
   lessonId         Int?
   activityId       Int?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   courseOffering   CourseOffering? @relation(fields: [courseOfferingId], references: [id], onDelete: SetNull)
-  module           Module?  @relation(fields: [moduleId], references: [id], onDelete: SetNull)
-  lesson           Lesson?  @relation(fields: [lessonId], references: [id], onDelete: SetNull)
-  activity         Activity? @relation(fields: [activityId], references: [id], onDelete: SetNull)
+  module           Module?         @relation(fields: [moduleId], references: [id], onDelete: SetNull)
+  lesson           Lesson?         @relation(fields: [lessonId], references: [id], onDelete: SetNull)
+  activity         Activity?       @relation(fields: [activityId], references: [id], onDelete: SetNull)
 
   @@index([status, createdAt])
   @@index([userId])
@@ -208,6 +260,9 @@ model BugReport {
   @@index([activityId])
 }
 
+/// A student's attempt at an Activity. Submissions are versioned per-attempt
+/// via `attemptNumber` (1-based) — historical attempts are retained, never
+/// updated in place, so analytics can reconstruct the full attempt timeline.
 model Submission {
   id               Int                @id @default(autoincrement())
   attemptNumber    Int                @default(1)
@@ -240,6 +295,14 @@ model SystemPrompt {
   updatedAt DateTime @updatedAt
 }
 
+/// Key-value system settings table. Treat as a typed config registry, not a
+/// generic kv store. Known keys:
+///   - `EDUAI_API_KEY`     — EduAI integration credential, set via admin UI
+///                            so it can be rotated without a redeploy.
+///   - `AI_MODEL_POLICY`   — JSON describing per-mode model selection /
+///                            supervisor-loop policy.
+/// Adding a new key requires a corresponding read site; there is no schema
+/// migration cost but there is a runtime contract.
 model SystemSetting {
   key       String   @id
   value     String
@@ -306,6 +369,12 @@ model SuggestedPrompt {
   updatedAt DateTime @updatedAt
 }
 
+/// One AI chat session per (user, activity, mode) tuple.
+///
+/// The unique constraint `[userId, activityId, mode]` is intentional:
+/// switching modes (teach/guide/custom) for the same activity yields a
+/// distinct session so chat history doesn't bleed across pedagogies, but
+/// re-entering the same mode resumes the existing conversation.
 model AiChatSession {
   id                  Int                  @id @default(autoincrement())
   user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -354,12 +423,19 @@ model Session {
   ipAddress String?
   userAgent String?
 
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId String
 
   @@map("Session")
 }
 
+/// Better Auth account linkage row (one per (providerId, accountId)).
+///
+/// Rows with `providerId='eduai'` are pre-created by the `enrollmentSync`
+/// job before a student ever signs in. Combined with `trustedProviders:
+/// ['eduai']` in `auth.js`, this lets the first OAuth login auto-link to
+/// the pre-provisioned User by email — students land directly in their
+/// pre-enrolled courses with no manual linking step.
 model Account {
   id                    String    @id @default(cuid())
   accountId             String

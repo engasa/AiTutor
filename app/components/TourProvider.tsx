@@ -1,5 +1,45 @@
+/**
+ * @file React integration layer that drives a `driver.js` popover from the
+ *   pure tour engine and React Router navigation.
+ *
+ * Responsibility: Mounts the singleton driver instance, walks tour steps,
+ *   navigates between routes when a step lives elsewhere, and exposes a
+ *   `useAppTour()` hook so any descendant can start/stop the suggested tour.
+ * Used by: Wraps the app in `app/root.tsx` (any route can call `useAppTour`).
+ *   `TourButton` is the primary consumer that calls `startSuggestedTour`.
+ * Gotchas:
+ *   - `driverRef` holds a single `driver.js` instance lazily imported on first
+ *     use (driver.js is large; this keeps it out of the initial bundle).
+ *   - `sessionRef` is the source of truth for the active tour. It's a ref
+ *     (not state) because the inner driver.js callbacks need synchronous
+ *     access — re-rendering on every step would race with driver.js's own
+ *     animation lifecycle.
+ *   - `renderTokenRef` increments on every step transition. `waitForElement`
+ *     promises captured before the increment compare against the snapshot
+ *     and bail out on resolve — without this, a stale anchor lookup could
+ *     highlight the wrong element after the user clicks Next.
+ *   - `suppressDestroyedRef` flags "I am about to call driver.destroy() so I
+ *     can re-highlight; do NOT treat the resulting onDestroyStarted/onDestroyed
+ *     as a user-initiated close". Without it, `clearTourState` would fire on
+ *     every step transition and tear the tour down.
+ *   - When the next step lives on a different route, the popover is destroyed
+ *     first (`pendingRoute` set), navigation runs, and the `pendingRoute`
+ *     effect re-enters `showStep` once the location updates. This avoids
+ *     driver.js highlighting an unmounting page.
+ * Related: `app/lib/tours/tour-engine.ts`, `app/lib/tours/tour-utils.ts`,
+ *   `app/lib/tours/tour-definitions.ts`, `app/components/TourButton.tsx`
+ */
+
 import type { Driver, PopoverDOM } from 'driver.js';
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import 'driver.js/dist/driver.css';
 import { tourDefinitions } from '~/lib/tours/tour-definitions';
@@ -37,9 +77,14 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [activeTourId, setActiveTourId] = useState<AppTourId | null>(null);
+  // Lazily constructed driver.js instance; kept across steps to preserve animation state.
   const driverRef = useRef<Driver | null>(null);
+  // Live tour session; mutated in place by the engine helpers.
   const sessionRef = useRef<ActiveTourSession | null>(null);
+  // Bumped on every step transition; in-flight async work checks against a snapshot to detect staleness.
   const renderTokenRef = useRef(0);
+  // True while we are intentionally destroying the popover to re-highlight; tells the destroy callbacks
+  // to skip clearing tour state (otherwise every next-button press would end the tour).
   const suppressDestroyedRef = useRef(false);
 
   const clearTourState = useCallback(() => {
@@ -97,10 +142,13 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
     destroyDriver(true);
   }, [clearTourState, destroyDriver]);
 
-  const completeTour = useCallback((tour: AppTourDefinition) => {
-    markTourCompleted(tour);
-    stopTour();
-  }, [stopTour]);
+  const completeTour = useCallback(
+    (tour: AppTourDefinition) => {
+      markTourCompleted(tour);
+      stopTour();
+    },
+    [stopTour],
+  );
 
   const showStep = useCallback(async () => {
     const session = sessionRef.current;
@@ -108,6 +156,7 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
 
     const { step, route, hasPrevious, hasNext } = getStepMeta(session);
     if (!route) {
+      // Step's route is unresolvable in current context — skip past it.
       const nextIndex = moveSessionAfterMissingTarget(session);
       if (nextIndex == null) {
         completeTour(session.tour);
@@ -120,28 +169,29 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
     session.context.currentPath = location.pathname;
 
     if (route !== location.pathname) {
+      // Defer rendering until the new route mounts; the pendingRoute effect re-enters showStep.
       destroyDriver(true);
       session.pendingRoute = route;
       navigate(route);
       return;
     }
 
+    // Snapshot the render token so any awaited work below can detect a step change and bail out.
     const token = ++renderTokenRef.current;
 
     try {
       const element = await waitForElement(step.target);
       if (renderTokenRef.current !== token || sessionRef.current !== session) return;
 
+      // Probe whether the NEXT step is reachable assuming the user clicks Next on this anchor;
+      // used purely to label the button "Continue" vs "Finish" without mutating real state.
       const projectedSession: ActiveTourSession = {
         ...session,
         context: { ...session.context },
       };
       storeStepSelection(projectedSession, element);
-      const projectedHasNext = findStepIndex(
-        projectedSession,
-        projectedSession.stepIndex + 1,
-        1,
-      ) != null;
+      const projectedHasNext =
+        findStepIndex(projectedSession, projectedSession.stepIndex + 1, 1) != null;
 
       const driver = await ensureDriver();
       if (renderTokenRef.current !== token || sessionRef.current !== session) return;
@@ -156,11 +206,7 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
           description: step.description,
           side: step.side ?? 'bottom',
           align: step.align ?? 'center',
-          showButtons: [
-            ...(hasPrevious ? (['previous'] as const) : []),
-            'next',
-            'close',
-          ],
+          showButtons: [...(hasPrevious ? (['previous'] as const) : []), 'next', 'close'],
           progressText: `${session.stepIndex + 1} of ${session.tour.steps.length}`,
           nextBtnText: projectedHasNext ? 'Continue' : 'Finish',
           prevBtnText: 'Back',
@@ -204,14 +250,19 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
     }
   }, [completeTour, ensureDriver, location.pathname, navigate, stopTour]);
 
-  const startTour = useCallback((tourId: AppTourId) => {
-    const tour = tourDefinitions[tourId];
-    sessionRef.current = createTourSession(tour, location.pathname);
-    setActiveTourId(tourId);
-    destroyDriver(true);
-    void showStep();
-  }, [destroyDriver, location.pathname, showStep]);
+  const startTour = useCallback(
+    (tourId: AppTourId) => {
+      const tour = tourDefinitions[tourId];
+      sessionRef.current = createTourSession(tour, location.pathname);
+      setActiveTourId(tourId);
+      destroyDriver(true);
+      void showStep();
+    },
+    [destroyDriver, location.pathname, showStep],
+  );
 
+  // Picks the contextually appropriate tour for the current page: the lesson-specific tour when
+  // the student is inside a lesson, otherwise the broader journey tour. Non-student routes opt out.
   const suggestedTourId = useMemo<AppTourId | null>(() => {
     if (!location.pathname.startsWith('/student')) return null;
     return isLessonRoute(location.pathname) ? 'student-lesson-help' : 'student-journey';
@@ -222,6 +273,7 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
     startTour(suggestedTourId);
   }, [startTour, suggestedTourId]);
 
+  // Resumes showStep once React Router has actually committed the navigation we requested.
   useEffect(() => {
     const session = sessionRef.current;
     if (!session) return;
@@ -234,26 +286,32 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
     }
   }, [location.pathname, showStep]);
 
-  useEffect(() => () => {
-    destroyDriver(true);
-  }, [destroyDriver]);
-
-  const value = useMemo<TourContextValue>(() => ({
-    activeTourId,
-    isRunning: activeTourId != null,
-    suggestedTourId,
-    startTour,
-    startSuggestedTour,
-    stopTour,
-  }), [activeTourId, startSuggestedTour, startTour, stopTour, suggestedTourId]);
-
-  return (
-    <AppTourContext.Provider value={value}>
-      {children}
-    </AppTourContext.Provider>
+  useEffect(
+    () => () => {
+      destroyDriver(true);
+    },
+    [destroyDriver],
   );
+
+  const value = useMemo<TourContextValue>(
+    () => ({
+      activeTourId,
+      isRunning: activeTourId != null,
+      suggestedTourId,
+      startTour,
+      startSuggestedTour,
+      stopTour,
+    }),
+    [activeTourId, startSuggestedTour, startTour, stopTour, suggestedTourId],
+  );
+
+  return <AppTourContext.Provider value={value}>{children}</AppTourContext.Provider>;
 }
 
+/**
+ * Access the tour controller. Throws when used outside a `TourProvider` to
+ * surface mounting bugs at render time rather than producing silent no-ops.
+ */
 export function useAppTour() {
   const context = useContext(AppTourContext);
   if (!context) {

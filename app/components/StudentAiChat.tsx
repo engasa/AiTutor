@@ -1,3 +1,39 @@
+/**
+ * @file Student-facing AI Study Buddy chat surface (Teach / Guide / Custom).
+ *
+ * Responsibility: Owns the entire student-side chat experience for a single
+ *   activity — model selection, per-tab conversation state, suggested prompts,
+ *   knowledge-level + API-key gating, and the setup card shown before chat
+ *   becomes available. Exposes an imperative handle so parent routes can
+ *   programmatically push messages or trigger a guide turn.
+ * Used by: `app/routes/student.list.tsx` (primary), via ref for guide-prompt
+ *   triggering when the student submits an answer.
+ * Gotchas:
+ *   - Three independent chat tracks (`teach` / `guide` / `custom`) are kept in
+ *     a single `chatState` object so the user can flip tabs without losing
+ *     history. Each track has its own `chatId` returned by the server, which
+ *     is what links subsequent messages into one `AiChatSession`.
+ *   - Available models are filtered by the AI model policy: any model that
+ *     declares student-selectability metadata switches the list into "policy
+ *     active" mode and only allowed models survive. If NO model carries
+ *     policy metadata, the unfiltered list is shown (back-compat).
+ *   - **API keys are managed only here.** Per-provider keys live in
+ *     `localStorage` under `ai-provider-keys` (JSON). They're forwarded on
+ *     every send call; the server never persists them. Validation runs
+ *     against the provider on save.
+ *   - Chat is hard-gated behind two prerequisites: a knowledge level (set by
+ *     parent) AND a provider API key. The setup card is rendered until both
+ *     are satisfied — the input box is disabled even if visible.
+ *   - Guide and Teach tabs surface server-fetched suggested prompts; Custom
+ *     tab does not (its prompt is already activity-defined).
+ *   - Topic selector appears for Teach mode (always) and for Custom mode only
+ *     when the activity's customPrompt contains the `[INSERT TOPIC HERE]`
+ *     placeholder.
+ * Related: `app/lib/api.ts` (sendTeachMessage/sendGuideMessage/sendCustomMessage,
+ *   validateApiKey, listAiModels, listSuggestedPrompts), `server/src/routes/activities.js`,
+ *   `server/src/routes/ai-models.js`, `server/src/routes/suggested-prompts.js`
+ */
+
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useState } from 'react';
 import type { ChangeEvent, FormEvent, KeyboardEvent } from 'react';
 import {
@@ -59,6 +95,14 @@ type StudentSelectableModel = AiModel & {
   availability?: 'allowed' | 'blocked' | 'admin-only';
 };
 
+/**
+ * Imperative API exposed to parent routes via `forwardRef`.
+ * - `sendGuidePrompt`: switch to Guide tab and submit either the typed input
+ *   or a generic fallback. Used after a student answers a question to nudge
+ *   the AI toward giving guidance on what they tried.
+ * - `pushGuideMessage`: append an assistant message into Guide history without
+ *   round-tripping the server (e.g., system-style nudges authored client-side).
+ */
 export type StudentAiChatHandle = {
   sendGuidePrompt: () => void;
   pushGuideMessage: (content: string) => void;
@@ -80,6 +124,8 @@ const DEFAULT_MODEL_ID = 'google:gemini-2.5-flash';
 const API_KEYS_STORAGE_KEY = 'ai-provider-keys';
 const PROVIDER_LABELS: Record<string, string> = { google: 'Gemini', openai: 'OpenAI' };
 
+// Detects whether the API has decorated this model with any student-policy field.
+// Presence of ANY policy field on ANY model flips the whole list into filtered mode.
 function modelHasStudentPolicy(model: StudentSelectableModel): boolean {
   return (
     typeof model.studentSelectable === 'boolean' ||
@@ -90,6 +136,8 @@ function modelHasStudentPolicy(model: StudentSelectableModel): boolean {
   );
 }
 
+// Multiple legacy field names mean the same thing; check them in priority order.
+// Default to true when no policy field is present (admin hasn't restricted this model).
 function isStudentSelectableModel(model: StudentSelectableModel): boolean {
   if (typeof model.studentSelectable === 'boolean') return model.studentSelectable;
   if (typeof model.isStudentSelectable === 'boolean') return model.isStudentSelectable;
@@ -112,6 +160,8 @@ function maskApiKey(key: string): string {
   return `••••••${key.slice(-4)}`;
 }
 
+// localStorage is the only persistence for provider API keys; the server never sees them at rest.
+// Read/write are wrapped to survive SSR-like envs and quota errors silently.
 function loadApiKeysFromStorage(): Record<string, string> {
   if (typeof window === 'undefined') return {};
   try {
@@ -243,6 +293,9 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
     (activeTab === 'guide' && isGuideEnabled) ||
     (activeTab === 'custom' && isCustomEnabled);
 
+  // Auto-correct the active tab during render when the activity's enabled modes change
+  // (e.g., instructor disables guide mode while a student is on it). React tolerates
+  // these setState calls during render because they converge in one extra pass.
   if (!currentTabEnabled) {
     if (isTeachEnabled) setActiveTab('teach');
     else if (isGuideEnabled) setActiveTab('guide');
@@ -256,6 +309,7 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
       try {
         const models = (await api.listAiModels()) as StudentSelectableModel[];
         if (!isMounted) return;
+        // Filter only when at least one model declares a policy; otherwise show everything (back-compat).
         const policyActive = models.some(modelHasStudentPolicy);
         const selectableModels = policyActive ? models.filter(isStudentSelectableModel) : models;
         setAvailableModels(selectableModels);
@@ -322,6 +376,7 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
       const level = knowledgeLevel;
       if (!level) return;
 
+      // The provider id is encoded as the prefix of the modelId ("google:gemini-..."); look up its key.
       const provider = getProviderFromModelId(selectedModelId);
       const apiKey = providerApiKeys[provider];
       if (!apiKey) {
@@ -384,6 +439,7 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
           });
         }
 
+        // Persist the chatId from the first response so subsequent turns thread into the same AiChatSession.
         const nextChatId = response.chatId ?? chatState[tab].chatId ?? null;
         if (nextChatId) {
           setChatState((prev) => ({ ...prev, [tab]: { ...prev[tab], chatId: nextChatId } }));
@@ -717,7 +773,10 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
   );
 
   return (
-    <aside className="flex h-[700px] flex-col card-editorial overflow-hidden" data-tour="student-ai-chat">
+    <aside
+      className="flex h-[700px] flex-col card-editorial overflow-hidden"
+      data-tour="student-ai-chat"
+    >
       {/* Header */}
       <div className="flex items-center gap-3 p-5 border-b border-border">
         <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center text-primary">

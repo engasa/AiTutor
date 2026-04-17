@@ -1,3 +1,25 @@
+/**
+ * @file Admin-only endpoints: user/course inventory, manual enrollment ops,
+ *       EduAI API key management, AI model policy, and EduAI enrollment resync.
+ *
+ * Responsibility: Backstage controls for the admin console — everything that
+ *   isn't owned by an instructor or student in their normal flow.
+ * Callers: Mounted under `/api`; consumed by the React `app/admin.tsx` page.
+ *   The session middleware already restricts ADMIN users to `/api/me` and
+ *   `/api/admin/*`, so these handlers don't double-check role beyond `requireRole`.
+ * Gotchas:
+ *   - User roles are owned by EduAI, NOT this DB. The role-update endpoint is
+ *     intentionally a 410 GONE so a future maintainer doesn't try to "fix" it
+ *     by writing to local user rows — that would silently diverge from EduAI.
+ *   - Manual enrollment endpoints work for any course, but the dedicated
+ *     `sync-enrollments` only accepts EduAI-imported courses.
+ *   - System settings (`EDUAI_API_KEY`, `AI_MODEL_POLICY`) live in the
+ *     `SystemSetting` key/value table, not env vars — admin updates take
+ *     effect immediately for subsequent requests.
+ * Related: services/systemSettings.js, services/aiModelPolicy.js,
+ *   services/enrollmentSync.js, services/eduaiAuth.js, middleware/auth.js
+ */
+
 import express from 'express';
 import { prisma } from '../config/database.js';
 import { requireRole } from '../middleware/auth.js';
@@ -25,6 +47,14 @@ router.get('/admin/users', requireRole('ADMIN'), async (_req, res) => {
   }
 });
 
+/**
+ * PATCH /admin/users/:userId/role — DEPRECATED, returns 410 GONE.
+ *
+ * Why: roles are sourced from EduAI; writing them locally would silently
+ * diverge on the next sync. Endpoint is kept (rather than deleted) so the
+ * frontend gets an explicit signal instead of a 404. Do not "fix" by editing
+ * the local DB — change the user's role in EduAI instead.
+ */
 router.patch('/admin/users/:userId/role', requireRole('ADMIN'), async (req, res) => {
   return res.status(410).json({ error: 'Roles are managed in EduAI' });
 });
@@ -40,6 +70,16 @@ router.get('/admin/courses', requireRole('ADMIN'), async (_req, res) => {
   }
 });
 
+/**
+ * GET /admin/courses/:courseId/enrollments — list enrolled + addable students.
+ *
+ * Auth: ADMIN.
+ * Returns: `{ courseId, enrolledStudents, availableStudents }`.
+ *
+ * Why: bundles both lists in one response so the admin enrollment editor can
+ * render add/remove pickers without a second roundtrip; `availableStudents`
+ * excludes anyone already enrolled.
+ */
 router.get('/admin/courses/:courseId/enrollments', requireRole('ADMIN'), async (req, res) => {
   const courseId = Number(req.params.courseId);
   if (!Number.isFinite(courseId)) {
@@ -84,6 +124,14 @@ router.get('/admin/courses/:courseId/enrollments', requireRole('ADMIN'), async (
   }
 });
 
+/**
+ * POST /admin/courses/:courseId/enrollments — enroll a student in a course.
+ *
+ * Auth: ADMIN. Target user must have role STUDENT.
+ * Side effects: idempotent upsert into CourseEnrollment.
+ *
+ * Why: idempotent so accidental double-clicks in the admin UI don't error.
+ */
 router.post('/admin/courses/:courseId/enrollments', requireRole('ADMIN'), async (req, res) => {
   const courseId = Number(req.params.courseId);
   const userId =
@@ -172,6 +220,15 @@ router.get('/admin/settings/eduai-api-key', requireRole('ADMIN'), async (req, re
   }
 });
 
+/**
+ * PUT /admin/settings/eduai-api-key — store/replace the EduAI API key.
+ *
+ * Auth: ADMIN.
+ * Side effects: writes the key into SystemSetting('EDUAI_API_KEY'); subsequent
+ *   `getEduAiAccessTokenForUser` calls will use the new key.
+ *
+ * Why: stored in DB rather than env so admins can rotate without redeploying.
+ */
 router.put('/admin/settings/eduai-api-key', requireRole('ADMIN'), async (req, res) => {
   const apiKey = req.body?.apiKey;
   if (typeof apiKey !== 'string') {
@@ -211,6 +268,18 @@ router.get('/admin/settings/ai-model-policy', requireRole('ADMIN'), async (_req,
   }
 });
 
+/**
+ * PUT /admin/settings/ai-model-policy — replace the active AI model policy.
+ *
+ * Auth: ADMIN.
+ * Side effects: persists policy in SystemSetting('AI_MODEL_POLICY'); affects
+ *   which models students can pick and the supervisor/dual-loop behavior on
+ *   subsequent AI chat requests.
+ *
+ * Why: validation errors thrown from the service include the words "must" or
+ * "At least one" — those are mapped to 400 here so the admin form can surface
+ * field-level errors instead of generic 500s.
+ */
 router.put('/admin/settings/ai-model-policy', requireRole('ADMIN'), async (req, res) => {
   try {
     const state = await setAiModelPolicy(req.body || {});
@@ -225,6 +294,16 @@ router.put('/admin/settings/ai-model-policy', requireRole('ADMIN'), async (req, 
   }
 });
 
+/**
+ * POST /admin/courses/:courseId/sync-enrollments — pull enrollments from EduAI.
+ *
+ * Auth: ADMIN; course must be EduAI-imported (has `externalId` and source EDUAI).
+ * Side effects: see `syncCourseEnrollments` (adds/removes CourseEnrollment rows
+ *   to match EduAI roster).
+ *
+ * Why: rejects non-imported courses because there's no upstream truth to sync
+ * from — silently returning ok would hide a configuration mistake.
+ */
 router.post('/admin/courses/:courseId/sync-enrollments', requireRole('ADMIN'), async (req, res) => {
   const courseId = Number(req.params.courseId);
   if (!Number.isFinite(courseId)) {

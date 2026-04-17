@@ -155,6 +155,51 @@ The `.githooks/pre-commit` hook runs automatically and scopes checks to staged f
 
 To skip in exceptional cases: `git commit --no-verify` (avoid this).
 
+## Git Hooks & Tooling Dependencies
+
+The repository ships hook scripts under [`.githooks/`](.githooks/). They are **not** active by
+default after a fresh clone — Git only runs them once you point `core.hooksPath` at the
+directory:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+Run that once per checkout. Verify with `git config core.hooksPath` (should print `.githooks`).
+
+### Hook inventory
+
+| Hook | Purpose | External dependency |
+|------|---------|---------------------|
+| `pre-commit` | Scoped lint / format / typecheck / tests on staged files (`oxfmt --check`, `oxlint --quiet`, `tsgo --noEmit`, `vitest --changed HEAD`). Skip with `--no-verify`. | `npx`-resolvable tools from `devDependencies` only. |
+| `prepare-commit-msg` | Inserts/condenses an `Entire-Checkpoint` trailer if the current shell is inside an Entire CLI session. | **`entire` binary in `$PATH`** |
+| `commit-msg` | Validates the commit message and strips the auto-trailer when there is no real user content (allows aborting empty commits). Hard-fails the commit if the script errors. | **`entire` binary in `$PATH`** |
+| `post-commit` | Condenses session data when the commit carries an `Entire-Checkpoint` trailer. Soft-failing (`|| true`). | **`entire` binary in `$PATH`** |
+| `pre-push` | Pushes session logs alongside the user's `git push`. Soft-failing (`|| true`). | **`entire` binary in `$PATH`** |
+
+### What "requires `entire`" actually means
+
+`commit-msg`, `prepare-commit-msg`, `post-commit`, and `pre-push` shell out to the
+[Entire CLI](https://entire.ai) binary. If `entire` is not installed and on `$PATH`:
+
+- **`commit-msg` will fail.** `entire hooks git commit-msg "$1" || exit 1` aborts the commit.
+  Every `git commit` becomes impossible until you either install `entire`, point
+  `core.hooksPath` away from `.githooks`, or use `--no-verify`.
+- **`pre-push` is soft (`|| true`)** but will print noisy "command not found" output on every
+  push.
+- `prepare-commit-msg` and `post-commit` are silent (both end in `|| true` and route stderr to
+  `/dev/null`).
+
+Install Entire CLI before enabling hooks, or accept that you will need `--no-verify` for every
+commit.
+
+### `.entire/` directory
+
+The `.entire/` directory at the repo root is **session data for the Entire CLI**, not source
+code. It is created and managed by the `entire` binary and the hooks above. Do not hand-edit it.
+It is included in the repo's tracked tree intentionally so that session checkpoints survive
+across machines.
+
 ## Commit Messages
 
 Follow [Conventional Commits](https://www.conventionalcommits.org/):

@@ -1,3 +1,39 @@
+/**
+ * @file Instructor lesson editor — the heaviest authoring page in the app.
+ *
+ * Route: /instructor/lesson/:lessonId
+ * Auth: PROFESSOR
+ * Loads: lesson + activities (parallel), then walks up to module + course
+ *        for breadcrumbs (sequential — module/course IDs come from lesson).
+ * Owns:
+ *   - Activity CRUD: create (AddActivityPanel), inline edit
+ *     (EditActivityPanel), delete with confirm.
+ *   - Per-activity topic assignment: a single main topic plus any number of
+ *     secondary topics, both autosaved.
+ *   - Per-activity AI mode toggles (teach / guide / custom) plus the custom
+ *     prompt editor and its short button-title field.
+ *   - EduAI topic sync: the SyncTopicsButton triggers /topics/sync; if the
+ *     server returns missingTopics > 0, opens TopicSyncMappingDialog so the
+ *     instructor can remap orphan local topics to fresh EduAI topic IDs.
+ *   - Bug-report context push: the editor includes the activity currently
+ *     being edited so reports can pinpoint it.
+ * Gotchas:
+ *   - Validation: at least one of teach/guide/custom must remain enabled.
+ *     handleActivityModeChange refuses to disable the last one and alerts.
+ *   - Saving indicators are debounced ~300ms (NOT 500ms) via
+ *     topicSavingTimeoutRef and modeSavingTimeoutRef to avoid flicker on
+ *     fast saves; both timers must be cleared on unmount.
+ *   - Optimistic UI for mode/topic changes uses React 19 useOptimistic. On
+ *     server failure the base state is left untouched, which lets the
+ *     optimistic patch drop on the next render — this also drives the
+ *     `setActivities((prev) => [...prev])` line in handleCustomPromptSave
+ *     (force a re-render to clear stale optimism after a save error).
+ *   - Custom prompt requires both a title (max 20 chars) and prompt body.
+ *   - Bug-report context MUST be cleared on unmount to avoid leaking
+ *     activity IDs into reports submitted from unrelated pages.
+ * Related: components/AddActivityPanel, components/EditActivityPanel,
+ *          components/TopicSyncMappingDialog, hooks/useCourseTopics
+ */
 import { useEffect, useOptimistic, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import AddActivityPanel from '../components/AddActivityPanel';
@@ -24,6 +60,11 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '~/comp
 import TopicSyncMappingDialog from '~/components/TopicSyncMappingDialog';
 import { useBugReport } from '~/components/bug-report/useBugReport';
 
+/**
+ * Tooltip-wrapped sync trigger surfaced only for EduAI-sourced courses. The
+ * tooltip exists so instructors understand topics are externally owned and
+ * the button is a re-pull rather than an arbitrary mutation.
+ */
 function SyncTopicsButton({
   courseId,
   syncing,
@@ -56,6 +97,12 @@ function SyncTopicsButton({
   );
 }
 
+/**
+ * Loads the lesson and its activities (parallel), then walks up to the
+ * module and course one step at a time because each ID lives on the
+ * previous resource. The breadcrumb and EduAI sync path both depend on
+ * having the parent course available.
+ */
 export async function clientLoader({ params }: Route.ClientLoaderArgs) {
   await requireClientUser('PROFESSOR');
   const lessonId = Number(params.lessonId);

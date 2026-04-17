@@ -1,3 +1,20 @@
+/**
+ * @file Per-course topic list state for the instructor UI.
+ *
+ * Responsibility: Loads, sorts, and mutates the topic collection for a
+ *   given course offering, plus a Provider/consumer pair so descendants
+ *   can share one instance instead of re-fetching.
+ * Callers: Instructor course/lesson/activity editors.
+ * Gotchas:
+ *   - `requestIdRef` is a stale-response guard: each `loadTopics` invocation
+ *     bumps the ref, and only the response whose captured id still matches
+ *     the latest ref is allowed to write state. This prevents a slower
+ *     earlier fetch from overwriting a faster later one when the
+ *     `courseOfferingId` changes rapidly. Removing this counter is an easy
+ *     way to reintroduce flicker/race bugs.
+ * Related: `app/lib/api.ts` (`topicsForCourse`, `createTopic`).
+ */
+
 import type { ReactNode } from 'react';
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import api from '../lib/api';
@@ -27,6 +44,8 @@ export function useCourseTopics(courseOfferingId: number | null): CourseTopicsSt
       return;
     }
 
+    // Capture this call's id; only commit results if no later call has
+    // started in the meantime. Every state write below is gated on this.
     const requestId = ++requestIdRef.current;
     setLoading(true);
     setError(null);

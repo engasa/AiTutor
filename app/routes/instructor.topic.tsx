@@ -1,3 +1,24 @@
+/**
+ * @file Instructor module view — the lesson list inside a single module.
+ *
+ * Route: /instructor/module/:moduleId
+ * Auth: PROFESSOR
+ * Loads: module detail, its lessons (parallel), then its course (sequential
+ *        because the courseId comes from the module row).
+ * Owns: lesson CRUD entry points, cross-course lesson import (course →
+ *       module → lesson selection), and per-lesson publish toggle.
+ * Gotchas:
+ *   - File name is misleading: this lives at `instructor.topic.tsx` but the
+ *     route path is `/instructor/module/:moduleId` (legacy naming from when
+ *     "module" was called "topic"). See app/routes.ts for the actual mapping.
+ *   - Publish cascade goes one level deeper than instructor.course.tsx: a
+ *     lesson can publish only if BOTH the parent course and parent module
+ *     are published. The tooltip names whichever ancestor is blocking.
+ *   - Two request-id refs (sourceModulesRequestIdRef and
+ *     sourceLessonsRequestIdRef) guard each leg of the import drill-down
+ *     against out-of-order responses.
+ * Related: routes/instructor.course.tsx (parent), routes/instructor.list.tsx (child)
+ */
 import type { FormEvent } from 'react';
 import { useOptimistic, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
@@ -16,6 +37,11 @@ import type { Course, Lesson, Module, ModuleDetail } from '../lib/types';
 import type { Route } from './+types/instructor.topic';
 import { requireClientUser } from '~/lib/client-auth';
 
+/**
+ * Loads the module + its lessons in parallel; then fetches the parent course
+ * (sequential because its id lives on the module). The course header is
+ * needed for breadcrumbs and to compute the publish-cascade gate.
+ */
 export async function clientLoader({ params }: Route.ClientLoaderArgs) {
   await requireClientUser('PROFESSOR');
   const moduleId = Number(params.moduleId);
@@ -33,6 +59,11 @@ export async function clientLoader({ params }: Route.ClientLoaderArgs) {
   return { course, module, lessons };
 }
 
+/**
+ * Lesson list for one module. Hosts lesson creation, cross-course lesson
+ * import (course → module → lesson selection), and the publish toggle gated
+ * on both the course and module being published.
+ */
 export default function InstructorModuleLessons({ loaderData }: Route.ComponentProps) {
   const navigate = useNavigate();
   const { moduleId } = useParams();
@@ -61,7 +92,9 @@ export default function InstructorModuleLessons({ loaderData }: Route.ComponentP
     (state, patch: (items: Lesson[]) => Lesson[]) => patch(state),
   );
 
-  // Adjust state during render when loader data changes
+  // React 19 derived-state-during-render pattern: when the loader returns a
+  // new lessons array, sync the local mutable copy without triggering an
+  // effect (which would render once with stale data first).
   const [prevInitialLessons, setPrevInitialLessons] = useState(initialLessons);
   if (initialLessons !== prevInitialLessons) {
     setPrevInitialLessons(initialLessons);
@@ -93,6 +126,9 @@ export default function InstructorModuleLessons({ loaderData }: Route.ComponentP
       .finally(() => setLoadingSourceCourses(false));
   };
 
+  // Course selection invalidates both downstream legs (modules and lessons).
+  // Bump both request-id refs so any in-flight responses for the previous
+  // course or its modules are discarded when they resolve.
   const handleSourceCourseSelection = async (nextCourseId: number | null) => {
     const courseRequestId = ++sourceModulesRequestIdRef.current;
     ++sourceLessonsRequestIdRef.current;

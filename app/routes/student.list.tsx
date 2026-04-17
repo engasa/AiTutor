@@ -1,3 +1,26 @@
+/**
+ * @file Student lesson player — drives the per-activity flow students see.
+ *
+ * Route: /student/lesson/:lessonId
+ * Auth: STUDENT (enforced by clientLoader via requireClientUser)
+ * Loads: lesson + activities for the lesson, then walks up to module + course
+ *        for breadcrumbs (sequential because module/course depend on lesson).
+ * Owns: activity progression (idx), MCQ/SHORT_TEXT submission, per-activity
+ *       result state, knowledge-level pre-chat modal, optional
+ *       post-submission feedback prompt, and orchestration of StudentAiChat
+ *       through a forward-ref handle (sendGuidePrompt / pushGuideMessage).
+ * Gotchas:
+ *   - Bug-report context is pushed via setBugReportContext on every relevant
+ *     state change so submitted reports include {course, module, lesson,
+ *     activity}. The teardown effect MUST clear it on unmount, otherwise the
+ *     next page would inherit stale hierarchy.
+ *   - Knowledge-level modal blocks "Guide me" until the student picks a level
+ *     (currentKnowledgeLevel gates the button).
+ *   - The chat is keyed by activity.id so it remounts per activity, ensuring
+ *     no cross-activity message leakage.
+ * Related: components/StudentAiChat, components/StudentActivityFeedbackCard,
+ *          components/bug-report/useBugReport
+ */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import Nav from '../components/Nav';
@@ -37,6 +60,8 @@ type FeedbackApi = typeof api & {
   ) => Promise<{ ok?: boolean }>;
 };
 
+/** Fresh per-activity feedback record. Use this rather than a shared module
+ * constant so each activity entry is a distinct mutable object. */
 function createFeedbackState(): StudentFeedbackState {
   return {
     rating: null,
@@ -50,6 +75,11 @@ function createFeedbackState(): StudentFeedbackState {
   };
 }
 
+/**
+ * Resolves the lesson, its activities, and the parent module/course needed
+ * for breadcrumbs. Lesson + activities run in parallel; module/course are
+ * sequential because their IDs come out of the lesson row.
+ */
 export async function clientLoader({ params }: Route.ClientLoaderArgs) {
   await requireClientUser('STUDENT');
   const lessonId = Number(params.lessonId);
@@ -74,6 +104,12 @@ export async function clientLoader({ params }: Route.ClientLoaderArgs) {
   return { course, module, lesson, activities };
 }
 
+/**
+ * Lesson-player route component. Walks the student through activities one at
+ * a time, owns answer submission, integrates the AI chat sidebar, and pushes
+ * hierarchical context to the bug-report provider so submitted reports can
+ * pinpoint the activity that triggered them.
+ */
 export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps) {
   const { user } = useLocalUser();
   const { setContext: setBugReportContext, clearContext: clearBugReportContext } = useBugReport();
@@ -97,7 +133,10 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
   >({});
   const chatRef = useRef<StudentAiChatHandle>(null);
 
-  // Adjust state during render when loader data changes
+  // React 19 derived-state-during-render pattern: when the loader returns a
+  // new activities array (e.g. on navigation back to this route), reset the
+  // local mutable copy used for completion-status overlays. This avoids the
+  // flash of stale data that a useEffect-based reset would cause.
   const [prevActivities, setPrevActivities] = useState(activities);
   if (activities !== prevActivities) {
     setPrevActivities(activities);
@@ -123,6 +162,9 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
   const studentAnswer = activity ? (activity.type === 'MCQ' ? mcq : text) : null;
   const isUserReady = Boolean(user);
 
+  // Reset per-activity scratch state (answer inputs, last result, modal) the
+  // moment the active activity changes. Done during render rather than in an
+  // effect so the new activity never renders with the previous answer.
   const currentActivityId = activity?.id ?? null;
   if (currentActivityId !== prevActivityId) {
     setPrevActivityId(currentActivityId);
@@ -311,6 +353,8 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
     setShowKnowledgeModal(false);
   };
 
+  // Push the current hierarchy into the bug-report provider so any submission
+  // from the floating widget includes {course, module, lesson, activity}.
   useEffect(() => {
     setBugReportContext({
       courseOfferingId: course?.id ?? module?.courseOfferingId ?? null,
@@ -328,6 +372,9 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
     setBugReportContext,
   ]);
 
+  // Critical cleanup: bug-report context lives in a higher-level provider, so
+  // leaving it set after unmount would leak this lesson's IDs into reports
+  // submitted from unrelated pages.
   useEffect(() => {
     return () => {
       clearBugReportContext();

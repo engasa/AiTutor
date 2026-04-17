@@ -1,3 +1,26 @@
+/**
+ * @file Typed wire layer between the SPA and the Express API.
+ *
+ * Responsibility: Owns every HTTP call shape the frontend makes; centralizes
+ *   cookie-session credentials, error normalization, and the cross-cutting
+ *   redirect-on-auth-failure convention.
+ * Callers: All route loaders, hooks, and components that need server data
+ *   (e.g. `useLocalUser`, `useCourseTopics`, instructor/student route modules).
+ * Gotchas:
+ *   - Every request sets `credentials: 'include'` so Better Auth session
+ *     cookies are attached. Do not switch to a bearer/JWT flow without
+ *     updating the entire stack.
+ *   - The shared `http()` helper turns ANY 401/403 (when not already at `/`)
+ *     into a hard `window.location.href = '/'` redirect. This is the
+ *     codebase-wide auth-failure convention; route guards rely on it.
+ *   - `logout` deliberately bypasses `http()` to avoid the redirect loop
+ *     that would otherwise fire on the post-sign-out 401.
+ *   - `updateActivity` accepts three legal `options` shapes for caller
+ *     convenience and normalizes them to a flat `string[]` on the wire.
+ * Related: `server/src/utils/mappers.js` — request/response shapes here MUST
+ *   match the server mappers; silent breakage risk if they drift.
+ */
+
 import type {
   AdminBugReportRow,
   AdminEnrollmentData,
@@ -17,6 +40,12 @@ import type {
 
 export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
+/**
+ * Single fetch wrapper for the entire API surface. Every caller goes through
+ * here so the cookie-credential semantics and the 401/403 redirect-to-root
+ * behavior remain consistent. Callers that must NOT trigger the redirect
+ * (e.g. sign-out) should bypass this helper intentionally.
+ */
 async function http(path: string, init?: RequestInit) {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -33,7 +62,9 @@ async function http(path: string, init?: RequestInit) {
 
   if (!res.ok) {
     if (res.status === 401 || res.status === 403) {
-      // Only redirect if we are NOT already at the root
+      // Cross-cutting convention: bounce expired/forbidden sessions to the
+      // landing page so the sign-in UI re-mounts. Skip when already at `/`
+      // to avoid an infinite reload loop on the landing page itself.
       if (window.location.pathname !== '/') {
         window.location.href = '/';
       }
@@ -183,6 +214,11 @@ export const api = {
   ) => {
     const body: Record<string, unknown> = { ...payload };
     if (Object.prototype.hasOwnProperty.call(payload, 'options')) {
+      // Three legal input shapes from form/editor callers — normalize to the
+      // canonical flat `string[]` (or null) the server expects:
+      //   - null            -> clear MCQ options (e.g. converting to SHORT_TEXT)
+      //   - string[]        -> already canonical
+      //   - { choices: [] } -> unwrap (matches server response shape)
       const value = payload.options;
       if (value === null) {
         body.options = null;
@@ -339,8 +375,13 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
+  /**
+   * Bypasses `http()` on purpose: sign-out responses can be 401-ish in some
+   * race conditions, and routing the call through `http()` would trigger the
+   * redirect-to-`/` convention before the caller can clean up local state.
+   * We also do not care about the body — best-effort POST is sufficient.
+   */
   logout: async () => {
-    // Call Better Auth sign-out endpoint directly without redirect-on-401 behavior
     await fetch(`${API_BASE}/api/auth/sign-out`, {
       method: 'POST',
       credentials: 'include',
