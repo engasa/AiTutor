@@ -4,7 +4,7 @@
 const mockFetch = vi.fn();
 
 beforeEach(() => {
-  global.fetch = mockFetch;
+  global.fetch = mockFetch as unknown as typeof fetch;
   mockFetch.mockReset();
 
   // Reset window.location before each test

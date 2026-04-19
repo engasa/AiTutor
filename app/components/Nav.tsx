@@ -28,6 +28,8 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 import TourButton from './TourButton';
+import { BugReportDialog } from './bug-report/BugReportDialog';
+import { useBugReport } from './bug-report/useBugReport';
 
 /**
  * Top-of-page navigation header. Self-contained: pulls auth from
@@ -37,6 +39,8 @@ export default function Nav() {
   const [eduAiStatus, setEduAiStatus] = useState<'loading' | 'connected' | 'disconnected'>(
     'loading',
   );
+  const [bugReportOpen, setBugReportOpen] = useState(false);
+  const [capturingScreenshot, setCapturingScreenshot] = useState(false);
   const navigate = useNavigate();
   const loc = useLocation();
   const { user, logout } = useLocalUser();

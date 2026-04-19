@@ -13,6 +13,7 @@ import topicRoutes from './routes/topics.js';
 import aiModelRoutes from './routes/ai-models.js';
 import adminRoutes from './routes/admin.js';
 import suggestedPromptRoutes from './routes/suggested-prompts.js';
+import bugReportRoutes from './routes/bug-reports.js';
 import { prisma } from './config/database.js';
 
 function isAllowedAdminPath(path) {
@@ -104,6 +105,7 @@ export async function createApp(options = {}) {
   app.use('/api', aiModelRoutes);
   app.use('/api', adminRoutes);
   app.use('/api', suggestedPromptRoutes);
+  app.use('/api', bugReportRoutes);
 
   return app;
 }
