@@ -59,7 +59,6 @@ export async function truncateAll() {
   // Use Prisma deleteMany in FK-safe order (children before parents).
   // This goes through Prisma's standard query pipeline and properly
   // serializes with any other pending operations.
-  await prisma.bugReport.deleteMany();
   await prisma.aiInteractionTrace.deleteMany();
   await prisma.aiChatSession.deleteMany();
   await prisma.activityFeedback.deleteMany();

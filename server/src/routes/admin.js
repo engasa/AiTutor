@@ -294,16 +294,6 @@ router.put('/admin/settings/ai-model-policy', requireRole('ADMIN'), async (req, 
   }
 });
 
-/**
- * POST /admin/courses/:courseId/sync-enrollments — pull enrollments from EduAI.
- *
- * Auth: ADMIN; course must be EduAI-imported (has `externalId` and source EDUAI).
- * Side effects: see `syncCourseEnrollments` (adds/removes CourseEnrollment rows
- *   to match EduAI roster).
- *
- * Why: rejects non-imported courses because there's no upstream truth to sync
- * from — silently returning ok would hide a configuration mistake.
- */
 router.post('/admin/courses/:courseId/sync-enrollments', requireRole('ADMIN'), async (req, res) => {
   const courseId = Number(req.params.courseId);
   if (!Number.isFinite(courseId)) {

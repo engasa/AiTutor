@@ -86,16 +86,26 @@ export default function Home() {
 
   if (isInitializing || user) {
     return (
-      <main className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-background">
-        <div className="absolute inset-0 dots-pattern opacity-50" />
-        <div className="relative z-10 flex flex-col items-center gap-4">
-          <div className="relative h-16 w-16">
-            <div className="absolute inset-0 rounded-full border-4 border-primary/20" />
-            <div className="absolute inset-0 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-            <BrainCircuit className="absolute inset-0 m-auto h-6 w-6 animate-pulse text-primary" />
-          </div>
-          <div className="animate-pulse font-display text-lg font-medium text-muted-foreground">
-            Initializing your workspace...
+      <main className="relative min-h-dvh overflow-hidden bg-background">
+        <div className="absolute inset-0 dots-pattern" />
+        <div className="relative container mx-auto flex min-h-dvh items-center justify-center px-6 py-12">
+          <div className="card-editorial flex w-full max-w-md items-center justify-center gap-3 p-8 text-sm text-muted-foreground">
+            <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              />
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              />
+            </svg>
+            Redirecting to your workspace...
           </div>
         </div>
       </main>
@@ -116,106 +126,32 @@ export default function Home() {
           <span className="font-display text-xl font-bold tracking-tight">AI Tutor</span>
         </div>
 
-        <div className="relative z-10 flex flex-1 items-center justify-center">
-          <div className="relative aspect-square w-full max-w-md">
-            <div className="absolute inset-0 z-20 m-auto flex h-32 w-32 animate-scale-in items-center justify-center rounded-3xl border border-border/50 bg-card shadow-2xl">
-              <BrainCircuit className="h-16 w-16 text-primary" />
-            </div>
-
-            <div className="absolute left-[20%] top-[10%] z-20 animate-float">
-              <FloatingNode icon={<Library className="h-5 w-5" />} label="Curriculum" />
-            </div>
-            <div className="absolute right-[10%] top-[20%] z-20 animate-float delay-300">
-              <FloatingNode icon={<Sparkles className="h-5 w-5" />} label="AI Insights" />
-            </div>
-            <div className="absolute bottom-[20%] left-[10%] z-20 animate-float delay-500">
-              <FloatingNode icon={<LineChart className="h-5 w-5" />} label="Progress" />
-            </div>
-            <div className="absolute bottom-[10%] right-[20%] z-20 animate-float delay-700">
-              <FloatingNode icon={<LayoutDashboard className="h-5 w-5" />} label="Dashboard" />
-            </div>
-
-            <svg
-              className="pointer-events-none absolute inset-0 z-10 h-full w-full text-primary opacity-20"
-              viewBox="0 0 400 400"
-            >
-              <path
-                d="M200 200 L120 100"
-                stroke="currentColor"
-                strokeDasharray="4 4"
-                strokeWidth="2"
-              />
-              <path
-                d="M200 200 L320 120"
-                stroke="currentColor"
-                strokeDasharray="4 4"
-                strokeWidth="2"
-              />
-              <path
-                d="M200 200 L80 280"
-                stroke="currentColor"
-                strokeDasharray="4 4"
-                strokeWidth="2"
-              />
-              <path
-                d="M200 200 L280 320"
-                stroke="currentColor"
-                strokeDasharray="4 4"
-                strokeWidth="2"
-              />
-            </svg>
-          </div>
-        </div>
-      </div>
-
-      <div className="relative flex flex-col items-center justify-center bg-background p-6 sm:p-12 lg:p-24">
-        <div className="absolute inset-0 dots-pattern opacity-50 lg:hidden" />
-
-        <div className="z-10 w-full max-w-lg space-y-10">
-          <div className="mb-8 flex items-center gap-3 animate-fade-down lg:hidden">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">
-              <GraduationCap className="h-6 w-6" />
-            </div>
-            <span className="font-display text-xl font-bold tracking-tight">AI Tutor</span>
-          </div>
-
-          <div className="space-y-4 text-center animate-fade-up lg:text-left">
-            <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-semibold text-primary">
-              <Sparkles className="h-3 w-3" />
-              <span>Next Gen Learning</span>
-            </div>
-            <h1 className="font-display text-4xl font-bold leading-[1.1] tracking-tight text-foreground sm:text-5xl lg:text-6xl">
-              Master any subject <br />
-              <span className="text-gradient">with AI guidance</span>
-            </h1>
-            <p className="mx-auto max-w-md text-lg text-muted-foreground lg:mx-0">
-              Experience a personalized learning journey that adapts to your pace. Get real-time
-              feedback, deep insights, and structured curriculum.
-            </p>
-          </div>
-
-          <div className="animate-scale-in rounded-2xl border border-border/50 p-8 shadow-xl panel-glass delay-200">
-            <div className="mb-6">
-              <h2 className="flex items-center gap-2 font-display text-xl font-semibold text-foreground">
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-secondary text-foreground">
-                  <BookOpen className="h-4 w-4" />
-                </span>
-                Welcome back
+        <div className="animate-fade-up delay-150 w-full max-w-md">
+          <div className="card-editorial p-8 sm:p-10">
+            <div className="mb-8 text-center">
+              <h2 className="mb-2 font-display text-2xl font-bold text-foreground">
+                Sign in with EduAI
               </h2>
-              <p className="ml-10 mt-1 text-sm text-muted-foreground">
-                Sign in to continue your progress
+              <p className="text-sm text-muted-foreground">
+                AI Tutor now uses your EduAI identity. Use the same account you already use across
+                the EduAI platform.
               </p>
             </div>
 
-            {error && (
-              <div className="mb-6 flex animate-fade-in items-start gap-3 rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive">
-                <div className="mt-0.5">
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="space-y-5">
+              {error && (
+                <div className="animate-fade-in flex items-center gap-2 rounded-xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                  <svg
+                    className="h-4 w-4 flex-shrink-0"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                      d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
                     />
                   </svg>
                 </div>
@@ -223,27 +159,49 @@ export default function Home() {
               </div>
             )}
 
-            <div className="space-y-4">
               <button
                 type="button"
                 onClick={onSignIn}
                 disabled={loading}
-                className="group relative w-full overflow-hidden btn-primary"
+                className="btn-primary w-full text-base"
               >
-                <div className="relative z-10 flex items-center justify-center gap-2">
-                  {loading ? (
-                    <>
-                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                      <span>Connecting...</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>Sign in with EduAI</span>
-                      <Zap className="h-4 w-4 transition-transform group-hover:scale-110" />
-                    </>
-                  )}
-                </div>
-                <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent group-hover:animate-shimmer" />
+                {loading ? (
+                  <>
+                    <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      />
+                    </svg>
+                    Redirecting to EduAI...
+                  </>
+                ) : (
+                  <>
+                    Sign in with EduAI
+                    <svg
+                      className="h-4 w-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"
+                      />
+                    </svg>
+                  </>
+                )}
               </button>
 
               <p className="text-center text-xs text-muted-foreground">

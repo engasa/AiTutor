@@ -62,19 +62,11 @@ router.get('/ai-models', async (req, res) => {
 });
 
 /**
- * POST /ai-models/validate-key — confirm a user-supplied API key works.
+ * Validate an API key by making a minimal request to the provider.
+ * Uses lightweight endpoints (list models) that don't consume tokens.
  *
- * Auth: any authenticated user.
- * Body: `{ provider: 'google' | 'openai', apiKey: string }`.
- * Returns: HTTP 200 with `{ valid, error? }` for any provider response — even
- *   on bad keys. 4xx/5xx are reserved for actual request-shape problems.
- * Side effects: outbound call to the provider's free list-models endpoint
- *   (no token consumption).
- *
- * Why: the always-200 convention lets the client surface provider-specific
- * error text (e.g. "API key not valid") via a normal `await resp.json()`
- * without try/catching on HTTP status. Do not change this contract without
- * updating every consumer.
+ * Returns 200 with { valid: true/false, error? } so the client can read
+ * provider-specific error messages. Only returns 4xx/5xx for actual request errors.
  */
 router.post('/ai-models/validate-key', async (req, res) => {
   const { provider, apiKey } = req.body;

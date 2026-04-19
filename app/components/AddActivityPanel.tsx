@@ -32,11 +32,6 @@ interface AddActivityPanelProps {
   onActivityCreated: () => void;
 }
 
-/**
- * Authoring panel mounted alongside the existing-activity list. Self-resets
- * its inputs after a successful create so multiple activities can be added
- * back-to-back without a remount.
- */
 export default function AddActivityPanel({ lessonId, onActivityCreated }: AddActivityPanelProps) {
   const { topics, loading: loadingTopics, error: topicsError } = useCourseTopicsContext();
   const [type, setType] = useState<'MCQ' | 'SHORT_TEXT'>('MCQ');

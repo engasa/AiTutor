@@ -1,29 +1,3 @@
-/**
- * @file Sync course rosters from EduAI into local AiTutor enrollments.
- *
- * Responsibility: For an EduAI-imported `CourseOffering`, fetch the upstream
- *   roster, materialize User+Account stubs for students who haven't logged
- *   in yet, and upsert local `CourseEnrollment` rows.
- * Callers: Course import/sync routes (`routes/courses.js`).
- * Gotchas:
- *   - Pre-creates an `Account` row with `providerId='eduai'` keyed by the
- *     EduAI student id BEFORE the student ever signs in. When they later
- *     OAuth-link via Better Auth, `accountLinking.trustedProviders: ['eduai']`
- *     in `auth.js` causes Better Auth to pick up this pre-existing account
- *     row instead of creating a duplicate user — that's why the trusted
- *     providers list exists.
- *   - Existing accounts and users are batch-fetched up front
- *     (`findMany({ in: [...] })`) to avoid an N+1 lookup on large rosters.
- *   - `update: {}` on the enrollment upsert is intentional: re-syncing the
- *     same roster should be a no-op, not bump `enrolledAt` to "now".
- *   - Only `isActive` enrollments from EduAI are imported; deactivated rows
- *     are ignored (we don't currently delete local enrollments to mirror).
- *   - Per-student errors are accumulated in the `errors` array and returned;
- *     a missing student email is the most common cause.
- * Related: `eduaiClient.js`, `eduaiAuth.js`, `../auth.js` (trustedProviders),
- *   `routes/courses.js`.
- */
-
 import { prisma } from '../config/database.js';
 import { listEduAiCourseEnrollments } from './eduaiClient.js';
 import { EDUAI_PROVIDER_ID } from './eduaiAuth.js';
@@ -42,7 +16,8 @@ export async function syncCourseEnrollments(courseOfferingId, options = {}) {
   }
 
   const course =
-    options.course ?? (await prisma.courseOffering.findUnique({ where: { id: courseOfferingId } }));
+    options.course ??
+    (await prisma.courseOffering.findUnique({ where: { id: courseOfferingId } }));
   if (!course || !course.externalId || course.externalSource !== 'EDUAI') {
     return { synced: 0, created: 0, errors: [] };
   }
@@ -85,7 +60,6 @@ export async function syncCourseEnrollments(courseOfferingId, options = {}) {
       let userId;
 
       if (account) {
-        // Already pre-linked: reuse existing user.
         userId = account.userId;
       } else {
         const email = normalizeEmail(enrollment.studentEmail);
@@ -99,8 +73,6 @@ export async function syncCourseEnrollments(courseOfferingId, options = {}) {
           continue;
         }
 
-        // Email match takes precedence so we don't fork a user who
-        // signed up locally before being added to the EduAI roster.
         const existingUser = userByEmail.get(email);
         if (existingUser) {
           userId = existingUser.id;

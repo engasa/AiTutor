@@ -215,25 +215,6 @@ async function loadActivityForChat(activityId) {
   });
 }
 
-/**
- * Shared pipeline for the three AI tutor modes (teach/guide/custom).
- *
- * Stages:
- *   1. Authorize: caller must be enrolled student or course instructor.
- *   2. Resume any prior session for (user,activity,mode) so the EduAI chat
- *      thread carries forward across requests.
- *   3. Resolve supervisor + tutor model selections from the admin-controlled
- *      AI policy (clients propose `modelId`; policy may override).
- *   4. Mint or reuse `chatId`/`messageId` for EduAI continuity.
- *   5. Delegate to mode-specific `generateResponse` (teach/guide/custom),
- *      which performs the actual EduAI call.
- *   6. Persist updated chat session + interaction trace; track AI-help metric
- *      for students only (instructors testing don't pollute analytics).
- *
- * Why a single helper: the three modes share orchestration but differ only in
- * which prompt slug + payload they send. Centralizing avoids drift in
- * model-policy/supervisor handling.
- */
 async function handleAiInteraction({ req, res, activity, mode, payload, generateResponse }) {
   const authUser = req.user;
   const activityId = activity.id;
@@ -441,8 +422,7 @@ router.post('/lessons/:lessonId/activities', requireRole('PROFESSOR'), async (re
     return res.status(400).json({ error: 'Invalid lesson id' });
   }
 
-  // Older clients sent `prompt`; remap to the current `question` field before
-  // schema validation so they continue to work.
+  // Accept legacy `prompt` field by mapping it to question before validation
   const raw = { ...req.body };
   if (!raw.question && raw.prompt) raw.question = raw.prompt;
   let payload;

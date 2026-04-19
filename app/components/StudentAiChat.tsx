@@ -1,39 +1,3 @@
-/**
- * @file Student-facing AI Study Buddy chat surface (Teach / Guide / Custom).
- *
- * Responsibility: Owns the entire student-side chat experience for a single
- *   activity — model selection, per-tab conversation state, suggested prompts,
- *   knowledge-level + API-key gating, and the setup card shown before chat
- *   becomes available. Exposes an imperative handle so parent routes can
- *   programmatically push messages or trigger a guide turn.
- * Used by: `app/routes/student.list.tsx` (primary), via ref for guide-prompt
- *   triggering when the student submits an answer.
- * Gotchas:
- *   - Three independent chat tracks (`teach` / `guide` / `custom`) are kept in
- *     a single `chatState` object so the user can flip tabs without losing
- *     history. Each track has its own `chatId` returned by the server, which
- *     is what links subsequent messages into one `AiChatSession`.
- *   - Available models are filtered by the AI model policy: any model that
- *     declares student-selectability metadata switches the list into "policy
- *     active" mode and only allowed models survive. If NO model carries
- *     policy metadata, the unfiltered list is shown (back-compat).
- *   - **API keys are managed only here.** Per-provider keys live in
- *     `localStorage` under `ai-provider-keys` (JSON). They're forwarded on
- *     every send call; the server never persists them. Validation runs
- *     against the provider on save.
- *   - Chat is hard-gated behind two prerequisites: a knowledge level (set by
- *     parent) AND a provider API key. The setup card is rendered until both
- *     are satisfied — the input box is disabled even if visible.
- *   - Guide and Teach tabs surface server-fetched suggested prompts; Custom
- *     tab does not (its prompt is already activity-defined).
- *   - Topic selector appears for Teach mode (always) and for Custom mode only
- *     when the activity's customPrompt contains the `[INSERT TOPIC HERE]`
- *     placeholder.
- * Related: `app/lib/api.ts` (sendTeachMessage/sendGuideMessage/sendCustomMessage,
- *   validateApiKey, listAiModels, listSuggestedPrompts), `server/src/routes/activities.js`,
- *   `server/src/routes/ai-models.js`, `server/src/routes/suggested-prompts.js`
- */
-
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useState } from 'react';
 import type { ChangeEvent, FormEvent, KeyboardEvent } from 'react';
 import {
@@ -773,10 +737,7 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
   );
 
   return (
-    <aside
-      className="flex h-[700px] flex-col card-editorial overflow-hidden"
-      data-tour="student-ai-chat"
-    >
+    <aside className="flex h-[700px] flex-col card-editorial overflow-hidden" data-tour="student-ai-chat">
       {/* Header */}
       <div className="flex items-center gap-3 p-5 border-b border-border">
         <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center text-primary">

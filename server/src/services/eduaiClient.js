@@ -1,32 +1,4 @@
-/**
- * @file Thin HTTP client wrapping the upstream EduAI service.
- *
- * Responsibility: Centralize the EduAI base URL (env-driven), provide typed
- *   wrappers for the endpoints AiTutor consumes (`/courses`,
- *   `/courses/:id/topics`, `/courses/:id/enrollments`, `/ai-models`,
- *   `/chat`), and validate every response with Zod schemas so downstream
- *   code can rely on shapes.
- * Callers: `aiGuidance.js` (chat URL), `aiModelPolicy.js` (model catalog),
- *   `enrollmentSync.js` (course enrollments), course import/sync routes.
- * Gotchas:
- *   - Base URL comes from `EDUAI_BASE_URL` env (default
- *     `http://localhost:5174/api`); a trailing slash is stripped.
- *   - Auth model: most endpoints require the user's EduAI OAuth access
- *     token (`requireAuth: true`); `/ai-models` is unauthenticated.
- *   - Zod validation failures map to `error.status = 502` so the API can
- *     return "upstream contract broken" rather than a 500 — caller checks
- *     `error.status`.
- *   - `getEduAiChatUrl()` is consumed by `aiGuidance.js`, which is the only
- *     caller that POSTs there directly (this client doesn't wrap /chat).
- * Related: `../schemas/eduai.js`, `aiGuidance.js`, `aiModelPolicy.js`,
- *   `enrollmentSync.js`.
- */
-
-import {
-  EduAiCourseListSchema,
-  EduAiTopicListSchema,
-  EduAiEnrollmentListSchema,
-} from '../schemas/eduai.js';
+import { EduAiCourseListSchema, EduAiTopicListSchema, EduAiEnrollmentListSchema } from '../schemas/eduai.js';
 const DEFAULT_BASE_URL = 'http://localhost:5174/api';
 
 function normalizeBaseUrl(rawUrl) {
@@ -146,11 +118,6 @@ export async function listEduAiCourseEnrollments(externalCourseId, accessToken) 
   }
 }
 
-/**
- * Fetch the EduAI model catalog. Unlike the other endpoints this one is
- * unauthenticated (no `requireAuth`) — it powers admin model-selection UIs
- * before any user has linked an OAuth account.
- */
 export async function listEduAiModels() {
   const data = await requestEduAi('/ai-models');
   if (!Array.isArray(data)) {

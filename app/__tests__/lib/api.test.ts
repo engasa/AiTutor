@@ -4,7 +4,7 @@
 const mockFetch = vi.fn();
 
 beforeEach(() => {
-  global.fetch = mockFetch as unknown as typeof fetch;
+  global.fetch = mockFetch;
   mockFetch.mockReset();
 
   // Reset window.location before each test
@@ -110,9 +110,6 @@ describe('api methods', () => {
       'submitAnswer',
       'listPrompts',
       'createPrompt',
-      'listAdminBugReports',
-      'updateAdminBugReportStatus',
-      'submitBugReport',
       'logout',
     ];
 
@@ -137,70 +134,5 @@ describe('api methods', () => {
     expect(options.method).toBe('POST');
     expect(options.credentials).toBe('include');
     expect(result).toEqual({ ok: true });
-  });
-
-  it('listAdminBugReports() calls the admin bug reports endpoint', async () => {
-    const reports = [{ id: 'bug-1', status: 'unhandled' }];
-    mockFetch.mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve(reports),
-    });
-
-    const { api } = await import('~/lib/api');
-    const result = await api.listAdminBugReports();
-
-    const [url, options] = mockFetch.mock.calls[0];
-    expect(url).toBe('http://localhost:4000/api/admin/bug-reports');
-    expect(options?.method).toBeUndefined();
-    expect(result).toEqual(reports);
-  });
-
-  it('updateAdminBugReportStatus() sends PATCH payload to admin endpoint', async () => {
-    mockFetch.mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve({ id: 'bug-1', status: 'resolved' }),
-    });
-
-    const { api } = await import('~/lib/api');
-    await api.updateAdminBugReportStatus('bug-1', { status: 'resolved' });
-
-    const [url, options] = mockFetch.mock.calls[0];
-    expect(url).toBe('http://localhost:4000/api/admin/bug-reports/bug-1');
-    expect(options.method).toBe('PATCH');
-    expect(options.body).toBe(JSON.stringify({ status: 'resolved' }));
-  });
-
-  it('submitBugReport() posts payload to /api/bug-reports', async () => {
-    mockFetch.mockResolvedValue({
-      ok: true,
-      status: 201,
-      json: () => Promise.resolve({ id: 'bug-1', status: 'unhandled' }),
-    });
-
-    const payload = {
-      description: 'Bug details with reproducible steps',
-      isAnonymous: true,
-      consoleLogs: '[]',
-      networkLogs: '[]',
-      screenshot: null,
-      pageUrl: 'http://localhost:5173/student',
-      userAgent: 'test-agent',
-      context: {
-        courseOfferingId: 1,
-        moduleId: 2,
-        lessonId: 3,
-        activityId: 4,
-      },
-    };
-
-    const { api } = await import('~/lib/api');
-    await api.submitBugReport(payload);
-
-    const [url, options] = mockFetch.mock.calls[0];
-    expect(url).toBe('http://localhost:4000/api/bug-reports');
-    expect(options.method).toBe('POST');
-    expect(options.body).toBe(JSON.stringify(payload));
   });
 });

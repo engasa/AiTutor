@@ -62,9 +62,7 @@ async function http(path: string, init?: RequestInit) {
 
   if (!res.ok) {
     if (res.status === 401 || res.status === 403) {
-      // Cross-cutting convention: bounce expired/forbidden sessions to the
-      // landing page so the sign-in UI re-mounts. Skip when already at `/`
-      // to avoid an infinite reload loop on the landing page itself.
+      // Only redirect if we are NOT already at the root
       if (window.location.pathname !== '/') {
         window.location.href = '/';
       }
@@ -214,11 +212,6 @@ export const api = {
   ) => {
     const body: Record<string, unknown> = { ...payload };
     if (Object.prototype.hasOwnProperty.call(payload, 'options')) {
-      // Three legal input shapes from form/editor callers — normalize to the
-      // canonical flat `string[]` (or null) the server expects:
-      //   - null            -> clear MCQ options (e.g. converting to SHORT_TEXT)
-      //   - string[]        -> already canonical
-      //   - { choices: [] } -> unwrap (matches server response shape)
       const value = payload.options;
       if (value === null) {
         body.options = null;

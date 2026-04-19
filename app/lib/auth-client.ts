@@ -1,15 +1,3 @@
-/**
- * @file Better Auth client wired for cookie-session use against our API.
- *
- * Responsibility: Exposes the singleton `authClient` (Better Auth) and the
- *   EduAI OAuth bootstrap helper used by the landing page.
- * Callers: Landing/sign-in UI, anywhere a Better Auth client method is needed.
- * Gotchas: `signInWithEduAi` passes `disableRedirect: true` and does the
- *   redirect manually — see the helper's JSDoc for why.
- * Related: `app/lib/api.ts` (shares `API_BASE`), `server/src/auth.js` (server
- *   side of the same flow).
- */
-
 import { createAuthClient } from 'better-auth/client';
 import { genericOAuthClient } from 'better-auth/client/plugins';
 import { API_BASE } from './api';

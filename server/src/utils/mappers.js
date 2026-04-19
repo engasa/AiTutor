@@ -193,7 +193,6 @@ export function mapActivity(activity) {
     customPrompt: typeof activity.customPrompt === 'string' ? activity.customPrompt : null,
     customPromptTitle:
       typeof activity.customPromptTitle === 'string' ? activity.customPromptTitle : null,
-    // Injected upstream by the route handler when available; not a column.
     completionStatus: activity.completionStatus ?? undefined,
   };
 }

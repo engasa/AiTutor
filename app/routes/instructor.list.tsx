@@ -50,7 +50,7 @@ import {
   BreadcrumbSeparator,
 } from '../components/ui/breadcrumb';
 import api from '../lib/api';
-import type { Activity, Course, Lesson, ModuleDetail } from '../lib/types';
+import type { Activity, Course, Lesson, ModuleDetail, Topic } from '../lib/types';
 import { CourseTopicsProvider, useCourseTopics } from '../hooks/useCourseTopics';
 import type { Route } from './+types/instructor.list';
 import { requireClientUser } from '~/lib/client-auth';
@@ -288,29 +288,6 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
     };
   }, []);
 
-  useEffect(() => {
-    setBugReportContext({
-      courseOfferingId: course?.id ?? module?.courseOfferingId ?? null,
-      moduleId: module?.id ?? null,
-      lessonId: lesson?.id ?? null,
-      activityId: editingActivityId ?? null,
-    });
-  }, [
-    clearBugReportContext,
-    course?.id,
-    editingActivityId,
-    lesson?.id,
-    module?.courseOfferingId,
-    module?.id,
-    setBugReportContext,
-  ]);
-
-  useEffect(() => {
-    return () => {
-      clearBugReportContext();
-    };
-  }, [clearBugReportContext]);
-
   const handleDeleteActivity = async (activityId: number) => {
     if (typeof window === 'undefined') {
       return;
@@ -506,7 +483,9 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
         activity.id === activityId
           ? {
               ...activity,
-              secondaryTopics: nextSecondary.sort((a, b) => a.name.localeCompare(b.name)),
+              secondaryTopics: nextSecondary.toSorted((a: Topic, b: Topic) =>
+                a.name.localeCompare(b.name),
+              ),
             }
           : activity,
       ),

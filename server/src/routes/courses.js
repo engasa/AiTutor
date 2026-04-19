@@ -222,10 +222,7 @@ router.post('/courses/import-external', requireRole('PROFESSOR'), async (req, re
       console.error('[eduai] Failed to sync topics for imported course', topicResult.reason);
     }
     if (enrollmentResult.status === 'rejected') {
-      console.error(
-        '[eduai] Failed to sync enrollments for imported course',
-        enrollmentResult.reason,
-      );
+      console.error('[eduai] Failed to sync enrollments for imported course', enrollmentResult.reason);
     }
 
     res.status(201).json(mapCourseOffering(created));

@@ -37,12 +37,8 @@ import { randomUUID } from 'crypto';
 import { prisma } from '../config/database.js';
 import { getEduAiChatUrl } from './eduaiClient.js';
 
-// Surfaced when the supervisor itself errors out — distinct from a fallback
-// the supervisor produced on purpose.
 const SUPERVISOR_ERROR_MESSAGE =
   'AI study buddy encountered an issue reviewing the response. Please try again.';
-// Last-resort student-facing message when iteration loop never produced a
-// supervisor verdict (e.g. dual-loop disabled and tutor itself failed).
 const FALLBACK_MESSAGE =
   "I'm having trouble formulating a helpful response right now. Please try rephrasing your question, or ask your instructor for guidance.";
 
@@ -779,9 +775,7 @@ export async function generateCustomResponse({
   }
 }
 
-// Exposed for unit testing only — not part of the public API. These are
-// pure helpers (no I/O) that are awkward to exercise via the public surface
-// because they're called inside the supervisor/tutor request-building flow.
+// Exposed for unit testing only — not part of the public API.
 export const _testExports = {
   stripMarkdownFence,
   normalizeSupervisorVerdict,
