@@ -5,13 +5,17 @@ import {
   Outlet,
   Scripts,
   ScrollRestoration,
+  useLocation,
 } from 'react-router';
 
 import type { Route } from './+types/root';
 import './app.css';
+import './styles/redesign.css';
 import { AuthProvider } from '~/hooks/useLocalUser';
 import { TourProvider } from '~/components/TourProvider';
 import { BugReportProvider } from '~/components/bug-report/BugReportProvider';
+import { TweaksProvider } from '~/components/redesign/tweaks';
+import { TweaksPanel } from '~/components/redesign/TweaksPanel';
 
 // Theme script runs before React hydration to prevent flash
 // Sets dark class on <html> based on localStorage or system preference
@@ -54,6 +58,11 @@ export const links: Route.LinksFunction = () => [
     rel: 'stylesheet',
     href: 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap',
   },
+  // Redesign typography — Instrument Serif (display) + Inter (UI)
+  {
+    rel: 'stylesheet',
+    href: 'https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&display=swap',
+  },
 ];
 
 export function HydrateFallback() {
@@ -88,14 +97,26 @@ export function Layout({ children }: { children: React.ReactNode }) {
   );
 }
 
+function RouteTransition() {
+  const location = useLocation();
+  return (
+    <div key={location.pathname} className="rd-route-transition">
+      <Outlet />
+    </div>
+  );
+}
+
 export default function App() {
   return (
     <AuthProvider initialUser={null}>
-      <BugReportProvider>
-        <TourProvider>
-          <Outlet />
-        </TourProvider>
-      </BugReportProvider>
+      <TweaksProvider>
+        <BugReportProvider>
+          <TourProvider>
+            <RouteTransition />
+            <TweaksPanel />
+          </TourProvider>
+        </BugReportProvider>
+      </TweaksProvider>
     </AuthProvider>
   );
 }

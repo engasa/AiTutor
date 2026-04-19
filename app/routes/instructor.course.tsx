@@ -1,45 +1,23 @@
-/**
- * @file Instructor course view — the module list inside a single course.
- *
- * Route: /instructor/courses/:courseId
- * Auth: PROFESSOR
- * Loads: course detail and its module list, in parallel.
- * Owns: module CRUD entry points (create form), cross-course module import
- *       flow, and the per-module publish toggle.
- * Gotchas:
- *   - Publish cascade: a module can only be published while its parent
- *     course is published. The server enforces this; the UI reflects it via
- *     `blocked` and a tooltip explaining what to publish first. Unpublish
- *     cascades to lessons server-side — not handled here.
- *   - Optimistic publish via useOptimistic; failure rolls the base state
- *     back, which causes the optimistic patch to drop on the next render.
- *   - The import flow uses a request-id ref (modulesRequestIdRef) to ignore
- *     stale source-module fetches when the user changes the source course
- *     mid-load.
- * Related: routes/instructor.tsx (parent), routes/instructor.topic.tsx (child)
- */
 import type { FormEvent } from 'react';
-import { useOptimistic, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
-import Nav from '../components/Nav';
-import {
-  Breadcrumb,
-  BreadcrumbList,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from '../components/ui/breadcrumb';
-import { PublishStatusButton } from '../components/PublishStatusButton';
+import { useOptimistic, useState } from 'react';
+import { useNavigate } from 'react-router';
 import api from '../lib/api';
 import type { Course, Module } from '../lib/types';
 import type { Route } from './+types/instructor.course';
 import { requireClientUser } from '~/lib/client-auth';
+import { useLocalUser } from '~/hooks/useLocalUser';
+import { Topbar } from '~/components/redesign/Topbar';
+import {
+  Breadcrumb,
+  Btn,
+  Card,
+  Chip,
+  Display,
+  Eyebrow,
+  Rule,
+} from '~/components/redesign/ui';
+import { I } from '~/components/redesign/icons';
 
-/**
- * Loads the course header and its modules in parallel. Throws a 400 Response
- * if the route param isn't numeric so the router renders the error boundary.
- */
 export async function clientLoader({ params }: Route.ClientLoaderArgs) {
   await requireClientUser('PROFESSOR');
   const courseId = Number(params.courseId);
@@ -55,361 +33,326 @@ export async function clientLoader({ params }: Route.ClientLoaderArgs) {
   return { course, modules };
 }
 
-/**
- * Module list for one course. Hosts module creation, the cross-course import
- * panel, and the publish toggle whose enablement depends on the parent
- * course's published state.
- */
 export default function InstructorCourseModules({ loaderData }: Route.ComponentProps) {
   const navigate = useNavigate();
-  const { courseId } = useParams();
-  const numericCourseId = courseId ? Number(courseId) : null;
+  const { user, logout } = useLocalUser();
   const { course, modules: initialModules } = loaderData;
   const [modules, setModules] = useState<Module[]>(initialModules);
   const [title, setTitle] = useState('');
   const [creating, setCreating] = useState(false);
-  const [showImport, setShowImport] = useState(false);
-  const [availableCourses, setAvailableCourses] = useState<Course[]>([]);
-  const [selectedSourceCourseId, setSelectedSourceCourseId] = useState<number | null>(null);
-  const [sourceModules, setSourceModules] = useState<Module[]>([]);
-  const [loadingSourceCourses, setLoadingSourceCourses] = useState(false);
-  const [loadingSourceModules, setLoadingSourceModules] = useState(false);
-  const [selectedModuleIds, setSelectedModuleIds] = useState<Set<number>>(new Set());
-  const [importing, setImporting] = useState(false);
   const [publishingId, setPublishingId] = useState<number | null>(null);
-  const modulesRequestIdRef = useRef(0);
+  const [error, setError] = useState<string | null>(null);
 
   const [oModules, addModuleOpt] = useOptimistic(
     modules,
     (state, patch: (items: Module[]) => Module[]) => patch(state),
   );
 
-  // React 19 derived-state-during-render pattern: when the loader replaces
-  // `initialModules` (e.g. after a navigation back to this route), reset the
-  // local mutable copy so the optimistic layer is rebuilt from fresh server
-  // truth without an effect-driven flash.
-  const [prevInitialModules, setPrevInitialModules] = useState(initialModules);
-  if (initialModules !== prevInitialModules) {
-    setPrevInitialModules(initialModules);
-    setModules(initialModules);
-  }
+  const meta = course.externalMetadata ?? null;
+  const code = (meta?.code as string | undefined) || `COURSE ${course.id}`;
+  const description = course.description || (meta?.description as string | undefined) || '';
 
-  const refreshModules = async () => {
-    if (!numericCourseId) return;
-    try {
-      const modulesData = await api.modulesForCourse(numericCourseId);
-      setModules(modulesData);
-    } catch (error) {
-      console.error('Failed to refresh modules', error);
-    }
-  };
-
-  const ensureSourceCoursesLoaded = () => {
-    if (availableCourses.length > 0) return;
-    setLoadingSourceCourses(true);
-    api
-      .listCourses()
-      .then((data: Course[]) => {
-        const nextCourses = numericCourseId
-          ? data.filter((course: Course) => course.id !== numericCourseId)
-          : data;
-        setAvailableCourses(nextCourses);
-      })
-      .catch((error) => console.error('Failed to load courses', error))
-      .finally(() => setLoadingSourceCourses(false));
-  };
-
-  // Picking a different source course triggers a module fetch. The
-  // request-id ref guards against an out-of-order response from a previously
-  // selected course overwriting the current selection's modules.
-  const handleSourceCourseSelection = async (nextCourseId: number | null) => {
-    const requestId = ++modulesRequestIdRef.current;
-    setSelectedSourceCourseId(nextCourseId);
-    setSourceModules([]);
-    setSelectedModuleIds(new Set());
-
-    if (nextCourseId == null) {
-      setLoadingSourceModules(false);
-      return;
-    }
-
-    setLoadingSourceModules(true);
-    try {
-      const data = await api.modulesForCourse(nextCourseId);
-      if (modulesRequestIdRef.current === requestId) {
-        setSourceModules(data);
-      }
-    } catch (error) {
-      if (modulesRequestIdRef.current === requestId) {
-        console.error('Failed to load modules for course', error);
-        setSourceModules([]);
-      }
-    } finally {
-      if (modulesRequestIdRef.current === requestId) {
-        setLoadingSourceModules(false);
-      }
-    }
-  };
-
-  const onCreateModule = async (event: FormEvent) => {
-    event.preventDefault();
-    if (!numericCourseId || !title.trim()) return;
+  const handleCreate = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!title.trim()) return;
     setCreating(true);
+    setError(null);
     try {
-      await api.createModule(numericCourseId, { title: title.trim() });
+      const newModule = (await api.createModule(course.id, {
+        title: title.trim(),
+      })) as Module;
+      setModules((prev) => [...prev, newModule]);
       setTitle('');
-      await refreshModules();
-    } catch (error) {
-      console.error('Failed to create module', error);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create module');
     } finally {
       setCreating(false);
     }
   };
 
-  const toggleModuleSelection = (moduleId: number) => {
-    setSelectedModuleIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(moduleId)) next.delete(moduleId);
-      else next.add(moduleId);
-      return next;
-    });
-  };
-
-  const onImport = async () => {
-    if (!numericCourseId || selectedSourceCourseId == null || selectedModuleIds.size === 0) return;
-    setImporting(true);
-    try {
-      await api.importIntoCourse(numericCourseId, {
-        sourceCourseId: selectedSourceCourseId,
-        moduleIds: Array.from(selectedModuleIds),
-      });
-      setShowImport(false);
-      await handleSourceCourseSelection(null);
-      await refreshModules();
-    } catch (error) {
-      console.error('Import failed', error);
-    } finally {
-      setImporting(false);
+  const togglePublish = async (m: Module) => {
+    if (!course.isPublished && !m.isPublished) {
+      setError('Publish the course first to publish individual modules.');
+      return;
     }
-  };
-
-  const togglePublish = async (moduleId: number, currentlyPublished: boolean) => {
-    // Optimistic update via useOptimistic
     addModuleOpt((items) =>
-      items.map((m) => (m.id === moduleId ? { ...m, isPublished: !currentlyPublished } : m)),
+      items.map((it) => (it.id === m.id ? { ...it, isPublished: !it.isPublished } : it)),
     );
-    setPublishingId(moduleId);
-
+    setPublishingId(m.id);
     try {
-      const updated = currentlyPublished
-        ? await api.unpublishModule(moduleId)
-        : await api.publishModule(moduleId);
-      // Confirm with server response
-      setModules((prev) => prev.map((m) => (m.id === moduleId ? updated : m)));
-    } catch (error) {
-      console.error('Failed to toggle publish status', error);
-      // Rollback on error to clear optimistic change
+      const updated = m.isPublished
+        ? ((await api.unpublishModule(m.id)) as Module)
+        : ((await api.publishModule(m.id)) as Module);
+      setModules((prev) => prev.map((it) => (it.id === m.id ? updated : it)));
+    } catch (err) {
       setModules((prev) =>
-        prev.map((m) => (m.id === moduleId ? { ...m, isPublished: currentlyPublished } : m)),
+        prev.map((it) => (it.id === m.id ? { ...it, isPublished: m.isPublished } : it)),
       );
+      setError(err instanceof Error ? err.message : 'Could not toggle publish');
     } finally {
-      setPublishingId((current) => (current === moduleId ? null : current));
+      setPublishingId((current) => (current === m.id ? null : current));
     }
   };
+
+  if (!user) return null;
+
+  const publishedCount = oModules.filter((m) => m.isPublished).length;
 
   return (
-    <div className="min-h-dvh bg-background">
-      <Nav />
-      <div className="container mx-auto px-4 py-8 space-y-6">
-        <Breadcrumb className="mb-6">
-          <BreadcrumbList>
-            <BreadcrumbItem>
-              <BreadcrumbLink asChild>
-                <Link to="/instructor">Teaching</Link>
-              </BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator>/</BreadcrumbSeparator>
-            <BreadcrumbItem>
-              <BreadcrumbPage>{course?.title || 'Course'}</BreadcrumbPage>
-            </BreadcrumbItem>
-          </BreadcrumbList>
-        </Breadcrumb>
-        <div className="flex items-center justify-between">
-          <h2 className="font-display text-2xl font-semibold text-foreground">Modules</h2>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => {
-                if (!showImport) {
-                  ensureSourceCoursesLoaded();
-                } else {
-                  void handleSourceCourseSelection(null);
-                }
-                setShowImport((prev) => !prev);
-              }}
-              className="btn-secondary"
-            >
-              {showImport ? 'Close' : 'Import'}
-            </button>
-          </div>
-        </div>
+    <div style={{ minHeight: '100vh', background: 'var(--paper)', color: 'var(--ink)' }}>
+      <Topbar role={user.role} page="instructor" user={user} onLogout={logout} />
 
-        {showImport && (
-          <div className="card-editorial p-5 space-y-4">
-            <div>
-              <label className="block text-sm font-semibold mb-1 text-foreground">
-                Choose course to copy
-              </label>
-              <select
-                value={selectedSourceCourseId ?? ''}
-                onChange={(e) => {
-                  const nextValue = e.target.value ? Number(e.target.value) : null;
-                  void handleSourceCourseSelection(nextValue);
-                }}
-                className="input-field"
-              >
-                <option value="">Select course…</option>
-                {availableCourses.map((course) => (
-                  <option key={course.id} value={course.id}>
-                    {course.title}
-                  </option>
-                ))}
-              </select>
-              {loadingSourceCourses && (
-                <p className="mt-2 text-xs text-muted-foreground">Loading courses…</p>
-              )}
-              {!loadingSourceCourses && availableCourses.length === 0 && (
-                <p className="mt-2 text-xs text-muted-foreground">
-                  You don't have another course to copy from yet.
-                </p>
+      <div style={{ maxWidth: 1240, margin: '0 auto', padding: '28px 32px 64px' }}>
+        <Breadcrumb
+          items={[
+            { label: 'Teaching', onClick: () => navigate('/instructor') },
+            { label: code },
+          ]}
+        />
+
+        <div
+          style={{
+            marginTop: 20,
+            display: 'grid',
+            gridTemplateColumns: '1fr 320px',
+            gap: 40,
+            alignItems: 'start',
+          }}
+        >
+          <div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+              <Chip tone="ember">{code}</Chip>
+              {course.isPublished ? (
+                <Chip tone="ok" icon={I.dot}>
+                  published
+                </Chip>
+              ) : (
+                <Chip tone="outline">draft</Chip>
               )}
             </div>
-
-            {selectedSourceCourseId == null ? (
-              <p className="text-sm text-muted-foreground">
-                Select a course to preview its modules.
+            <Display size={42}>{course.title}</Display>
+            {description && (
+              <p
+                style={{
+                  color: 'var(--ink-3)',
+                  fontSize: 15,
+                  marginTop: 10,
+                  maxWidth: 640,
+                }}
+              >
+                {description}
               </p>
-            ) : loadingSourceModules ? (
-              <p className="text-sm text-muted-foreground">Loading modules…</p>
-            ) : sourceModules.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Selected course has no modules yet.</p>
-            ) : (
-              <div className="space-y-3">
-                <p className="text-sm text-muted-foreground">
-                  Select modules to import (lessons and activities included).
-                </p>
-                <div className="grid sm:grid-cols-2 gap-3">
-                  {sourceModules.map((module) => (
-                    <label
-                      key={module.id}
-                      className={`p-4 rounded-xl border cursor-pointer transition ${
-                        selectedModuleIds.has(module.id)
-                          ? 'border-primary ring-2 ring-primary/30 bg-primary/5'
-                          : 'border-border hover:border-primary/50'
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        className="sr-only"
-                        checked={selectedModuleIds.has(module.id)}
-                        onChange={() => toggleModuleSelection(module.id)}
-                      />
-                      <div className="font-semibold text-foreground">{module.title}</div>
-                      {module.description && (
-                        <div className="text-xs text-muted-foreground mt-1">
-                          {module.description}
-                        </div>
-                      )}
-                    </label>
-                  ))}
+            )}
+
+            <Rule style={{ margin: '28px 0 18px' }} />
+
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: 14,
+              }}
+            >
+              <Display size={24}>Modules</Display>
+              <Eyebrow>{publishedCount} published</Eyebrow>
+            </div>
+
+            {error && (
+              <div
+                style={{
+                  marginBottom: 14,
+                  padding: '10px 14px',
+                  borderRadius: 10,
+                  background: 'rgba(177,66,42,.08)',
+                  border: '1px solid var(--bad)',
+                  color: 'var(--bad)',
+                  fontSize: 13,
+                }}
+              >
+                {error}
+              </div>
+            )}
+
+            <form onSubmit={handleCreate}>
+              <Card
+                style={{
+                  padding: 14,
+                  marginBottom: 14,
+                  background: 'var(--paper)',
+                  borderStyle: 'dashed',
+                }}
+              >
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                  <div
+                    style={{
+                      fontFamily: 'var(--rd-font-display)',
+                      fontSize: 22,
+                      color: 'var(--ink-3)',
+                      width: 32,
+                    }}
+                  >
+                    {String(modules.length + 1).padStart(2, '0')}
+                  </div>
+                  <input
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="New module title — e.g. Greedy Algorithms"
+                    style={{
+                      flex: 1,
+                      padding: '10px 12px',
+                      background: 'var(--paper-2)',
+                      border: '1px solid var(--line)',
+                      borderRadius: 8,
+                      fontSize: 14,
+                      fontFamily: 'var(--rd-font-ui)',
+                      color: 'var(--ink)',
+                      outline: 'none',
+                    }}
+                  />
+                  <Btn
+                    size="sm"
+                    variant="primary"
+                    icon={I.plus}
+                    type="submit"
+                    disabled={creating || !title.trim()}
+                  >
+                    {creating ? 'Adding…' : 'Add'}
+                  </Btn>
                 </div>
-                <button
-                  onClick={onImport}
-                  disabled={
-                    importing || selectedSourceCourseId == null || selectedModuleIds.size === 0
-                  }
-                  className="btn-primary"
-                >
-                  {importing ? 'Importing…' : 'Import modules'}
-                </button>
+              </Card>
+            </form>
+
+            {oModules.length === 0 ? (
+              <Card style={{ padding: 28, textAlign: 'center' }}>
+                <Display size={20}>No modules yet.</Display>
+                <p style={{ color: 'var(--ink-3)', marginTop: 6, fontSize: 13.5 }}>
+                  Create the first module above.
+                </p>
+              </Card>
+            ) : (
+              <div style={{ display: 'grid', gap: 12 }}>
+                {oModules.map((m, i) => (
+                  <ModuleRow
+                    key={m.id}
+                    m={m}
+                    n={i + 1}
+                    onOpen={() => navigate(`/instructor/module/${m.id}`)}
+                    onTogglePublish={() => togglePublish(m)}
+                    publishing={publishingId === m.id}
+                  />
+                ))}
               </div>
             )}
           </div>
-        )}
 
-        <form onSubmit={onCreateModule} className="flex gap-3">
-          <input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="New module title…"
-            className="input-field flex-1"
-          />
-          <button disabled={creating || !title.trim()} className="btn-primary">
-            {creating ? 'Adding…' : 'Add Module'}
-          </button>
-        </form>
-
-        {oModules.length === 0 ? (
-          <div className="text-muted-foreground">No modules yet.</div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {oModules.map((m, idx) => {
-              const canPublish = course?.isPublished;
-              const blocked = !m.isPublished && !canPublish;
-              const tooltipMessage = blocked
-                ? `Publish ${m.title} after publishing ${course?.title ?? 'the parent course'}.`
-                : null;
-              const busy = publishingId === m.id;
-              return (
-                <div
-                  key={m.id}
-                  className="card-editorial p-5 hover:shadow-lg transition group cursor-pointer flex flex-col h-full animate-fade-up"
-                  style={{ animationDelay: `${idx * 50}ms` }}
-                  onClick={() => navigate(`/instructor/module/${m.id}`)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault();
-                      navigate(`/instructor/module/${m.id}`);
-                    }
-                  }}
-                >
-                  <div className="flex items-start gap-3">
-                    <span className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-display font-semibold text-sm">
-                      {idx + 1}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-semibold text-foreground group-hover:text-primary transition-colors">
-                        {m.title}
-                      </div>
-                      {m.description && (
-                        <div className="text-sm text-muted-foreground mt-1">{m.description}</div>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex-grow"></div>
-                  <div className="mt-4 flex justify-end">
-                    <div
-                      onClick={(e) => e.stopPropagation()}
-                      onKeyDown={(e) => e.stopPropagation()}
-                    >
-                      <PublishStatusButton
-                        isPublished={m.isPublished}
-                        pending={busy}
-                        blockedReason={tooltipMessage}
-                        onClick={() => {
-                          if (busy || blocked) return;
-                          togglePublish(m.id, m.isPublished);
-                        }}
-                      />
-                    </div>
-                  </div>
+          <div style={{ position: 'sticky', top: 100, height: 'fit-content' }}>
+            <Card style={{ padding: 20 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <Eyebrow>Course details</Eyebrow>
+                <Chip tone={course.isPublished ? 'ok' : 'outline'} size="sm">
+                  {course.isPublished ? 'live' : 'draft'}
+                </Chip>
+              </div>
+              <Display size={22} style={{ marginTop: 6 }}>
+                {oModules.length} {oModules.length === 1 ? 'module' : 'modules'}
+              </Display>
+              <Rule style={{ margin: '14px 0' }} />
+              <div style={{ display: 'grid', gap: 6, fontSize: 12.5 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--ink-3)' }}>Term</span>
+                  <b>{(meta?.term as string | undefined) || '—'}</b>
                 </div>
-              );
-            })}
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--ink-3)' }}>External ID</span>
+                  <b style={{ fontFamily: 'var(--rd-font-mono)' }}>
+                    {course.externalId || '—'}
+                  </b>
+                </div>
+              </div>
+            </Card>
           </div>
-        )}
+        </div>
       </div>
     </div>
+  );
+}
+
+function ModuleRow({
+  m,
+  n,
+  onOpen,
+  onTogglePublish,
+  publishing,
+}: {
+  m: Module;
+  n: number;
+  onOpen: () => void;
+  onTogglePublish: () => void;
+  publishing: boolean;
+}) {
+  return (
+    <Card>
+      <div
+        style={{
+          padding: '18px 20px',
+          display: 'grid',
+          gridTemplateColumns: 'auto 1fr auto auto auto',
+          alignItems: 'center',
+          gap: 20,
+        }}
+      >
+        <div style={{ color: 'var(--ink-4)' }}>{I.drag}</div>
+        <div onClick={onOpen} style={{ cursor: 'pointer' }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <span
+              style={{
+                fontFamily: 'var(--rd-font-mono)',
+                fontSize: 11,
+                color: 'var(--ink-3)',
+              }}
+            >
+              MOD · {String(n).padStart(2, '0')}
+            </span>
+            {m.isPublished ? (
+              <Chip tone="ok" size="sm">
+                published
+              </Chip>
+            ) : (
+              <Chip tone="outline" size="sm">
+                draft
+              </Chip>
+            )}
+          </div>
+          <div style={{ fontFamily: 'var(--rd-font-display)', fontSize: 22, marginTop: 2 }}>
+            {m.title}
+          </div>
+          {m.description && (
+            <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginTop: 2 }}>
+              {m.description}
+            </div>
+          )}
+        </div>
+        <Btn
+          size="sm"
+          variant={m.isPublished ? 'ghost' : 'primary'}
+          icon={m.isPublished ? I.eyeOff : I.eye}
+          onClick={onTogglePublish}
+          disabled={publishing}
+        >
+          {publishing ? '…' : m.isPublished ? 'Unpublish' : 'Publish'}
+        </Btn>
+        <Btn size="sm" variant="tonal" icon={I.layers} onClick={onOpen}>
+          Open
+        </Btn>
+        <div style={{ color: 'var(--ink-3)' }}>{I.chevR}</div>
+      </div>
+    </Card>
   );
 }

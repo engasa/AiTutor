@@ -1,47 +1,23 @@
-/**
- * @file Instructor module view — the lesson list inside a single module.
- *
- * Route: /instructor/module/:moduleId
- * Auth: PROFESSOR
- * Loads: module detail, its lessons (parallel), then its course (sequential
- *        because the courseId comes from the module row).
- * Owns: lesson CRUD entry points, cross-course lesson import (course →
- *       module → lesson selection), and per-lesson publish toggle.
- * Gotchas:
- *   - File name is misleading: this lives at `instructor.topic.tsx` but the
- *     route path is `/instructor/module/:moduleId` (legacy naming from when
- *     "module" was called "topic"). See app/routes.ts for the actual mapping.
- *   - Publish cascade goes one level deeper than instructor.course.tsx: a
- *     lesson can publish only if BOTH the parent course and parent module
- *     are published. The tooltip names whichever ancestor is blocking.
- *   - Two request-id refs (sourceModulesRequestIdRef and
- *     sourceLessonsRequestIdRef) guard each leg of the import drill-down
- *     against out-of-order responses.
- * Related: routes/instructor.course.tsx (parent), routes/instructor.list.tsx (child)
- */
 import type { FormEvent } from 'react';
-import { useOptimistic, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
-import Nav from '../components/Nav';
-import {
-  Breadcrumb,
-  BreadcrumbList,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from '../components/ui/breadcrumb';
-import { PublishStatusButton } from '../components/PublishStatusButton';
+import { useOptimistic, useState } from 'react';
+import { useNavigate } from 'react-router';
 import api from '../lib/api';
-import type { Course, Lesson, Module, ModuleDetail } from '../lib/types';
+import type { Course, Lesson, ModuleDetail } from '../lib/types';
 import type { Route } from './+types/instructor.topic';
 import { requireClientUser } from '~/lib/client-auth';
+import { useLocalUser } from '~/hooks/useLocalUser';
+import { Topbar } from '~/components/redesign/Topbar';
+import {
+  Breadcrumb,
+  Btn,
+  Card,
+  Chip,
+  Display,
+  Eyebrow,
+  Rule,
+} from '~/components/redesign/ui';
+import { I } from '~/components/redesign/icons';
 
-/**
- * Loads the module + its lessons in parallel; then fetches the parent course
- * (sequential because its id lives on the module). The course header is
- * needed for breadcrumbs and to compute the publish-cascade gate.
- */
 export async function clientLoader({ params }: Route.ClientLoaderArgs) {
   await requireClientUser('PROFESSOR');
   const moduleId = Number(params.moduleId);
@@ -59,444 +35,274 @@ export async function clientLoader({ params }: Route.ClientLoaderArgs) {
   return { course, module, lessons };
 }
 
-/**
- * Lesson list for one module. Hosts lesson creation, cross-course lesson
- * import (course → module → lesson selection), and the publish toggle gated
- * on both the course and module being published.
- */
 export default function InstructorModuleLessons({ loaderData }: Route.ComponentProps) {
   const navigate = useNavigate();
-  const { moduleId } = useParams();
-  const numericModuleId = moduleId ? Number(moduleId) : null;
+  const { user, logout } = useLocalUser();
   const { course, module, lessons: initialLessons } = loaderData;
   const [lessons, setLessons] = useState<Lesson[]>(initialLessons);
   const [title, setTitle] = useState('');
   const [creating, setCreating] = useState(false);
-  const [showImport, setShowImport] = useState(false);
-  const [availableCourses, setAvailableCourses] = useState<Course[]>([]);
-  const [selectedSourceCourseId, setSelectedSourceCourseId] = useState<number | null>(null);
-  const [sourceModules, setSourceModules] = useState<Module[]>([]);
-  const [selectedSourceModuleId, setSelectedSourceModuleId] = useState<number | null>(null);
-  const [sourceLessons, setSourceLessons] = useState<Lesson[]>([]);
-  const [loadingSourceCourses, setLoadingSourceCourses] = useState(false);
-  const [loadingSourceModules, setLoadingSourceModules] = useState(false);
-  const [loadingSourceLessons, setLoadingSourceLessons] = useState(false);
-  const [selectedLessonIds, setSelectedLessonIds] = useState<Set<number>>(new Set());
-  const [importing, setImporting] = useState(false);
   const [publishingId, setPublishingId] = useState<number | null>(null);
-  const sourceModulesRequestIdRef = useRef(0);
-  const sourceLessonsRequestIdRef = useRef(0);
+  const [error, setError] = useState<string | null>(null);
 
   const [oLessons, addLessonOpt] = useOptimistic(
     lessons,
     (state, patch: (items: Lesson[]) => Lesson[]) => patch(state),
   );
 
-  // React 19 derived-state-during-render pattern: when the loader returns a
-  // new lessons array, sync the local mutable copy without triggering an
-  // effect (which would render once with stale data first).
-  const [prevInitialLessons, setPrevInitialLessons] = useState(initialLessons);
-  if (initialLessons !== prevInitialLessons) {
-    setPrevInitialLessons(initialLessons);
+  // Sync local state with loader updates between visits (React 19 pattern).
+  const [prevInitial, setPrevInitial] = useState(initialLessons);
+  if (initialLessons !== prevInitial) {
+    setPrevInitial(initialLessons);
     setLessons(initialLessons);
   }
 
-  const refreshLessons = async () => {
-    if (!numericModuleId) return;
-    try {
-      const lessonData = await api.lessonsForModule(numericModuleId);
-      setLessons(lessonData);
-    } catch (error) {
-      console.error('Failed to refresh lessons', error);
-    }
-  };
+  const meta = course.externalMetadata ?? null;
+  const code = (meta?.code as string | undefined) || `COURSE ${course.id}`;
 
-  const ensureSourceCoursesLoaded = () => {
-    if (availableCourses.length > 0) return;
-    setLoadingSourceCourses(true);
-    api
-      .listCourses()
-      .then((data: Course[]) => {
-        const nextCourses = module?.courseOfferingId
-          ? data.filter((course: Course) => course.id !== module.courseOfferingId)
-          : data;
-        setAvailableCourses(nextCourses);
-      })
-      .catch((error) => console.error('Failed to load courses', error))
-      .finally(() => setLoadingSourceCourses(false));
-  };
-
-  // Course selection invalidates both downstream legs (modules and lessons).
-  // Bump both request-id refs so any in-flight responses for the previous
-  // course or its modules are discarded when they resolve.
-  const handleSourceCourseSelection = async (nextCourseId: number | null) => {
-    const courseRequestId = ++sourceModulesRequestIdRef.current;
-    ++sourceLessonsRequestIdRef.current;
-
-    setSelectedSourceCourseId(nextCourseId);
-    setSourceModules([]);
-    setSelectedSourceModuleId(null);
-    setSourceLessons([]);
-    setSelectedLessonIds(new Set());
-
-    if (nextCourseId == null) {
-      setLoadingSourceModules(false);
-      setLoadingSourceLessons(false);
-      return;
-    }
-
-    setLoadingSourceModules(true);
-    try {
-      const modulesData = await api.modulesForCourse(nextCourseId);
-      if (sourceModulesRequestIdRef.current === courseRequestId) {
-        setSourceModules(modulesData);
-      }
-    } catch (error) {
-      if (sourceModulesRequestIdRef.current === courseRequestId) {
-        console.error('Failed to load modules for course', error);
-        setSourceModules([]);
-      }
-    } finally {
-      if (sourceModulesRequestIdRef.current === courseRequestId) {
-        setLoadingSourceModules(false);
-      }
-    }
-  };
-
-  const handleSourceModuleSelection = async (nextModuleId: number | null) => {
-    const lessonRequestId = ++sourceLessonsRequestIdRef.current;
-
-    setSelectedSourceModuleId(nextModuleId);
-    setSourceLessons([]);
-    setSelectedLessonIds(new Set());
-
-    if (nextModuleId == null) {
-      setLoadingSourceLessons(false);
-      return;
-    }
-
-    setLoadingSourceLessons(true);
-    try {
-      const lessonData = await api.lessonsForModule(nextModuleId);
-      if (sourceLessonsRequestIdRef.current === lessonRequestId) {
-        setSourceLessons(lessonData);
-      }
-    } catch (error) {
-      if (sourceLessonsRequestIdRef.current === lessonRequestId) {
-        console.error('Failed to load lessons for module', error);
-        setSourceLessons([]);
-      }
-    } finally {
-      if (sourceLessonsRequestIdRef.current === lessonRequestId) {
-        setLoadingSourceLessons(false);
-      }
-    }
-  };
-
-  const onCreateLesson = async (event: FormEvent) => {
-    event.preventDefault();
-    if (!numericModuleId || !title.trim()) return;
+  const handleCreate = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!title.trim()) return;
     setCreating(true);
+    setError(null);
     try {
-      await api.createLesson(numericModuleId, { title: title.trim() });
+      const newLesson = (await api.createLesson(module.id, {
+        title: title.trim(),
+      })) as Lesson;
+      setLessons((prev) => [...prev, newLesson]);
       setTitle('');
-      refreshLessons();
-    } catch (error) {
-      console.error('Failed to create lesson', error);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create lesson');
     } finally {
       setCreating(false);
     }
   };
 
-  const toggleLesson = (lessonId: number) => {
-    setSelectedLessonIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(lessonId)) next.delete(lessonId);
-      else next.add(lessonId);
-      return next;
-    });
-  };
-
-  const onImportLessons = async () => {
-    if (
-      !module ||
-      !numericModuleId ||
-      selectedSourceModuleId == null ||
-      selectedLessonIds.size === 0
-    )
+  const togglePublish = async (l: Lesson) => {
+    if ((!course.isPublished || !module.isPublished) && !l.isPublished) {
+      setError('Publish the parent course and module first.');
       return;
-    setImporting(true);
-    try {
-      await api.importIntoCourse(module.courseOfferingId, {
-        lessonIds: Array.from(selectedLessonIds),
-        targetModuleId: numericModuleId,
-      });
-      setShowImport(false);
-      await handleSourceCourseSelection(null);
-      refreshLessons();
-    } catch (error) {
-      console.error('Import lessons failed', error);
-    } finally {
-      setImporting(false);
     }
-  };
-
-  const togglePublish = async (lessonId: number, currentlyPublished: boolean) => {
-    // Optimistic update via useOptimistic
     addLessonOpt((items) =>
-      items.map((l) => (l.id === lessonId ? { ...l, isPublished: !currentlyPublished } : l)),
+      items.map((it) => (it.id === l.id ? { ...it, isPublished: !it.isPublished } : it)),
     );
-    setPublishingId(lessonId);
-
+    setPublishingId(l.id);
     try {
-      const updated = currentlyPublished
-        ? await api.unpublishLesson(lessonId)
-        : await api.publishLesson(lessonId);
-      // Confirm with server response
-      setLessons((prev) => prev.map((l) => (l.id === lessonId ? updated : l)));
-    } catch (error) {
-      console.error('Failed to toggle publish status', error);
-      // Rollback on error to clear optimistic change
+      const updated = l.isPublished
+        ? ((await api.unpublishLesson(l.id)) as Lesson)
+        : ((await api.publishLesson(l.id)) as Lesson);
+      setLessons((prev) => prev.map((it) => (it.id === l.id ? updated : it)));
+    } catch (err) {
       setLessons((prev) =>
-        prev.map((l) => (l.id === lessonId ? { ...l, isPublished: currentlyPublished } : l)),
+        prev.map((it) => (it.id === l.id ? { ...it, isPublished: l.isPublished } : it)),
       );
+      setError(err instanceof Error ? err.message : 'Could not toggle publish');
     } finally {
-      setPublishingId((current) => (current === lessonId ? null : current));
+      setPublishingId((current) => (current === l.id ? null : current));
     }
   };
+
+  if (!user) return null;
+
+  const publishedCount = oLessons.filter((l) => l.isPublished).length;
 
   return (
-    <div className="min-h-dvh bg-background">
-      <Nav />
-      <div className="container mx-auto px-4 py-8 space-y-6">
-        <Breadcrumb className="mb-6">
-          <BreadcrumbList>
-            <BreadcrumbItem>
-              <BreadcrumbLink asChild>
-                <Link to="/instructor">Teaching</Link>
-              </BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator>/</BreadcrumbSeparator>
-            <BreadcrumbItem>
-              {course && module ? (
-                <BreadcrumbLink asChild>
-                  <Link to={`/instructor/courses/${module.courseOfferingId}`}>{course.title}</Link>
-                </BreadcrumbLink>
-              ) : (
-                <BreadcrumbPage>Course</BreadcrumbPage>
-              )}
-            </BreadcrumbItem>
-            <BreadcrumbSeparator>/</BreadcrumbSeparator>
-            <BreadcrumbItem>
-              <BreadcrumbPage>{module?.title || 'Module'}</BreadcrumbPage>
-            </BreadcrumbItem>
-          </BreadcrumbList>
-        </Breadcrumb>
-        <div className="flex items-center justify-between">
+    <div style={{ minHeight: '100vh', background: 'var(--paper)', color: 'var(--ink)' }}>
+      <Topbar role={user.role} page="instructor" user={user} onLogout={logout} />
+
+      <div style={{ maxWidth: 1240, margin: '0 auto', padding: '28px 32px 64px' }}>
+        <Breadcrumb
+          items={[
+            { label: 'Teaching', onClick: () => navigate('/instructor') },
+            { label: code, onClick: () => navigate(`/instructor/courses/${course.id}`) },
+            { label: module.title },
+          ]}
+        />
+
+        <div
+          style={{
+            marginTop: 18,
+            display: 'grid',
+            gridTemplateColumns: '1fr auto',
+            gap: 20,
+            alignItems: 'end',
+          }}
+        >
           <div>
-            <h2 className="font-display text-2xl font-semibold text-foreground">Lessons</h2>
+            <Eyebrow>Module · {code}</Eyebrow>
+            <Display size={40} style={{ marginTop: 6 }}>
+              {module.title}
+            </Display>
+            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+              {module.isPublished ? (
+                <Chip tone="ok" icon={I.dot}>
+                  published
+                </Chip>
+              ) : (
+                <Chip tone="outline">draft</Chip>
+              )}
+              <Chip tone="outline">
+                {oLessons.length} {oLessons.length === 1 ? 'lesson' : 'lessons'}
+              </Chip>
+              <Chip tone="outline">{publishedCount} published</Chip>
+            </div>
           </div>
-          <button
-            onClick={() => {
-              if (!showImport) {
-                ensureSourceCoursesLoaded();
-              } else {
-                void handleSourceCourseSelection(null);
-              }
-              setShowImport((prev) => !prev);
-            }}
-            className="btn-secondary"
-          >
-            {showImport ? 'Close' : 'Import Lessons'}
-          </button>
         </div>
 
-        {showImport && (
-          <div className="card-editorial p-5 space-y-4">
-            <div>
-              <label className="block text-sm font-semibold mb-1 text-foreground">
-                Choose course
-              </label>
-              <select
-                value={selectedSourceCourseId ?? ''}
-                onChange={(e) => {
-                  const nextValue = e.target.value ? Number(e.target.value) : null;
-                  void handleSourceCourseSelection(nextValue);
-                }}
-                className="input-field"
-              >
-                <option value="">Select course…</option>
-                {availableCourses.map((course) => (
-                  <option key={course.id} value={course.id}>
-                    {course.title}
-                  </option>
-                ))}
-              </select>
-              {loadingSourceCourses && (
-                <p className="mt-2 text-xs text-muted-foreground">Loading courses…</p>
-              )}
-              {!loadingSourceCourses && availableCourses.length === 0 && (
-                <p className="mt-2 text-xs text-muted-foreground">
-                  You don't have another course to copy from yet.
-                </p>
-              )}
-            </div>
+        <Rule style={{ margin: '24px 0' }} />
 
-            {selectedSourceCourseId != null && (
-              <div>
-                <label className="block text-sm font-semibold mb-1 text-foreground">
-                  Choose module
-                </label>
-                <select
-                  value={selectedSourceModuleId ?? ''}
-                  onChange={(e) => {
-                    const nextValue = e.target.value ? Number(e.target.value) : null;
-                    void handleSourceModuleSelection(nextValue);
-                  }}
-                  className="input-field"
-                >
-                  <option value="">Select module…</option>
-                  {sourceModules.map((sourceModule) => (
-                    <option key={sourceModule.id} value={sourceModule.id}>
-                      {sourceModule.title}
-                    </option>
-                  ))}
-                </select>
-                {loadingSourceModules && (
-                  <p className="mt-2 text-xs text-muted-foreground">Loading modules…</p>
-                )}
-                {!loadingSourceModules && sourceModules.length === 0 && (
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    Selected course has no modules yet.
-                  </p>
-                )}
-              </div>
-            )}
-
-            {selectedSourceCourseId == null ? (
-              <p className="text-sm text-muted-foreground">Select a course to begin.</p>
-            ) : selectedSourceModuleId == null ? (
-              <p className="text-sm text-muted-foreground">Select a module to preview lessons.</p>
-            ) : loadingSourceLessons ? (
-              <p className="text-sm text-muted-foreground">Loading lessons…</p>
-            ) : sourceLessons.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Selected module has no lessons yet.</p>
-            ) : (
-              <div className="space-y-3">
-                <div className="border border-border rounded-xl overflow-hidden">
-                  <div className="px-4 py-2.5 text-sm font-semibold bg-secondary text-secondary-foreground">
-                    Lessons
-                  </div>
-                  <div className="p-3 space-y-2 bg-card">
-                    {sourceLessons.map((lesson) => (
-                      <label
-                        key={lesson.id}
-                        className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition ${
-                          selectedLessonIds.has(lesson.id)
-                            ? 'border-primary ring-2 ring-primary/30 bg-primary/5'
-                            : 'border-border hover:border-primary/50'
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          className="sr-only"
-                          checked={selectedLessonIds.has(lesson.id)}
-                          onChange={() => toggleLesson(lesson.id)}
-                        />
-                        <span className="text-sm text-foreground">{lesson.title}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-                <button
-                  onClick={onImportLessons}
-                  disabled={importing || selectedLessonIds.size === 0}
-                  className="btn-primary"
-                >
-                  {importing ? 'Importing…' : 'Import selected lessons'}
-                </button>
-              </div>
-            )}
+        {error && (
+          <div
+            style={{
+              marginBottom: 14,
+              padding: '10px 14px',
+              borderRadius: 10,
+              background: 'rgba(177,66,42,.08)',
+              border: '1px solid var(--bad)',
+              color: 'var(--bad)',
+              fontSize: 13,
+            }}
+          >
+            {error}
           </div>
         )}
 
-        <form onSubmit={onCreateLesson} className="flex gap-3">
-          <input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="New lesson title…"
-            className="input-field flex-1"
-          />
-          <button disabled={creating || !title.trim()} className="btn-primary">
-            {creating ? 'Adding…' : 'Add Lesson'}
-          </button>
+        <form onSubmit={handleCreate}>
+          <Card
+            style={{
+              padding: 14,
+              marginBottom: 14,
+              background: 'var(--paper)',
+              borderStyle: 'dashed',
+            }}
+          >
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <div
+                style={{
+                  fontFamily: 'var(--rd-font-mono)',
+                  fontSize: 12,
+                  color: 'var(--ink-3)',
+                  width: 32,
+                }}
+              >
+                L · {String(lessons.length + 1).padStart(2, '0')}
+              </div>
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="New lesson title — e.g. Quicksort"
+                style={{
+                  flex: 1,
+                  padding: '10px 12px',
+                  background: 'var(--paper-2)',
+                  border: '1px solid var(--line)',
+                  borderRadius: 8,
+                  fontSize: 14,
+                  fontFamily: 'var(--rd-font-ui)',
+                  color: 'var(--ink)',
+                  outline: 'none',
+                }}
+              />
+              <Btn
+                size="sm"
+                variant="primary"
+                icon={I.plus}
+                type="submit"
+                disabled={creating || !title.trim()}
+              >
+                {creating ? 'Adding…' : 'Add'}
+              </Btn>
+            </div>
+          </Card>
         </form>
 
         {oLessons.length === 0 ? (
-          <div className="text-muted-foreground">No lessons yet.</div>
+          <Card style={{ padding: 28, textAlign: 'center' }}>
+            <Display size={20}>No lessons yet.</Display>
+            <p style={{ color: 'var(--ink-3)', marginTop: 6, fontSize: 13.5 }}>
+              Create your first lesson above.
+            </p>
+          </Card>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {oLessons.map((lesson, idx) => {
-              const canPublish = course?.isPublished && module?.isPublished;
-              const blocked = !lesson.isPublished && !canPublish;
-              const parentName = !course?.isPublished
-                ? course?.title || 'the parent course'
-                : !module?.isPublished
-                  ? module?.title || 'the parent module'
-                  : null;
-              const tooltipMessage =
-                blocked && parentName
-                  ? `${parentName} is unpublished, so you can't publish ${lesson.title}.`
-                  : null;
-              const busy = publishingId === lesson.id;
-              return (
-                <div
-                  key={lesson.id}
-                  className="card-editorial p-5 hover:shadow-lg transition group cursor-pointer flex flex-col h-full animate-fade-up"
-                  style={{ animationDelay: `${idx * 50}ms` }}
-                  onClick={() => navigate(`/instructor/lesson/${lesson.id}`)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault();
-                      navigate(`/instructor/lesson/${lesson.id}`);
-                    }
-                  }}
-                >
-                  <div className="flex items-start gap-3">
-                    <span className="flex-shrink-0 w-8 h-8 rounded-full bg-accent text-accent-foreground flex items-center justify-center font-display font-semibold text-sm">
-                      {idx + 1}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-semibold text-foreground group-hover:text-primary transition-colors">
-                        {lesson.title}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex-grow"></div>
-                  <div className="mt-4 flex justify-end">
-                    <div
-                      onClick={(e) => e.stopPropagation()}
-                      onKeyDown={(e) => e.stopPropagation()}
-                    >
-                      <PublishStatusButton
-                        isPublished={lesson.isPublished}
-                        pending={busy}
-                        blockedReason={tooltipMessage}
-                        onClick={() => {
-                          if (busy || blocked) return;
-                          togglePublish(lesson.id, lesson.isPublished);
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+          <div style={{ display: 'grid', gap: 10 }}>
+            {oLessons.map((l, i) => (
+              <LessonRow
+                key={l.id}
+                l={l}
+                n={i + 1}
+                onOpen={() => navigate(`/instructor/lesson/${l.id}`)}
+                onTogglePublish={() => togglePublish(l)}
+                publishing={publishingId === l.id}
+              />
+            ))}
           </div>
         )}
       </div>
     </div>
+  );
+}
+
+function LessonRow({
+  l,
+  n,
+  onOpen,
+  onTogglePublish,
+  publishing,
+}: {
+  l: Lesson;
+  n: number;
+  onOpen: () => void;
+  onTogglePublish: () => void;
+  publishing: boolean;
+}) {
+  return (
+    <Card>
+      <div
+        style={{
+          padding: '14px 18px',
+          display: 'grid',
+          gridTemplateColumns: 'auto 1fr auto auto auto',
+          alignItems: 'center',
+          gap: 14,
+        }}
+      >
+        <div style={{ color: 'var(--ink-4)' }}>{I.drag}</div>
+        <div onClick={onOpen} style={{ cursor: 'pointer' }}>
+          <div style={{ fontSize: 14.5, fontWeight: 500 }}>{l.title}</div>
+          <div
+            style={{
+              fontSize: 11,
+              color: 'var(--ink-3)',
+              fontFamily: 'var(--rd-font-mono)',
+              marginTop: 2,
+              letterSpacing: '.06em',
+            }}
+          >
+            LESSON · {String(n).padStart(2, '0')}
+          </div>
+        </div>
+        {l.isPublished ? (
+          <Chip tone="ok" size="sm">
+            published
+          </Chip>
+        ) : (
+          <Chip tone="outline" size="sm">
+            draft
+          </Chip>
+        )}
+        <Btn
+          size="sm"
+          variant={l.isPublished ? 'ghost' : 'ember'}
+          icon={l.isPublished ? I.eyeOff : I.eye}
+          onClick={onTogglePublish}
+          disabled={publishing}
+        >
+          {publishing ? '…' : l.isPublished ? 'Unpublish' : 'Publish'}
+        </Btn>
+        <Btn size="sm" variant="tonal" icon={I.edit} onClick={onOpen}>
+          Edit
+        </Btn>
+      </div>
+    </Card>
   );
 }

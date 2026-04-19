@@ -35,20 +35,18 @@
  *          components/TopicSyncMappingDialog, hooks/useCourseTopics
  */
 import { useEffect, useOptimistic, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { useNavigate, useParams } from 'react-router';
 import AddActivityPanel from '../components/AddActivityPanel';
 import ActivityDetailsCard from '../components/ActivityDetailsCard';
 import EditActivityPanel from '../components/EditActivityPanel';
 import AddCourseTopicsButton from '../components/AddCourseTopicsButton';
-import Nav from '../components/Nav';
+import { Topbar } from '~/components/redesign/Topbar';
 import {
-  Breadcrumb,
-  BreadcrumbList,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from '../components/ui/breadcrumb';
+  Breadcrumb as RdBreadcrumb,
+  Display,
+  Eyebrow,
+} from '~/components/redesign/ui';
+import { useLocalUser } from '~/hooks/useLocalUser';
 import api from '../lib/api';
 import type { Activity, Course, Lesson, ModuleDetail } from '../lib/types';
 import { CourseTopicsProvider, useCourseTopics } from '../hooks/useCourseTopics';
@@ -536,49 +534,35 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
     }
   };
 
+  const navigate = useNavigate();
+  const { user, logout } = useLocalUser();
+
   return (
     <CourseTopicsProvider value={courseTopics}>
-      <div className="min-h-dvh bg-background">
-        <Nav />
+      <div style={{ minHeight: '100vh', background: 'var(--paper)', color: 'var(--ink)' }}>
+        {user && <Topbar role={user.role} page="instructor" user={user} onLogout={logout} />}
         <div className="container mx-auto px-4 py-8">
-          <Breadcrumb className="mb-6">
-            <BreadcrumbList>
-              <BreadcrumbItem>
-                <BreadcrumbLink asChild>
-                  <Link to="/instructor">Teaching</Link>
-                </BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator>/</BreadcrumbSeparator>
-              <BreadcrumbItem>
-                {course && module ? (
-                  <BreadcrumbLink asChild>
-                    <Link to={`/instructor/courses/${module.courseOfferingId}`}>
-                      {course.title}
-                    </Link>
-                  </BreadcrumbLink>
-                ) : (
-                  <BreadcrumbPage>Course</BreadcrumbPage>
-                )}
-              </BreadcrumbItem>
-              <BreadcrumbSeparator>/</BreadcrumbSeparator>
-              <BreadcrumbItem>
-                {module && lesson ? (
-                  <BreadcrumbLink asChild>
-                    <Link to={`/instructor/module/${lesson.moduleId}`}>{module.title}</Link>
-                  </BreadcrumbLink>
-                ) : (
-                  <BreadcrumbPage>Module</BreadcrumbPage>
-                )}
-              </BreadcrumbItem>
-              <BreadcrumbSeparator>/</BreadcrumbSeparator>
-              <BreadcrumbItem>
-                <BreadcrumbPage>{lesson?.title || 'Lesson'}</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-          <h2 className="font-display text-2xl font-semibold text-foreground mb-6">
+          <div className="mb-6">
+            <RdBreadcrumb
+              items={[
+                { label: 'Teaching', onClick: () => navigate('/instructor') },
+                course && module
+                  ? {
+                      label: course.title,
+                      onClick: () => navigate(`/instructor/courses/${module.courseOfferingId}`),
+                    }
+                  : { label: 'Course' },
+                module && lesson
+                  ? { label: module.title, onClick: () => navigate(`/instructor/module/${lesson.moduleId}`) }
+                  : { label: 'Module' },
+                { label: lesson?.title || 'Lesson' },
+              ]}
+            />
+          </div>
+          <Eyebrow>Lesson builder</Eyebrow>
+          <Display size={36} style={{ margin: '6px 0 24px' }}>
             {lesson?.title || 'Lesson'}
-          </h2>
+          </Display>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
             <div className="lg:col-span-2 space-y-4">

@@ -21,7 +21,6 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import BugReportsTab from '~/components/admin/BugReportsTab';
-import Nav from '~/components/Nav';
 import api from '~/lib/api';
 import type {
   AdminBugReportRow,
@@ -33,6 +32,14 @@ import type {
 import type { Route } from './+types/admin';
 import { requireClientUser } from '~/lib/client-auth';
 import { Tooltip, TooltipContent, TooltipTrigger } from '~/components/ui/tooltip';
+import { Topbar } from '~/components/redesign/Topbar';
+import {
+  Chip,
+  Display,
+  Eyebrow,
+} from '~/components/redesign/ui';
+import { I } from '~/components/redesign/icons';
+import { useLocalUser } from '~/hooks/useLocalUser';
 
 type CostTier = 'LOW' | 'MEDIUM' | 'HIGH';
 
@@ -134,6 +141,7 @@ function formatTime(value: string | null) {
  * perform without exposing content-authoring or learner-facing screens.
  */
 export default function AdminHome({ loaderData }: Route.ComponentProps) {
+  const { user: currentUser, logout } = useLocalUser();
   const settingsApi = getAdminSettingsApi();
   const [activeTab, setActiveTab] = useState<'users' | 'enrollments' | 'settings' | 'bugReports'>(
     'users',
@@ -141,6 +149,7 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
   const [status, setStatus] = useState<EduAiApiKeyStatus>(loaderData.status);
   const [users, setUsers] = useState<AdminUser[]>(loaderData.users);
   const [courses] = useState<Course[]>(loaderData.courses);
+  const [bugReports] = useState<AdminBugReportRow[]>(loaderData.bugReports);
   const [aiPolicy, setAiPolicy] = useState<AdminAiModelPolicy>(
     normalizePolicy(loaderData.aiPolicy ?? DEFAULT_POLICY, loaderData.aiModels),
   );
@@ -169,13 +178,6 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
   const aiPolicyDirty = useMemo(() => {
     return JSON.stringify(initialAiPolicy) !== JSON.stringify(aiPolicy);
   }, [aiPolicy, initialAiPolicy]);
-
-  const sourceTag = (() => {
-    if (!status.configured) return { label: 'Not configured', className: 'tag' };
-    if (status.source === 'ADMIN') return { label: 'Admin override', className: 'tag tag-primary' };
-    if (status.source === 'ENV') return { label: 'From .env', className: 'tag tag-accent' };
-    return { label: 'Configured', className: 'tag' };
-  })();
 
   useEffect(() => {
     if (activeTab !== 'enrollments' || !selectedCourseId) {
@@ -344,56 +346,94 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
   };
 
   return (
-    <div className="min-h-dvh bg-background">
-      <Nav />
+    <div style={{ minHeight: '100vh', background: 'var(--paper)', color: 'var(--ink)' }}>
+      {currentUser && (
+        <Topbar role={currentUser.role} page="admin" user={currentUser} onLogout={logout} />
+      )}
 
-      {/* Background decoration */}
-      <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-1/2 w-[1000px] h-[600px] bg-primary/3 rounded-full blur-3xl -translate-y-1/2 -translate-x-1/2" />
-        <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-accent/5 rounded-full blur-3xl translate-y-1/3 translate-x-1/4" />
-        <div className="absolute inset-0 grid-lines opacity-30" />
-      </div>
-
-      <div className="container mx-auto px-6 py-10 space-y-8">
-        <header className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 animate-fade-up">
-          <div className="space-y-2">
-            <p className="text-sm font-medium text-muted-foreground">Admin</p>
-            <h1 className="font-display text-3xl sm:text-4xl font-bold tracking-tight text-foreground">
-              Settings
-            </h1>
+      <div style={{ maxWidth: 1400, margin: '0 auto', padding: '36px 32px 64px' }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr auto',
+            alignItems: 'end',
+            gap: 20,
+            marginBottom: 24,
+          }}
+        >
+          <div>
+            <Eyebrow>Administrator console</Eyebrow>
+            <Display size={44} style={{ marginTop: 6 }}>
+              Operations.
+            </Display>
+            <p
+              style={{
+                color: 'var(--ink-3)',
+                marginTop: 8,
+                maxWidth: 560,
+                fontSize: 14.5,
+              }}
+            >
+              Users, enrollments, model policy, and the bug queue — all the plumbing that keeps the
+              tutor honest.
+            </p>
           </div>
-          <div className={sourceTag.className}>{sourceTag.label}</div>
-        </header>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <Chip tone="ok" icon={I.dot}>
+              EduAI · {status?.configured ? 'configured' : 'not configured'}
+            </Chip>
+          </div>
+        </div>
 
-        <div className="flex flex-wrap gap-3 animate-fade-up delay-150">
-          <button
-            type="button"
-            onClick={() => setActiveTab('users')}
-            className={activeTab === 'users' ? 'btn-primary' : 'btn-secondary'}
-          >
-            User Management
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('enrollments')}
-            className={activeTab === 'enrollments' ? 'btn-primary' : 'btn-secondary'}
-          >
-            Enrollments
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('settings')}
-            className={activeTab === 'settings' ? 'btn-primary' : 'btn-secondary'}
-          >
-            EduAI Settings
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('bugReports')}
-            className={activeTab === 'bugReports' ? 'btn-primary' : 'btn-secondary'}
-          >
-            Bug Reports
-          </button>
+        <div
+          style={{
+            display: 'flex',
+            gap: 2,
+            borderBottom: '1px solid var(--line)',
+            marginBottom: 28,
+          }}
+        >
+          {[
+            { id: 'users' as const, label: 'Users', icon: I.users, count: users.length },
+            { id: 'enrollments' as const, label: 'Enrollments', icon: I.graduate, count: courses.length },
+            { id: 'settings' as const, label: 'Settings', icon: I.settings },
+            {
+              id: 'bugReports' as const,
+              label: 'Bug reports',
+              icon: I.bug,
+              count: bugReports.filter((b) => b.status !== 'resolved').length,
+              tone: 'ember' as const,
+            },
+          ].map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setActiveTab(t.id)}
+              style={{
+                padding: '12px 18px',
+                background: 'transparent',
+                border: 'none',
+                borderBottom:
+                  activeTab === t.id ? '2px solid var(--ink)' : '2px solid transparent',
+                color: activeTab === t.id ? 'var(--ink)' : 'var(--ink-3)',
+                fontWeight: 600,
+                fontSize: 14,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                cursor: 'pointer',
+                marginBottom: -1,
+                fontFamily: 'var(--rd-font-ui)',
+              }}
+            >
+              {t.icon} {t.label}
+              {typeof t.count === 'number' && (
+                <Chip tone={t.tone || 'outline'} size="sm">
+                  {t.count}
+                </Chip>
+              )}
+            </button>
+          ))}
         </div>
 
         {(error || message) && (

@@ -1,24 +1,19 @@
 import type { Route } from './+types/home';
-import { useEffect, useState, cloneElement, type ReactElement, type ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useLocalUser } from '../hooks/useLocalUser';
 import { signInWithEduAi } from '../lib/auth-client';
 import type { Role } from '../lib/types';
-import {
-  BookOpen,
-  BrainCircuit,
-  GraduationCap,
-  LayoutDashboard,
-  Library,
-  LineChart,
-  Sparkles,
-  Zap,
-} from 'lucide-react';
+import { Btn, Display, Eyebrow } from '~/components/redesign/ui';
+import { I } from '~/components/redesign/icons';
+import { Logo } from '~/components/redesign/Logo';
+import { Oliver } from '~/components/redesign/Mascot';
+import { useTweaks } from '~/components/redesign/tweaks';
 
 export function meta(_args: Route.MetaArgs) {
   return [
-    { title: 'AI Tutor - Welcome' },
-    { name: 'description', content: 'Sign in to AI Tutor with your EduAI account' },
+    { title: 'AiTutor — Welcome' },
+    { name: 'description', content: 'Sign in to AiTutor with your EduAI account' },
   ];
 }
 
@@ -30,28 +25,21 @@ function routeForRole(role: Role) {
 }
 
 function extractErrorMessage(error: unknown) {
-  if (!(error instanceof Error)) {
-    return 'Could not start EduAI sign-in';
-  }
-
+  if (!(error instanceof Error)) return 'Could not start EduAI sign-in';
   try {
     const parsed = JSON.parse(error.message);
-    if (typeof parsed?.message === 'string' && parsed.message.trim()) {
-      return parsed.message;
-    }
-    if (typeof parsed?.error === 'string' && parsed.error.trim()) {
-      return parsed.error;
-    }
+    if (typeof parsed?.message === 'string' && parsed.message.trim()) return parsed.message;
+    if (typeof parsed?.error === 'string' && parsed.error.trim()) return parsed.error;
   } catch {
-    // Fall back to the raw message when the backend returns plain text.
+    // Fall through to error.message.
   }
-
   return error.message || 'Could not start EduAI sign-in';
 }
 
 export default function Home() {
   const navigate = useNavigate();
   const { user, isInitializing } = useLocalUser();
+  const { setOpen: openTweaks, tweaks } = useTweaks();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -71,230 +59,336 @@ export default function Home() {
   const onSignIn = async () => {
     setLoading(true);
     setError('');
-
     try {
       await signInWithEduAi();
     } catch (err) {
       setError(extractErrorMessage(err));
-      setLoading(false);
-      return;
-    } finally {
-      // Full-page redirect keeps this from usually running, but it protects the button on failure.
       setLoading(false);
     }
   };
 
   if (isInitializing || user) {
     return (
-      <main className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-background">
-        <div className="absolute inset-0 dots-pattern opacity-50" />
-        <div className="relative z-10 flex flex-col items-center gap-4">
-          <div className="relative h-16 w-16">
-            <div className="absolute inset-0 rounded-full border-4 border-primary/20" />
-            <div className="absolute inset-0 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-            <BrainCircuit className="absolute inset-0 m-auto h-6 w-6 animate-pulse text-primary" />
-          </div>
-          <div className="animate-pulse font-display text-lg font-medium text-muted-foreground">
-            Initializing your workspace...
-          </div>
+      <main
+        style={{
+          minHeight: '100vh',
+          display: 'grid',
+          placeItems: 'center',
+          background: 'var(--paper)',
+          color: 'var(--ink)',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 18,
+            fontFamily: 'var(--rd-font-mono)',
+            fontSize: 12,
+            color: 'var(--ink-3)',
+            letterSpacing: '.1em',
+          }}
+        >
+          <Logo size={48} />
+          <span>INITIALIZING WORKSPACE…</span>
         </div>
       </main>
     );
   }
 
   return (
-    <main className="relative min-h-dvh w-full overflow-hidden bg-background text-foreground lg:grid lg:grid-cols-2">
-      <div className="relative hidden overflow-hidden bg-primary/5 p-12 lg:flex lg:flex-col lg:justify-between dark:bg-primary/5">
-        <div className="absolute inset-0 dots-pattern opacity-30" />
-        <div className="absolute left-[-10%] top-[-20%] h-[500px] w-[500px] animate-pulse-soft rounded-full bg-primary/10 blur-[100px]" />
-        <div className="absolute bottom-[-10%] right-[-10%] h-[400px] w-[400px] animate-float rounded-full bg-accent/10 blur-[80px] delay-700" />
-
-        <div className="relative z-10 flex items-center gap-3 animate-fade-down">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">
-            <GraduationCap className="h-6 w-6" />
-          </div>
-          <span className="font-display text-xl font-bold tracking-tight">AI Tutor</span>
+    <main
+      style={{
+        minHeight: '100vh',
+        display: 'grid',
+        gridTemplateColumns: '1.1fr 1fr',
+      }}
+    >
+      <aside
+        style={{
+          position: 'relative',
+          background: 'var(--paper-2)',
+          borderRight: '1px solid var(--line)',
+          padding: '48px 56px',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Logo size={32} />
+          <span
+            style={{
+              fontFamily: 'var(--rd-font-display)',
+              fontSize: 26,
+              fontStyle: 'italic',
+            }}
+          >
+            AiTutor
+          </span>
         </div>
 
-        <div className="relative z-10 flex flex-1 items-center justify-center">
-          <div className="relative aspect-square w-full max-w-md">
-            <div className="absolute inset-0 z-20 m-auto flex h-32 w-32 animate-scale-in items-center justify-center rounded-3xl border border-border/50 bg-card shadow-2xl">
-              <BrainCircuit className="h-16 w-16 text-primary" />
-            </div>
+        <div
+          style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            marginTop: 40,
+            position: 'relative',
+            zIndex: 2,
+          }}
+        >
+          <Eyebrow>Honours Capstone · UBC</Eyebrow>
+          <Display size={68} style={{ marginTop: 14, maxWidth: 560 }}>
+            Quiet help when you&apos;re
+            <br />
+            <em style={{ fontStyle: 'italic', color: 'var(--ember)' }}>nearly there.</em>
+          </Display>
+          <p
+            style={{
+              fontSize: 17,
+              color: 'var(--ink-2)',
+              maxWidth: 500,
+              marginTop: 20,
+              lineHeight: 1.55,
+            }}
+          >
+            A tutor that hints, questions, and nudges — but never hands you the answer. Work through
+            your course, and Oliver will meet you where you are.
+          </p>
 
-            <div className="absolute left-[20%] top-[10%] z-20 animate-float">
-              <FloatingNode icon={<Library className="h-5 w-5" />} label="Curriculum" />
-            </div>
-            <div className="absolute right-[10%] top-[20%] z-20 animate-float delay-300">
-              <FloatingNode icon={<Sparkles className="h-5 w-5" />} label="AI Insights" />
-            </div>
-            <div className="absolute bottom-[20%] left-[10%] z-20 animate-float delay-500">
-              <FloatingNode icon={<LineChart className="h-5 w-5" />} label="Progress" />
-            </div>
-            <div className="absolute bottom-[10%] right-[20%] z-20 animate-float delay-700">
-              <FloatingNode icon={<LayoutDashboard className="h-5 w-5" />} label="Dashboard" />
-            </div>
+          <div
+            style={{
+              marginTop: 48,
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              gap: 20,
+              maxWidth: 600,
+            }}
+          >
+            {[
+              { k: '01', t: 'Structured', d: 'Modules, lessons and activities built by your professor.' },
+              { k: '02', t: 'Socratic', d: 'Three tutoring modes: teach, guide, or a custom coach.' },
+              { k: '03', t: 'Supervised', d: 'Every AI response passes a dual-loop answer-leak check.' },
+            ].map((f) => (
+              <div key={f.k}>
+                <div
+                  style={{
+                    fontFamily: 'var(--rd-font-mono)',
+                    fontSize: 11,
+                    color: 'var(--ember)',
+                    letterSpacing: '.14em',
+                  }}
+                >
+                  {f.k}
+                </div>
+                <div
+                  style={{
+                    fontFamily: 'var(--rd-font-display)',
+                    fontSize: 22,
+                    marginTop: 6,
+                    lineHeight: 1.1,
+                  }}
+                >
+                  {f.t}
+                </div>
+                <div
+                  style={{
+                    fontSize: 13,
+                    color: 'var(--ink-3)',
+                    marginTop: 6,
+                    lineHeight: 1.5,
+                  }}
+                >
+                  {f.d}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
 
-            <svg
-              className="pointer-events-none absolute inset-0 z-10 h-full w-full text-primary opacity-20"
-              viewBox="0 0 400 400"
+        {tweaks.mascot && (
+          <div style={{ position: 'absolute', bottom: -20, right: -10, opacity: 0.95, zIndex: 1 }}>
+            <Oliver size={260} />
+          </div>
+        )}
+        <svg
+          style={{ position: 'absolute', inset: 0, opacity: 0.05, pointerEvents: 'none' }}
+          width="100%"
+          height="100%"
+        >
+          <defs>
+            <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+              <path d="M0 0h40v40H0z" fill="none" stroke="var(--ink)" strokeWidth=".5" />
+            </pattern>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#grid)" />
+        </svg>
+
+        <div
+          style={{
+            fontFamily: 'var(--rd-font-mono)',
+            fontSize: 11,
+            color: 'var(--ink-4)',
+            letterSpacing: '.08em',
+            position: 'relative',
+            zIndex: 2,
+          }}
+        >
+          AITUTOR.OK.UBC.CA — Accessible via UBC VPN
+        </div>
+      </aside>
+
+      <section
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 48,
+          background: 'var(--paper)',
+        }}
+      >
+        <div style={{ width: '100%', maxWidth: 420 }}>
+          <Eyebrow>Sign in</Eyebrow>
+          <Display size={44} style={{ marginTop: 10 }}>
+            Welcome back.
+          </Display>
+          <p style={{ color: 'var(--ink-3)', marginTop: 10, fontSize: 14.5 }}>
+            Your identity is managed by EduAI. You&apos;ll be redirected and returned here.
+          </p>
+
+          <div
+            style={{
+              marginTop: 36,
+              padding: '28px',
+              background: 'var(--paper-2)',
+              border: '1px solid var(--line)',
+              borderRadius: 'var(--rd-radius)',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 14,
+                padding: '12px',
+                borderRadius: 10,
+                background: 'var(--paper)',
+                border: '1px solid var(--line)',
+              }}
             >
-              <path
-                d="M200 200 L120 100"
-                stroke="currentColor"
-                strokeDasharray="4 4"
-                strokeWidth="2"
+              <div
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 8,
+                  background: 'var(--ink)',
+                  color: 'var(--paper)',
+                  display: 'grid',
+                  placeItems: 'center',
+                  fontFamily: 'var(--rd-font-display)',
+                  fontSize: 20,
+                }}
+              >
+                E
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 600 }}>EduAI Identity</div>
+                <div
+                  style={{
+                    fontSize: 11.5,
+                    color: 'var(--ink-3)',
+                    fontFamily: 'var(--rd-font-mono)',
+                  }}
+                >
+                  OIDC + PKCE · session cookie
+                </div>
+              </div>
+              <span
+                style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--ok)' }}
               />
-              <path
-                d="M200 200 L320 120"
-                stroke="currentColor"
-                strokeDasharray="4 4"
-                strokeWidth="2"
-              />
-              <path
-                d="M200 200 L80 280"
-                stroke="currentColor"
-                strokeDasharray="4 4"
-                strokeWidth="2"
-              />
-              <path
-                d="M200 200 L280 320"
-                stroke="currentColor"
-                strokeDasharray="4 4"
-                strokeWidth="2"
-              />
-            </svg>
-          </div>
-        </div>
-      </div>
-
-      <div className="relative flex flex-col items-center justify-center bg-background p-6 sm:p-12 lg:p-24">
-        <div className="absolute inset-0 dots-pattern opacity-50 lg:hidden" />
-
-        <div className="z-10 w-full max-w-lg space-y-10">
-          <div className="mb-8 flex items-center gap-3 animate-fade-down lg:hidden">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">
-              <GraduationCap className="h-6 w-6" />
-            </div>
-            <span className="font-display text-xl font-bold tracking-tight">AI Tutor</span>
-          </div>
-
-          <div className="space-y-4 text-center animate-fade-up lg:text-left">
-            <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-semibold text-primary">
-              <Sparkles className="h-3 w-3" />
-              <span>Next Gen Learning</span>
-            </div>
-            <h1 className="font-display text-4xl font-bold leading-[1.1] tracking-tight text-foreground sm:text-5xl lg:text-6xl">
-              Master any subject <br />
-              <span className="text-gradient">with AI guidance</span>
-            </h1>
-            <p className="mx-auto max-w-md text-lg text-muted-foreground lg:mx-0">
-              Experience a personalized learning journey that adapts to your pace. Get real-time
-              feedback, deep insights, and structured curriculum.
-            </p>
-          </div>
-
-          <div className="animate-scale-in rounded-2xl border border-border/50 p-8 shadow-xl panel-glass delay-200">
-            <div className="mb-6">
-              <h2 className="flex items-center gap-2 font-display text-xl font-semibold text-foreground">
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-secondary text-foreground">
-                  <BookOpen className="h-4 w-4" />
-                </span>
-                Welcome back
-              </h2>
-              <p className="ml-10 mt-1 text-sm text-muted-foreground">
-                Sign in to continue your progress
-              </p>
             </div>
 
             {error && (
-              <div className="mb-6 flex animate-fade-in items-start gap-3 rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive">
-                <div className="mt-0.5">
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
-                </div>
-                <p>{error}</p>
+              <div
+                style={{
+                  marginTop: 16,
+                  padding: '10px 14px',
+                  borderRadius: 10,
+                  background: 'rgba(177,66,42,.08)',
+                  border: '1px solid var(--bad)',
+                  color: 'var(--bad)',
+                  fontSize: 13,
+                }}
+              >
+                {error}
               </div>
             )}
 
-            <div className="space-y-4">
-              <button
-                type="button"
-                onClick={onSignIn}
+            <div style={{ marginTop: 18, display: 'grid', gap: 10 }}>
+              <Btn
+                size="lg"
+                variant="ember"
+                iconRight={I.arrowR}
                 disabled={loading}
-                className="group relative w-full overflow-hidden btn-primary"
+                onClick={onSignIn}
               >
-                <div className="relative z-10 flex items-center justify-center gap-2">
-                  {loading ? (
-                    <>
-                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                      <span>Connecting...</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>Sign in with EduAI</span>
-                      <Zap className="h-4 w-4 transition-transform group-hover:scale-110" />
-                    </>
-                  )}
-                </div>
-                <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent group-hover:animate-shimmer" />
-              </button>
+                {loading ? 'Connecting…' : 'Sign in with EduAI'}
+              </Btn>
+            </div>
 
-              <p className="text-center text-xs text-muted-foreground">
-                By signing in, you agree to our Terms of Service and Privacy Policy.
-              </p>
+            <div
+              style={{
+                marginTop: 16,
+                fontSize: 11.5,
+                color: 'var(--ink-4)',
+                fontFamily: 'var(--rd-font-mono)',
+                textAlign: 'center',
+                letterSpacing: '.04em',
+              }}
+            >
+              SSO · UBC accounts only
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-4 border-t border-border/50 pt-4 animate-fade-up delay-300">
-            <div className="col-span-1">
-              <FeatureItem icon={<BrainCircuit />} label="Adaptive" />
-            </div>
-            <div className="col-span-1">
-              <FeatureItem icon={<Library />} label="Structured" />
-            </div>
-            <div className="col-span-1">
-              <FeatureItem icon={<LineChart />} label="Analytics" />
-            </div>
-          </div>
+          <p
+            style={{
+              marginTop: 20,
+              fontSize: 12,
+              color: 'var(--ink-4)',
+              textAlign: 'center',
+            }}
+          >
+            By signing in, you agree to the UBC Student Conduct & EduAI Terms.
+          </p>
         </div>
-      </div>
+      </section>
+
+      <button
+        onClick={() => openTweaks(true)}
+        style={{
+          position: 'fixed',
+          right: 20,
+          bottom: 20,
+          zIndex: 90,
+          background: 'var(--ink)',
+          color: 'var(--paper)',
+          border: 'none',
+          padding: '12px 16px',
+          borderRadius: 999,
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          fontWeight: 600,
+          boxShadow: 'var(--rd-shadow-2)',
+          fontFamily: 'var(--rd-font-ui)',
+        }}
+      >
+        {I.sliders} Tweaks
+      </button>
     </main>
-  );
-}
-
-function FloatingNode({ icon, label }: { icon: ReactNode; label: string }) {
-  return (
-    <div className="flex rounded-2xl border border-border bg-card bg-opacity-90 p-3 shadow-lg backdrop-blur-sm">
-      <div className="flex flex-col items-center gap-2">
-        <div className="text-primary">{icon}</div>
-        <span className="whitespace-nowrap text-xs font-semibold">{label}</span>
-      </div>
-    </div>
-  );
-}
-
-function FeatureItem({
-  icon,
-  label,
-}: {
-  icon: ReactElement<{ className?: string }>;
-  label: string;
-}) {
-  return (
-    <div className="group flex cursor-default flex-col items-center gap-2 text-center">
-      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-muted-foreground transition-colors group-hover:bg-primary/10 group-hover:text-primary">
-        {cloneElement(icon, { className: 'h-5 w-5' })}
-      </div>
-      <span className="text-xs font-medium text-muted-foreground transition-colors group-hover:text-foreground">
-        {label}
-      </span>
-    </div>
   );
 }
