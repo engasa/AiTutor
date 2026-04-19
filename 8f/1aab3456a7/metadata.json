@@ -3,7 +3,7 @@
   "checkpoint_id": "8f1aab3456a7",
   "strategy": "manual-commit",
   "branch": "codex-skill-redesign",
-  "checkpoints_count": 5,
+  "checkpoints_count": 6,
   "files_touched": [
     "app/README.md",
     "app/app.css",
@@ -50,13 +50,19 @@
       "transcript": "/8f/1aab3456a7/1/full.jsonl",
       "content_hash": "/8f/1aab3456a7/1/content_hash.txt",
       "prompt": "/8f/1aab3456a7/1/prompt.txt"
+    },
+    {
+      "metadata": "/8f/1aab3456a7/2/metadata.json",
+      "transcript": "/8f/1aab3456a7/2/full.jsonl",
+      "content_hash": "/8f/1aab3456a7/2/content_hash.txt",
+      "prompt": "/8f/1aab3456a7/2/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 30997,
+    "input_tokens": 44963,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 17332,
-    "output_tokens": 98,
-    "api_call_count": 3
+    "cache_read_tokens": 19188,
+    "output_tokens": 135,
+    "api_call_count": 4
   }
 }

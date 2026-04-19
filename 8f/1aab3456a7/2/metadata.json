@@ -1,0 +1,56 @@
+{
+  "cli_version": "0.5.1",
+  "checkpoint_id": "8f1aab3456a7",
+  "session_id": "ses_25c8e599affeMba3bu70u7hMaT",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-19T02:11:08.115368Z",
+  "branch": "codex-skill-redesign",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "app/README.md",
+    "app/app.css",
+    "app/components/Nav.tsx",
+    "app/components/StudentAiChat.tsx",
+    "app/components/TourButton.tsx",
+    "app/components/TourProvider.tsx",
+    "app/lib/tours/tour-definitions.ts",
+    "app/lib/tours/tour-engine.ts",
+    "app/lib/types.ts",
+    "app/root.tsx",
+    "app/routes/home.tsx",
+    "app/routes/instructor.course.tsx",
+    "app/routes/instructor.topic.tsx",
+    "app/routes/instructor.tsx",
+    "app/routes/student.course.tsx",
+    "app/routes/student.topic.tsx",
+    "app/routes/student.tsx",
+    "bun.lock",
+    "package.json",
+    "server/src/routes/courses.js",
+    "server/src/services/eduaiClient.js",
+    "server/src/services/enrollmentSync.js",
+    "server/test/integration/bugReports.test.js"
+  ],
+  "agent": "OpenCode",
+  "model": "minimax-m2.5-free",
+  "turn_id": "604476b1683a",
+  "token_usage": {
+    "input_tokens": 13966,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 1856,
+    "output_tokens": 37,
+    "api_call_count": 1
+  },
+  "session_metrics": {
+    "turn_count": 1
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-19T02:11:08.113303Z",
+    "agent_lines": 0,
+    "human_added": 129,
+    "human_modified": 2395,
+    "human_removed": 0,
+    "total_committed": 133,
+    "agent_percentage": 0
+  }
+}
