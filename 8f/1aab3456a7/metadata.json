@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.5.1",
+  "checkpoint_id": "8f1aab3456a7",
+  "strategy": "manual-commit",
+  "branch": "codex-skill-redesign",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "app/root.tsx",
+    "app/routes/home.tsx"
+  ],
+  "sessions": [
+    {
+      "metadata": "/8f/1aab3456a7/0/metadata.json",
+      "transcript": "/8f/1aab3456a7/0/full.jsonl",
+      "content_hash": "/8f/1aab3456a7/0/content_hash.txt",
+      "prompt": "/8f/1aab3456a7/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 30997,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 17332,
+    "output_tokens": 98,
+    "api_call_count": 3
+  }
+}
