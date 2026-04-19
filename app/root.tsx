@@ -13,23 +13,10 @@ import { AuthProvider } from '~/hooks/useLocalUser';
 import { TourProvider } from '~/components/TourProvider';
 import { BugReportProvider } from '~/components/bug-report/BugReportProvider';
 
-// Theme script runs before React hydration to prevent flash
-// Sets dark class on <html> based on localStorage or system preference
+// Theme script runs before React hydration to prevent flash.
+// Force the application into dark mode globally.
 const themeScript = `(function(){
-  try {
-    var stored = localStorage.getItem("theme");
-    if (stored === "dark") {
-      document.documentElement.classList.add("dark");
-      return;
-    }
-    if (stored === "light") {
-      document.documentElement.classList.remove("dark");
-      return;
-    }
-  } catch (e) {}
-  if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
-    document.documentElement.classList.add("dark");
-  }
+  document.documentElement.classList.add("dark");
 })();`;
 
 export const links: Route.LinksFunction = () => [
@@ -39,17 +26,10 @@ export const links: Route.LinksFunction = () => [
     href: 'https://fonts.gstatic.com',
     crossOrigin: 'anonymous',
   },
-  // Satoshi - Modern geometric sans for body text
   {
     rel: 'stylesheet',
-    href: 'https://api.fontshare.com/v2/css?f[]=satoshi@400,500,600,700&display=swap',
+    href: 'https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@400,500,700,800&display=swap',
   },
-  // Fraunces - Distinctive old-style serif for display headings
-  {
-    rel: 'stylesheet',
-    href: 'https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&display=swap',
-  },
-  // JetBrains Mono - For code and monospace elements
   {
     rel: 'stylesheet',
     href: 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap',
@@ -58,15 +38,15 @@ export const links: Route.LinksFunction = () => [
 
 export function HydrateFallback() {
   return (
-    <div className="min-h-dvh bg-gradient-to-br from-gray-50 to-white dark:from-gray-950 dark:to-gray-900 flex items-center justify-center">
-      <div className="text-sm text-gray-600 dark:text-gray-300">Loading…</div>
+    <div className="flex min-h-dvh items-center justify-center bg-background">
+      <div className="panel-glass px-5 py-4 text-sm text-white/72">Loading…</div>
     </div>
   );
 }
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className="dark" suppressHydrationWarning>
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />

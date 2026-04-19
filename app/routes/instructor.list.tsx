@@ -36,6 +36,14 @@
  */
 import { useEffect, useOptimistic, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router';
+import {
+  AppBackdrop,
+  AppContainer,
+  DashboardCard,
+  DashboardHero,
+  SectionEyebrow,
+  StatPill,
+} from '~/components/AppShell';
 import AddActivityPanel from '../components/AddActivityPanel';
 import ActivityDetailsCard from '../components/ActivityDetailsCard';
 import EditActivityPanel from '../components/EditActivityPanel';
@@ -517,54 +525,80 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
 
   return (
     <CourseTopicsProvider value={courseTopics}>
-      <div className="min-h-dvh bg-background">
+      <main className="app-shell">
+        <AppBackdrop pattern="mesh" />
         <Nav />
-        <div className="container mx-auto px-4 py-8">
-          <Breadcrumb className="mb-6">
+        <AppContainer className="space-y-8 pb-12 pt-8">
+          <Breadcrumb className="px-1 text-white/54">
             <BreadcrumbList>
               <BreadcrumbItem>
                 <BreadcrumbLink asChild>
-                  <Link to="/instructor">Teaching</Link>
+                  <Link to="/instructor" className="hover:text-white">
+                    Teaching
+                  </Link>
                 </BreadcrumbLink>
               </BreadcrumbItem>
-              <BreadcrumbSeparator>/</BreadcrumbSeparator>
+              <BreadcrumbSeparator className="text-white/24">/</BreadcrumbSeparator>
               <BreadcrumbItem>
                 {course && module ? (
                   <BreadcrumbLink asChild>
-                    <Link to={`/instructor/courses/${module.courseOfferingId}`}>
+                    <Link
+                      to={`/instructor/courses/${module.courseOfferingId}`}
+                      className="hover:text-white"
+                    >
                       {course.title}
                     </Link>
                   </BreadcrumbLink>
                 ) : (
-                  <BreadcrumbPage>Course</BreadcrumbPage>
+                  <BreadcrumbPage className="text-white">Course</BreadcrumbPage>
                 )}
               </BreadcrumbItem>
-              <BreadcrumbSeparator>/</BreadcrumbSeparator>
+              <BreadcrumbSeparator className="text-white/24">/</BreadcrumbSeparator>
               <BreadcrumbItem>
                 {module && lesson ? (
                   <BreadcrumbLink asChild>
-                    <Link to={`/instructor/module/${lesson.moduleId}`}>{module.title}</Link>
+                    <Link to={`/instructor/module/${lesson.moduleId}`} className="hover:text-white">
+                      {module.title}
+                    </Link>
                   </BreadcrumbLink>
                 ) : (
-                  <BreadcrumbPage>Module</BreadcrumbPage>
+                  <BreadcrumbPage className="text-white">Module</BreadcrumbPage>
                 )}
               </BreadcrumbItem>
-              <BreadcrumbSeparator>/</BreadcrumbSeparator>
+              <BreadcrumbSeparator className="text-white/24">/</BreadcrumbSeparator>
               <BreadcrumbItem>
-                <BreadcrumbPage>{lesson?.title || 'Lesson'}</BreadcrumbPage>
+                <BreadcrumbPage className="text-white">{lesson?.title || 'Lesson'}</BreadcrumbPage>
               </BreadcrumbItem>
             </BreadcrumbList>
           </Breadcrumb>
-          <h2 className="font-display text-2xl font-semibold text-foreground mb-6">
-            {lesson?.title || 'Lesson'}
-          </h2>
+          <DashboardHero
+            eyebrow={<SectionEyebrow tone="warm">Lesson builder</SectionEyebrow>}
+            title={lesson?.title || 'Lesson'}
+            description="Compose activities, tune AI modes, and manage topic alignment inside a dedicated authoring studio."
+            aside={
+              <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1">
+                <StatPill label="Activities" value={activities.length} />
+                <StatPill label="Topics" value={topics.length} />
+                <StatPill label="Sync" value={syncingTopics ? 'Running' : 'Ready'} />
+              </div>
+            }
+          />
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+          <div className="grid grid-cols-1 gap-6 items-start lg:grid-cols-3">
             <div className="lg:col-span-2 space-y-4">
-              <div className="card-editorial p-5">
-                <div className="font-semibold mb-3 text-foreground">Activities</div>
+              <DashboardCard className="p-5">
+                <div className="mb-4 flex items-center justify-between gap-4">
+                  <div>
+                    <div className="text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-white/40">
+                      Activities
+                    </div>
+                    <div className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-white">
+                      Activity stack
+                    </div>
+                  </div>
+                </div>
                 {oActivities.length === 0 ? (
-                  <div className="text-muted-foreground">No activities yet.</div>
+                  <div className="text-white/54">No activities yet.</div>
                 ) : (
                   <ul className="space-y-3">
                     {oActivities.map((activity, i) => {
@@ -585,38 +619,34 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
                       return (
                         <li
                           key={activity.id}
-                          className="p-4 rounded-xl border border-border bg-card space-y-3"
+                          className="space-y-3 rounded-[1.6rem] border border-white/10 bg-black/16 p-4"
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex items-start gap-3">
-                              <span className="flex-shrink-0 w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center font-display font-semibold text-xs">
+                              <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-amber-300 text-xs font-semibold text-slate-950">
                                 {i + 1}
                               </span>
                               <div>
-                                <div className="text-xs text-muted-foreground mb-0.5">
-                                  {activity.type}
-                                </div>
-                                <div className="font-medium whitespace-pre-wrap text-foreground">
+                                <div className="mb-0.5 text-xs text-white/40">{activity.type}</div>
+                                <div className="whitespace-pre-wrap font-medium text-white">
                                   {activity.question}
                                 </div>
                                 {(isSaving || isDeleting) && (
-                                  <div className="text-[0.7rem] text-muted-foreground mt-1">
-                                    {isSaving ? 'Saving…' : 'Removing…'}
+                                  <div className="mt-1 text-[0.7rem] text-white/42">
+                                    {isSaving ? 'Saving...' : 'Removing...'}
                                   </div>
                                 )}
                               </div>
                             </div>
                             <div className="flex gap-2">
                               {isEditing ? (
-                                <span className="tag bg-accent text-accent-foreground">
-                                  Editing…
-                                </span>
+                                <span className="tag tag-accent">Editing</span>
                               ) : (
                                 <>
                                   <button
                                     type="button"
                                     onClick={() => beginEditingActivity(activity)}
-                                    className="btn-ghost text-xs px-2.5 py-1"
+                                    className="btn-secondary px-3 py-2 text-xs"
                                     disabled={isDeleting}
                                   >
                                     Edit
@@ -624,10 +654,10 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
                                   <button
                                     type="button"
                                     onClick={() => handleDeleteActivity(activity.id)}
-                                    className="px-2.5 py-1 rounded-lg bg-destructive/10 text-destructive text-xs font-medium hover:bg-destructive/20 transition"
+                                    className="rounded-full border border-rose-300/20 bg-rose-300/10 px-3 py-2 text-xs font-medium text-rose-100"
                                     disabled={isDeleting}
                                   >
-                                    {isDeleting ? 'Removing…' : 'Remove'}
+                                    {isDeleting ? 'Removing...' : 'Remove'}
                                   </button>
                                 </>
                               )}
@@ -647,18 +677,18 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
                             <ActivityDetailsCard activity={activity} />
                           )}
 
-                          <div className="rounded-xl border border-dashed border-accent/50 bg-accent/10 p-3 space-y-3">
-                            <div className="text-xs font-semibold text-accent-foreground">
+                          <div className="space-y-3 rounded-[1.2rem] border border-cyan-300/16 bg-cyan-300/8 p-3">
+                            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-100">
                               Topics
                             </div>
                             {topics.length === 0 ? (
-                              <p className="text-xs text-muted-foreground">
+                              <p className="text-xs text-white/48">
                                 Define course topics to tag this activity.
                               </p>
                             ) : (
                               <div className="space-y-3">
                                 <div>
-                                  <label className="text-xs font-semibold text-muted-foreground block mb-1">
+                                  <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
                                     Main topic
                                   </label>
                                   <select
@@ -680,7 +710,7 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
                                   </select>
                                 </div>
                                 <div>
-                                  <span className="text-xs font-semibold text-muted-foreground block mb-1">
+                                  <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
                                     Secondary topics
                                   </span>
                                   <div className="flex flex-wrap gap-2">
@@ -693,8 +723,8 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
                                             key={topic.id}
                                             className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs cursor-pointer transition ${
                                               checked
-                                                ? 'border-transparent bg-accent text-accent-foreground shadow-sm'
-                                                : 'border-border bg-secondary hover:border-accent/50'
+                                                ? 'border-cyan-300/20 bg-cyan-300/12 text-cyan-100 shadow-sm'
+                                                : 'border-white/10 bg-white/5 text-white/70 hover:border-cyan-300/16'
                                             } ${
                                               showTopicSaving && isUpdatingTopics
                                                 ? 'opacity-60'
@@ -723,12 +753,12 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
                               </div>
                             )}
                             {showTopicSaving && isUpdatingTopics && (
-                              <span className="text-[0.7rem] text-accent-foreground">Saving…</span>
+                              <span className="text-[0.7rem] text-cyan-100">Saving...</span>
                             )}
                           </div>
 
-                          <div className="rounded-xl border border-dashed border-primary/30 bg-primary/5 p-3 space-y-2">
-                            <div className="text-xs font-semibold text-primary">
+                          <div className="space-y-2 rounded-[1.2rem] border border-amber-300/16 bg-amber-300/8 p-3">
+                            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-100">
                               AI Study Buddy Modes
                             </div>
                             <div className="space-y-2">
@@ -740,9 +770,9 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
                                     handleActivityModeChange(activity.id, 'teach', e.target.checked)
                                   }
                                   disabled={isUpdatingModes}
-                                  className="rounded border-primary/50 text-primary focus:ring-primary"
+                                  className="rounded border-white/20"
                                 />
-                                <span className="text-sm text-foreground">Teach me</span>
+                                <span className="text-sm text-white">Teach me</span>
                               </label>
                               <label className="flex items-center gap-2 cursor-pointer">
                                 <input
@@ -752,9 +782,9 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
                                     handleActivityModeChange(activity.id, 'guide', e.target.checked)
                                   }
                                   disabled={isUpdatingModes}
-                                  className="rounded border-primary/50 text-primary focus:ring-primary"
+                                  className="rounded border-white/20"
                                 />
-                                <span className="text-sm text-foreground">Guide me</span>
+                                <span className="text-sm text-white">Guide me</span>
                               </label>
                               <label className="flex items-center gap-2 cursor-pointer">
                                 <input
@@ -768,13 +798,13 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
                                     )
                                   }
                                   disabled={isUpdatingModes}
-                                  className="rounded border-primary/50 text-primary focus:ring-primary"
+                                  className="rounded border-white/20"
                                 />
-                                <span className="text-sm text-foreground">Custom prompt</span>
+                                <span className="text-sm text-white">Custom prompt</span>
                               </label>
                             </div>
                             {showModeSaving && isUpdatingModes && (
-                              <span className="text-[0.7rem] text-primary">Saving…</span>
+                              <span className="text-[0.7rem] text-amber-100">Saving...</span>
                             )}
                             {isCustomEnabled && (
                               <div className="mt-3 space-y-3">
@@ -848,22 +878,22 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
                                     type="button"
                                     onClick={() => handleCustomPromptSave(activity)}
                                     disabled={isSavingPrompt}
-                                    className="btn-primary text-xs py-2"
+                                    className="btn-primary py-2 text-xs"
                                   >
                                     {isSavingPrompt
-                                      ? 'Saving…'
+                                      ? 'Saving...'
                                       : isPromptSaved
                                         ? 'Saved'
                                         : 'Save prompt'}
                                   </button>
                                   {promptError && (
-                                    <span className="text-[0.75rem] text-destructive">
+                                    <span className="text-[0.75rem] text-rose-200">
                                       {promptError}
                                     </span>
                                   )}
                                   {!promptError && isSavingPrompt && (
-                                    <span className="text-[0.75rem] text-primary">
-                                      Saving prompt…
+                                    <span className="text-[0.75rem] text-amber-100">
+                                      Saving prompt...
                                     </span>
                                   )}
                                 </div>
@@ -875,7 +905,7 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
                     })}
                   </ul>
                 )}
-              </div>
+              </DashboardCard>
 
               <div className="flex justify-center">
                 <button
@@ -896,16 +926,14 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
             </div>
 
             <aside className="space-y-4">
-              <div className="card-editorial p-5 space-y-3">
+              <DashboardCard className="space-y-3 p-5">
                 <div className="flex items-center justify-between">
-                  <div className="font-semibold text-foreground">Course Topics</div>
+                  <div className="font-semibold text-white">Course Topics</div>
                   {lesson?.courseOfferingId && (
-                    <span className="text-xs text-muted-foreground">
-                      Course #{lesson.courseOfferingId}
-                    </span>
+                    <span className="text-xs text-white/42">Course #{lesson.courseOfferingId}</span>
                   )}
                 </div>
-                {topicsError && <p className="text-xs text-destructive">{topicsError}</p>}
+                {topicsError && <p className="text-xs text-rose-200">{topicsError}</p>}
                 <div className="flex items-center gap-2">
                   {!!course?.externalId || course?.externalSource === 'EDUAI' ? (
                     // EduAI course: Show only sync button
@@ -944,9 +972,9 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
                     <AddCourseTopicsButton disabled={!lesson?.courseOfferingId} />
                   )}
                 </div>
-                <div className="space-y-1.5 max-h-48 overflow-y-auto text-sm">
+                <div className="max-h-48 space-y-1.5 overflow-y-auto text-sm">
                   {topics.length === 0 ? (
-                    <div className="text-muted-foreground text-xs">No topics yet.</div>
+                    <div className="text-xs text-white/46">No topics yet.</div>
                   ) : (
                     topics.map((topic) => (
                       <div key={topic.id} className="tag">
@@ -955,11 +983,11 @@ export default function InstructorLessonBuilder({ loaderData }: Route.ComponentP
                     ))
                   )}
                 </div>
-              </div>
+              </DashboardCard>
             </aside>
           </div>
-        </div>
-      </div>
+        </AppContainer>
+      </main>
       <TopicSyncMappingDialog
         open={showMapping}
         onClose={() => setShowMapping(false)}

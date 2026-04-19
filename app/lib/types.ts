@@ -55,14 +55,12 @@ export type AdminBugReportRow = {
   reporterName?: string | null;
   reporterEmail?: string | null;
   reporterRole?: Role | null;
-  user?:
-    | {
-        id: string;
-        name: string | null;
-        email: string | null;
-        role: Role | null;
-      }
-    | null;
+  user?: {
+    id: string;
+    name: string | null;
+    email: string | null;
+    role: Role | null;
+  } | null;
   userName?: string | null;
   userEmail?: string | null;
   role?: Role | null;

@@ -173,15 +173,17 @@ describe('Bug report routes', () => {
   });
 
   it('allows contextual report for valid enrolled student', async () => {
-    const res = await request(studentApp).post('/api/bug-reports').send({
-      description: 'Activity content loaded with stale answers.',
-      context: {
-        courseOfferingId: primaryContext.course.id,
-        moduleId: primaryContext.module.id,
-        lessonId: primaryContext.lesson.id,
-        activityId: primaryContext.activity.id,
-      },
-    });
+    const res = await request(studentApp)
+      .post('/api/bug-reports')
+      .send({
+        description: 'Activity content loaded with stale answers.',
+        context: {
+          courseOfferingId: primaryContext.course.id,
+          moduleId: primaryContext.module.id,
+          lessonId: primaryContext.lesson.id,
+          activityId: primaryContext.activity.id,
+        },
+      });
 
     expect(res.status).toBe(201);
     expect(res.body.context).toEqual({
@@ -193,28 +195,32 @@ describe('Bug report routes', () => {
   });
 
   it('rejects contextual report when student lacks enrollment', async () => {
-    const res = await request(studentApp).post('/api/bug-reports').send({
-      description: 'I should not be able to report against this course context.',
-      context: {
-        courseOfferingId: secondaryContext.course.id,
-        moduleId: secondaryContext.module.id,
-        lessonId: secondaryContext.lesson.id,
-        activityId: secondaryContext.activity.id,
-      },
-    });
+    const res = await request(studentApp)
+      .post('/api/bug-reports')
+      .send({
+        description: 'I should not be able to report against this course context.',
+        context: {
+          courseOfferingId: secondaryContext.course.id,
+          moduleId: secondaryContext.module.id,
+          lessonId: secondaryContext.lesson.id,
+          activityId: secondaryContext.activity.id,
+        },
+      });
 
     expect(res.status).toBe(403);
   });
 
   it('allows contextual report for valid professor assignment', async () => {
-    const res = await request(professorApp).post('/api/bug-reports').send({
-      description: 'Lesson editor did not save latest draft.',
-      context: {
-        courseOfferingId: primaryContext.course.id,
-        moduleId: primaryContext.module.id,
-        lessonId: primaryContext.lesson.id,
-      },
-    });
+    const res = await request(professorApp)
+      .post('/api/bug-reports')
+      .send({
+        description: 'Lesson editor did not save latest draft.',
+        context: {
+          courseOfferingId: primaryContext.course.id,
+          moduleId: primaryContext.module.id,
+          lessonId: primaryContext.lesson.id,
+        },
+      });
 
     expect(res.status).toBe(201);
     expect(res.body.context.lessonId).toBe(primaryContext.lesson.id);
@@ -232,28 +238,32 @@ describe('Bug report routes', () => {
     });
     const otherProfessorApp = await createApp({ mockUser: otherProfessor });
 
-    const res = await request(otherProfessorApp).post('/api/bug-reports').send({
-      description: 'Unauthorized professor context report.',
-      context: {
-        courseOfferingId: primaryContext.course.id,
-        moduleId: primaryContext.module.id,
-      },
-    });
+    const res = await request(otherProfessorApp)
+      .post('/api/bug-reports')
+      .send({
+        description: 'Unauthorized professor context report.',
+        context: {
+          courseOfferingId: primaryContext.course.id,
+          moduleId: primaryContext.module.id,
+        },
+      });
 
     expect(res.status).toBe(403);
   });
 
   it('admin can list reports and non-admin cannot', async () => {
-    await request(studentApp).post('/api/bug-reports').send({
-      description: 'Admin listing should include this report.',
-      context: {
-        courseOfferingId: primaryContext.course.id,
-        moduleId: primaryContext.module.id,
-        lessonId: primaryContext.lesson.id,
-        activityId: primaryContext.activity.id,
-      },
-      pageUrl: 'http://localhost:5173/student/lessons/1',
-    });
+    await request(studentApp)
+      .post('/api/bug-reports')
+      .send({
+        description: 'Admin listing should include this report.',
+        context: {
+          courseOfferingId: primaryContext.course.id,
+          moduleId: primaryContext.module.id,
+          lessonId: primaryContext.lesson.id,
+          activityId: primaryContext.activity.id,
+        },
+        pageUrl: 'http://localhost:5173/student/lessons/1',
+      });
 
     const adminRes = await request(adminApp).get('/api/admin/bug-reports');
     expect(adminRes.status).toBe(200);
@@ -316,17 +326,19 @@ describe('Bug report routes', () => {
   it('persists base64 screenshot and context IDs with round-trip admin data', async () => {
     const screenshot = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ';
 
-    const createRes = await request(studentApp).post('/api/bug-reports').send({
-      description: 'Screenshot persistence test with context.',
-      screenshot,
-      consoleLogs: '[{\"level\":\"error\",\"message\":\"boom\"}]',
-      networkLogs: '[{\"url\":\"/api/test\",\"status\":500}]',
-      context: {
-        courseOfferingId: primaryContext.course.id,
-        moduleId: primaryContext.module.id,
-        lessonId: primaryContext.lesson.id,
-      },
-    });
+    const createRes = await request(studentApp)
+      .post('/api/bug-reports')
+      .send({
+        description: 'Screenshot persistence test with context.',
+        screenshot,
+        consoleLogs: '[{\"level\":\"error\",\"message\":\"boom\"}]',
+        networkLogs: '[{\"url\":\"/api/test\",\"status\":500}]',
+        context: {
+          courseOfferingId: primaryContext.course.id,
+          moduleId: primaryContext.module.id,
+          lessonId: primaryContext.lesson.id,
+        },
+      });
 
     expect(createRes.status).toBe(201);
 

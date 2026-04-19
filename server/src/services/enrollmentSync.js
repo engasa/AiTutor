@@ -16,8 +16,7 @@ export async function syncCourseEnrollments(courseOfferingId, options = {}) {
   }
 
   const course =
-    options.course ??
-    (await prisma.courseOffering.findUnique({ where: { id: courseOfferingId } }));
+    options.course ?? (await prisma.courseOffering.findUnique({ where: { id: courseOfferingId } }));
   if (!course || !course.externalId || course.externalSource !== 'EDUAI') {
     return { synced: 0, created: 0, errors: [] };
   }

@@ -1,4 +1,5 @@
-import { memo, useMemo, useState } from 'react';
+import { memo, useMemo, useState, type ReactNode } from 'react';
+import { ChevronDown } from 'lucide-react';
 import type { Activity } from '../lib/types';
 
 type ActivityDetailsCardProps = {
@@ -36,111 +37,109 @@ function ActivityDetailsCard({ activity }: ActivityDetailsCardProps) {
   }, [activity]);
 
   return (
-    <div className="rounded-xl border border-dashed border-accent/50 bg-accent/10">
+    <div className="rounded-[1.4rem] border border-white/10 bg-black/15">
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
         aria-expanded={open}
         aria-controls={`activity-${activity.id}-details`}
-        className="w-full px-3 py-2 flex items-center justify-between gap-3 text-sm font-semibold text-accent-foreground hover:text-accent-foreground/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background transition"
+        className="flex w-full items-center justify-between gap-3 px-4 py-4 text-left"
       >
-        <span>Question details</span>
-        <svg
-          className={`h-4 w-4 text-accent-foreground/70 transition-transform ${open ? 'rotate-180' : ''}`}
-          viewBox="0 0 20 20"
-          fill="currentColor"
-          aria-hidden="true"
-        >
-          <path
-            fillRule="evenodd"
-            d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 10.94l3.71-3.71a.75.75 0 1 1 1.06 1.06l-4.24 4.25a.75.75 0 0 1-1.06 0L5.21 8.29a.75.75 0 0 1 .02-1.08Z"
-            clipRule="evenodd"
-          />
-        </svg>
+        <div>
+          <div className="text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-white/40">
+            Internal anatomy
+          </div>
+          <div className="mt-2 text-sm font-semibold text-white">
+            {open ? 'Hide question details' : 'Reveal question details'}
+          </div>
+        </div>
+        <ChevronDown
+          className={`h-4 w-4 text-white/48 transition-transform ${open ? 'rotate-180' : ''}`}
+        />
       </button>
-      {open && (
+
+      {open ? (
         <div
           id={`activity-${activity.id}-details`}
-          className="px-3 pb-3 space-y-3 text-sm text-foreground"
+          className="space-y-4 border-t border-white/10 px-4 pb-4 pt-4 text-sm text-white/80"
         >
-          {activity.title && (
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Internal title
-              </div>
-              <p className="mt-1 whitespace-pre-wrap">{activity.title}</p>
-            </div>
-          )}
+          {activity.title ? (
+            <DetailBlock label="Internal title">
+              <p className="whitespace-pre-wrap">{activity.title}</p>
+            </DetailBlock>
+          ) : null}
 
-          {activity.instructionsMd && (
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Instructions
-              </div>
-              <p className="mt-1 whitespace-pre-wrap">{activity.instructionsMd}</p>
-            </div>
-          )}
+          {activity.instructionsMd ? (
+            <DetailBlock label="Instructions">
+              <p className="whitespace-pre-wrap">{activity.instructionsMd}</p>
+            </DetailBlock>
+          ) : null}
 
-          {details.choices.length > 0 && (
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Choices
-              </div>
-              <ul className="mt-1 space-y-1">
+          {details.choices.length > 0 ? (
+            <DetailBlock label="Choices">
+              <ul className="space-y-2">
                 {details.choices.map((choice, index) => (
-                  <li key={index} className="flex items-start gap-2">
-                    <span className="text-xs font-semibold text-primary">
-                      {String.fromCharCode(65 + index)}.
+                  <li
+                    key={index}
+                    className="flex gap-3 rounded-[1rem] border border-white/8 bg-white/4 px-3 py-3"
+                  >
+                    <span className="text-xs font-semibold text-amber-100">
+                      {String.fromCharCode(65 + index)}
                     </span>
-                    <span className="flex-1 whitespace-pre-wrap">{choice}</span>
+                    <span className="whitespace-pre-wrap">{choice}</span>
                   </li>
                 ))}
               </ul>
-            </div>
-          )}
+            </DetailBlock>
+          ) : null}
 
-          {activity.type === 'MCQ' && details.correctChoiceIndex !== null && (
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Correct answer
-              </div>
-              <p className="mt-1 whitespace-pre-wrap">
+          {activity.type === 'MCQ' && details.correctChoiceIndex !== null ? (
+            <DetailBlock label="Correct answer">
+              <p className="whitespace-pre-wrap">
                 {`${String.fromCharCode(65 + details.correctChoiceIndex)}. ${
                   details.choices[details.correctChoiceIndex] ?? 'Option not found'
                 }`}
               </p>
-            </div>
-          )}
+            </DetailBlock>
+          ) : null}
 
-          {activity.type === 'SHORT_TEXT' && details.shortAnswerText && (
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Expected answer
-              </div>
-              <p className="mt-1 whitespace-pre-wrap">{details.shortAnswerText}</p>
-            </div>
-          )}
+          {activity.type === 'SHORT_TEXT' && details.shortAnswerText ? (
+            <DetailBlock label="Expected answer">
+              <p className="whitespace-pre-wrap">{details.shortAnswerText}</p>
+            </DetailBlock>
+          ) : null}
 
-          {activity.hints.length > 0 && (
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Hints
-              </div>
-              <ol className="mt-1 list-decimal list-inside space-y-1">
+          {activity.hints.length > 0 ? (
+            <DetailBlock label="Hints">
+              <ol className="space-y-2">
                 {activity.hints.map((hint, index) => (
-                  <li key={index} className="whitespace-pre-wrap">
+                  <li
+                    key={index}
+                    className="rounded-[1rem] border border-white/8 bg-white/4 px-3 py-3 whitespace-pre-wrap"
+                  >
                     {hint}
                   </li>
                 ))}
               </ol>
-            </div>
-          )}
+            </DetailBlock>
+          ) : null}
 
-          {!details.hasContent && (
-            <p className="text-xs text-muted-foreground">No additional details captured yet.</p>
-          )}
+          {!details.hasContent ? (
+            <p className="text-xs text-white/46">No additional details captured yet.</p>
+          ) : null}
         </div>
-      )}
+      ) : null}
+    </div>
+  );
+}
+
+function DetailBlock({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="space-y-2">
+      <div className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-white/40">
+        {label}
+      </div>
+      {children}
     </div>
   );
 }

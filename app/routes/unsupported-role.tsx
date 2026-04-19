@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router';
+import { ArrowLeft, ShieldAlert } from 'lucide-react';
+import { AppBackdrop, AppContainer, DashboardCard, SectionEyebrow } from '~/components/AppShell';
 import { useLocalUser } from '../hooks/useLocalUser';
 
 function routeForRole(role: string) {
@@ -18,7 +20,6 @@ export default function UnsupportedRolePage() {
       navigate('/', { replace: true });
       return;
     }
-
     if (user.role !== 'TA') {
       navigate(routeForRole(user.role), { replace: true });
     }
@@ -30,52 +31,36 @@ export default function UnsupportedRolePage() {
   };
 
   return (
-    <main className="relative min-h-dvh overflow-hidden bg-background">
-      <div className="absolute inset-0 dots-pattern" />
-      <div className="relative container mx-auto flex min-h-dvh items-center justify-center px-6 py-12">
-        <div className="card-editorial w-full max-w-xl p-8 sm:p-10">
-          <div className="mb-6 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-accent/15 text-accent">
-            <svg
-              className="h-7 w-7"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
-              />
-            </svg>
+    <main className="app-shell">
+      <AppBackdrop pattern="radial" />
+      <AppContainer className="flex min-h-dvh items-center justify-center py-16">
+        <DashboardCard className="max-w-3xl p-8 sm:p-10">
+          <SectionEyebrow tone="warm">Role mismatch</SectionEyebrow>
+          <div className="mt-6 flex h-16 w-16 items-center justify-center rounded-[1.4rem] border border-amber-300/18 bg-amber-300/12">
+            <ShieldAlert className="h-8 w-8 text-amber-100" />
           </div>
-
-          <h1 className="mb-3 font-display text-3xl font-bold text-foreground">
-            TA access is not available yet
+          <h1 className="mt-6 text-balance text-[clamp(2.2rem,5vw,4rem)] font-semibold leading-[0.95] tracking-[-0.05em] text-white">
+            TA access is authenticated, but not supported in this release.
           </h1>
-          <p className="mb-4 text-base text-muted-foreground">
-            Your EduAI account was authenticated successfully, but AI Tutor does not support TA
-            access in this first release.
+          <p className="mt-5 max-w-2xl text-lg leading-8 text-white/62">
+            Your EduAI account signed in correctly. AI Tutor just does not expose a TA workspace
+            yet. If your role should be different, update it in EduAI and sign in again.
           </p>
-          <p className="mb-8 text-sm text-muted-foreground">
-            If you expected a different role, update it in EduAI and sign in again. Otherwise,
-            please contact the EduAI team for access guidance.
-          </p>
-
-          <div className="flex flex-col gap-3 sm:flex-row">
+          <div className="mt-8 flex flex-wrap gap-3">
             <button type="button" onClick={handleLogout} className="btn-primary">
               Sign out
             </button>
             <button
               type="button"
               onClick={() => navigate('/', { replace: true })}
-              className="btn-ghost"
+              className="btn-secondary"
             >
+              <ArrowLeft className="h-4 w-4" />
               Back to home
             </button>
           </div>
-        </div>
-      </div>
+        </DashboardCard>
+      </AppContainer>
     </main>
   );
 }

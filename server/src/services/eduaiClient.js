@@ -1,4 +1,8 @@
-import { EduAiCourseListSchema, EduAiTopicListSchema, EduAiEnrollmentListSchema } from '../schemas/eduai.js';
+import {
+  EduAiCourseListSchema,
+  EduAiTopicListSchema,
+  EduAiEnrollmentListSchema,
+} from '../schemas/eduai.js';
 const DEFAULT_BASE_URL = 'http://localhost:5174/api';
 
 function normalizeBaseUrl(rawUrl) {

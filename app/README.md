@@ -86,32 +86,33 @@ app/
 
 All routes are flat (no nested layouts). Each route module renders `<Nav />` independently and uses a `clientLoader` function for data fetching via `requireClientUser(role)`.
 
-| Path | Module | Role |
-|------|--------|------|
-| `/` | `home.tsx` | Public |
-| `/admin` | `admin.tsx` | ADMIN |
-| `/student` | `student.tsx` | STUDENT |
-| `/student/courses/:courseId` | `student.course.tsx` | STUDENT |
-| `/student/module/:moduleId` | `student.topic.tsx` | STUDENT |
-| `/student/lesson/:lessonId` | `student.list.tsx` | STUDENT |
-| `/instructor` | `instructor.tsx` | PROFESSOR |
+| Path                            | Module                  | Role      |
+| ------------------------------- | ----------------------- | --------- |
+| `/`                             | `home.tsx`              | Public    |
+| `/admin`                        | `admin.tsx`             | ADMIN     |
+| `/student`                      | `student.tsx`           | STUDENT   |
+| `/student/courses/:courseId`    | `student.course.tsx`    | STUDENT   |
+| `/student/module/:moduleId`     | `student.topic.tsx`     | STUDENT   |
+| `/student/lesson/:lessonId`     | `student.list.tsx`      | STUDENT   |
+| `/instructor`                   | `instructor.tsx`        | PROFESSOR |
 | `/instructor/courses/:courseId` | `instructor.course.tsx` | PROFESSOR |
-| `/instructor/module/:moduleId` | `instructor.topic.tsx` | PROFESSOR |
-| `/instructor/lesson/:lessonId` | `instructor.list.tsx` | PROFESSOR |
-| `/unsupported-role` | `unsupported-role.tsx` | Any |
+| `/instructor/module/:moduleId`  | `instructor.topic.tsx`  | PROFESSOR |
+| `/instructor/lesson/:lessonId`  | `instructor.list.tsx`   | PROFESSOR |
+| `/unsupported-role`             | `unsupported-role.tsx`  | Any       |
 
 ## State Management
 
 The project uses **React Context + hooks** exclusively. No Redux, Zustand, or external state libraries.
 
-| Context | Provider | Hook | Purpose |
-|---------|----------|------|---------|
-| Auth/User | `AuthProvider` | `useLocalUser()` | Current user session state |
-| Course Topics | `CourseTopicsProvider` | `useCourseTopicsContext()` | Topic list for a course |
-| Bug Report | `BugReportProvider` | `useBugReport()` | Console/network/screenshot capture |
-| Tour | `TourProvider` | `useAppTour()` | Guided tour session state |
+| Context       | Provider               | Hook                       | Purpose                            |
+| ------------- | ---------------------- | -------------------------- | ---------------------------------- |
+| Auth/User     | `AuthProvider`         | `useLocalUser()`           | Current user session state         |
+| Course Topics | `CourseTopicsProvider` | `useCourseTopicsContext()` | Topic list for a course            |
+| Bug Report    | `BugReportProvider`    | `useBugReport()`           | Console/network/screenshot capture |
+| Tour          | `TourProvider`         | `useAppTour()`             | Guided tour session state          |
 
 Additional patterns:
+
 - **`useOptimistic`** (React 19): Used in instructor routes for optimistic publish/unpublish UI updates.
 - **`clientLoader`**: Every route uses React Router v7's client-side loader for data fetching.
 - **localStorage**: Theme preference, AI provider API keys, tour completion flags.
@@ -147,17 +148,17 @@ Custom "Neo-Academic" theme defined in `app.css`:
 
 ## Key Libraries
 
-| Library | Purpose |
-|---------|---------|
-| `driver.js` | Guided product tours |
-| `streamdown` | Streaming markdown rendering for AI responses |
-| `use-stick-to-bottom` | Auto-scroll for chat containers |
-| `html2canvas` | Screenshot capture for bug reports |
-| `react-hook-form` + `zod` | Form management and validation |
-| `@tanstack/react-table` | Table rendering (admin bug reports) |
-| `ai` (Vercel AI SDK) | AI chat message type definitions |
-| `cmdk` | Command palette (shadcn Command component) |
-| `lucide-react` | Icon library |
+| Library                   | Purpose                                       |
+| ------------------------- | --------------------------------------------- |
+| `driver.js`               | Guided product tours                          |
+| `streamdown`              | Streaming markdown rendering for AI responses |
+| `use-stick-to-bottom`     | Auto-scroll for chat containers               |
+| `html2canvas`             | Screenshot capture for bug reports            |
+| `react-hook-form` + `zod` | Form management and validation                |
+| `@tanstack/react-table`   | Table rendering (admin bug reports)           |
+| `ai` (Vercel AI SDK)      | AI chat message type definitions              |
+| `cmdk`                    | Command palette (shadcn Command component)    |
+| `lucide-react`            | Icon library                                  |
 
 ## Guided Tours
 

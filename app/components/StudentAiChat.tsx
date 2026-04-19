@@ -737,10 +737,13 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
   );
 
   return (
-    <aside className="flex h-[700px] flex-col card-editorial overflow-hidden" data-tour="student-ai-chat">
+    <aside
+      className="flex h-[700px] flex-col overflow-hidden rounded-[1.9rem] border border-white/10 bg-black/20 shadow-[0_16px_50px_rgba(3,7,18,0.24)] backdrop-blur-2xl"
+      data-tour="student-ai-chat"
+    >
       {/* Header */}
-      <div className="flex items-center gap-3 p-5 border-b border-border">
-        <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+      <div className="flex items-center gap-3 border-b border-white/10 p-5">
+        <div className="flex h-11 w-11 items-center justify-center rounded-[1rem] bg-amber-300/12 text-amber-100">
           <svg
             className="w-6 h-6"
             fill="none"
@@ -756,8 +759,8 @@ const StudentAiChat = forwardRef<StudentAiChatHandle, StudentAiChatProps>(functi
           </svg>
         </div>
         <div className="flex-1 min-w-0">
-          <div className="font-display font-bold text-foreground">AI Study Buddy</div>
-          <div className="text-xs text-muted-foreground">Hints, not answers</div>
+          <div className="font-display font-bold text-white">AI Study Buddy</div>
+          <div className="text-xs text-white/46">Hints, not answers</div>
         </div>
         {/* Status badges when setup complete */}
         {setupComplete && (

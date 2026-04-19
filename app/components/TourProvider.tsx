@@ -1,5 +1,13 @@
 import type { Driver, PopoverDOM } from 'driver.js';
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import 'driver.js/dist/driver.css';
 import { tourDefinitions } from '~/lib/tours/tour-definitions';
@@ -97,10 +105,13 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
     destroyDriver(true);
   }, [clearTourState, destroyDriver]);
 
-  const completeTour = useCallback((tour: AppTourDefinition) => {
-    markTourCompleted(tour);
-    stopTour();
-  }, [stopTour]);
+  const completeTour = useCallback(
+    (tour: AppTourDefinition) => {
+      markTourCompleted(tour);
+      stopTour();
+    },
+    [stopTour],
+  );
 
   const showStep = useCallback(async () => {
     const session = sessionRef.current;
@@ -137,11 +148,8 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
         context: { ...session.context },
       };
       storeStepSelection(projectedSession, element);
-      const projectedHasNext = findStepIndex(
-        projectedSession,
-        projectedSession.stepIndex + 1,
-        1,
-      ) != null;
+      const projectedHasNext =
+        findStepIndex(projectedSession, projectedSession.stepIndex + 1, 1) != null;
 
       const driver = await ensureDriver();
       if (renderTokenRef.current !== token || sessionRef.current !== session) return;
@@ -156,11 +164,7 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
           description: step.description,
           side: step.side ?? 'bottom',
           align: step.align ?? 'center',
-          showButtons: [
-            ...(hasPrevious ? (['previous'] as const) : []),
-            'next',
-            'close',
-          ],
+          showButtons: [...(hasPrevious ? (['previous'] as const) : []), 'next', 'close'],
           progressText: `${session.stepIndex + 1} of ${session.tour.steps.length}`,
           nextBtnText: projectedHasNext ? 'Continue' : 'Finish',
           prevBtnText: 'Back',
@@ -204,13 +208,16 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
     }
   }, [completeTour, ensureDriver, location.pathname, navigate, stopTour]);
 
-  const startTour = useCallback((tourId: AppTourId) => {
-    const tour = tourDefinitions[tourId];
-    sessionRef.current = createTourSession(tour, location.pathname);
-    setActiveTourId(tourId);
-    destroyDriver(true);
-    void showStep();
-  }, [destroyDriver, location.pathname, showStep]);
+  const startTour = useCallback(
+    (tourId: AppTourId) => {
+      const tour = tourDefinitions[tourId];
+      sessionRef.current = createTourSession(tour, location.pathname);
+      setActiveTourId(tourId);
+      destroyDriver(true);
+      void showStep();
+    },
+    [destroyDriver, location.pathname, showStep],
+  );
 
   const suggestedTourId = useMemo<AppTourId | null>(() => {
     if (!location.pathname.startsWith('/student')) return null;
@@ -234,24 +241,26 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
     }
   }, [location.pathname, showStep]);
 
-  useEffect(() => () => {
-    destroyDriver(true);
-  }, [destroyDriver]);
-
-  const value = useMemo<TourContextValue>(() => ({
-    activeTourId,
-    isRunning: activeTourId != null,
-    suggestedTourId,
-    startTour,
-    startSuggestedTour,
-    stopTour,
-  }), [activeTourId, startSuggestedTour, startTour, stopTour, suggestedTourId]);
-
-  return (
-    <AppTourContext.Provider value={value}>
-      {children}
-    </AppTourContext.Provider>
+  useEffect(
+    () => () => {
+      destroyDriver(true);
+    },
+    [destroyDriver],
   );
+
+  const value = useMemo<TourContextValue>(
+    () => ({
+      activeTourId,
+      isRunning: activeTourId != null,
+      suggestedTourId,
+      startTour,
+      startSuggestedTour,
+      stopTour,
+    }),
+    [activeTourId, startSuggestedTour, startTour, stopTour, suggestedTourId],
+  );
+
+  return <AppTourContext.Provider value={value}>{children}</AppTourContext.Provider>;
 }
 
 export function useAppTour() {

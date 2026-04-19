@@ -19,6 +19,7 @@
     "typecheck:fast": "react-router typegen && tsgo"
   },
   "dependencies": {
+    "@gsap/react": "^2.1.2",
     "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-avatar": "^1.1.10",
     "@radix-ui/react-dialog": "^1.1.15",
@@ -38,6 +39,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "driver.js": "^1.4.0",
+    "gsap": "^3.15.0",
     "html2canvas": "^1.4.1",
     "isbot": "^5.1.27",
     "lucide-react": "^0.554.0",

@@ -61,90 +61,78 @@ export default function EditActivityPanel({
   return (
     <form
       onSubmit={handleSubmit}
-      className="rounded-xl border border-primary/30 bg-primary/5 p-3 space-y-3"
+      className="rounded-[1.6rem] border border-amber-300/16 bg-amber-300/8 p-4"
     >
-      <div className="space-y-2">
-        <label className="text-xs font-semibold text-muted-foreground">
-          Internal title (optional)
-        </label>
-        <input
-          value={values.title}
-          onChange={(event) => setValues((prev) => ({ ...prev, title: event.target.value }))}
-          placeholder="Optional internal label"
-          className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-        />
-      </div>
-
-      <div className="space-y-2">
-        <label className="text-xs font-semibold text-muted-foreground">Question prompt</label>
-        <textarea
-          value={values.question}
-          onChange={(event) => setValues((prev) => ({ ...prev, question: event.target.value }))}
-          rows={4}
-          className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-        />
-      </div>
-
-      <div className="flex gap-2 text-sm">
-        <label
-          className={`px-3 py-1 rounded-full cursor-pointer transition ${
-            values.type === 'MCQ'
-              ? 'bg-primary/20 text-primary font-medium'
-              : 'bg-secondary text-muted-foreground hover:bg-secondary/80'
-          }`}
-        >
-          <input
-            type="radio"
-            name="edit-type"
-            className="sr-only"
-            checked={values.type === 'MCQ'}
-            onChange={() =>
-              setValues((prev) => ({
-                ...prev,
-                type: 'MCQ',
-                choices: ensureChoiceSlots(prev.choices),
-                correctIndex: 0,
-              }))
-            }
-          />
-          MCQ
-        </label>
-        <label
-          className={`px-3 py-1 rounded-full cursor-pointer transition ${
-            values.type === 'SHORT_TEXT'
-              ? 'bg-primary/20 text-primary font-medium'
-              : 'bg-secondary text-muted-foreground hover:bg-secondary/80'
-          }`}
-        >
-          <input
-            type="radio"
-            name="edit-type"
-            className="sr-only"
-            checked={values.type === 'SHORT_TEXT'}
-            onChange={() =>
-              setValues((prev) => ({
-                ...prev,
-                type: 'SHORT_TEXT',
-              }))
-            }
-          />
-          Short answer
-        </label>
-      </div>
-
-      {values.type === 'MCQ' ? (
-        <div className="space-y-3">
-          <div className="text-xs font-semibold text-muted-foreground">Choices</div>
+      <div className="space-y-4">
+        <div className="grid gap-4 lg:grid-cols-2">
           <div className="space-y-2">
+            <label className="text-xs font-semibold uppercase tracking-[0.2em] text-white/42">
+              Internal title
+            </label>
+            <input
+              value={values.title}
+              onChange={(event) => setValues((prev) => ({ ...prev, title: event.target.value }))}
+              placeholder="Optional internal label"
+              className="input-field"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-semibold uppercase tracking-[0.2em] text-white/42">
+              Question type
+            </label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  setValues((prev) => ({
+                    ...prev,
+                    type: 'MCQ',
+                    choices: ensureChoiceSlots(prev.choices),
+                    correctIndex: 0,
+                  }))
+                }
+                className={values.type === 'MCQ' ? 'btn-primary' : 'btn-secondary'}
+              >
+                Multiple choice
+              </button>
+              <button
+                type="button"
+                onClick={() => setValues((prev) => ({ ...prev, type: 'SHORT_TEXT' }))}
+                className={values.type === 'SHORT_TEXT' ? 'btn-primary' : 'btn-secondary'}
+              >
+                Short answer
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-xs font-semibold uppercase tracking-[0.2em] text-white/42">
+            Question prompt
+          </label>
+          <textarea
+            value={values.question}
+            onChange={(event) => setValues((prev) => ({ ...prev, question: event.target.value }))}
+            rows={4}
+            className="input-field"
+          />
+        </div>
+
+        {values.type === 'MCQ' ? (
+          <div className="space-y-3">
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-white/42">
+              Choices
+            </div>
             {paddedChoices.map((choice, index) => {
               const isSelected = values.correctIndex === index;
               return (
                 <label
                   key={index}
-                  className={`flex items-center gap-3 px-3 py-2 rounded-xl border cursor-pointer transition focus-within:outline-none bg-background ${
+                  className={`flex items-center gap-3 rounded-[1rem] border px-4 py-3 ${
                     isSelected
-                      ? 'border-accent-foreground/50 bg-accent/30'
-                      : 'border-border hover:border-primary/30'
+                      ? 'border-amber-300/20 bg-amber-300/12'
+                      : 'border-white/10 bg-white/4'
                   }`}
                 >
                   <input
@@ -152,15 +140,10 @@ export default function EditActivityPanel({
                     name="correct-choice"
                     className="sr-only"
                     checked={isSelected}
-                    onChange={() =>
-                      setValues((prev) => ({
-                        ...prev,
-                        correctIndex: index,
-                      }))
-                    }
+                    onChange={() => setValues((prev) => ({ ...prev, correctIndex: index }))}
                   />
-                  <span className="text-xs font-semibold text-muted-foreground w-6">
-                    {choiceLabels[index] ?? String.fromCharCode(65 + index)}.
+                  <span className="w-7 text-xs font-semibold text-white/52">
+                    {choiceLabels[index] ?? String.fromCharCode(65 + index)}
                   </span>
                   <input
                     value={choice}
@@ -172,9 +155,9 @@ export default function EditActivityPanel({
                       })
                     }
                     placeholder="Option text"
-                    className="flex-1 min-w-0 border-none bg-transparent text-foreground focus:outline-none"
+                    className="min-w-0 flex-1 border-none bg-transparent text-white focus:outline-none"
                   />
-                  {paddedChoices.length > 2 && (
+                  {paddedChoices.length > 2 ? (
                     <button
                       type="button"
                       onClick={() =>
@@ -184,9 +167,7 @@ export default function EditActivityPanel({
                             (_, idx) => idx !== index,
                           );
                           let nextCorrect = prev.correctIndex;
-                          if (index === prev.correctIndex) {
-                            nextCorrect = Math.max(0, nextCorrect - 1);
-                          } else if (index < prev.correctIndex) {
+                          if (index <= prev.correctIndex) {
                             nextCorrect = Math.max(0, nextCorrect - 1);
                           }
                           nextCorrect = Math.min(nextCorrect, nextChoices.length - 1);
@@ -197,86 +178,92 @@ export default function EditActivityPanel({
                           };
                         })
                       }
-                      className="text-[0.7rem] text-destructive hover:text-destructive/80"
+                      className="text-xs text-rose-200 hover:text-rose-100"
                     >
                       Remove
                     </button>
-                  )}
+                  ) : null}
                 </label>
               );
             })}
+            <button
+              type="button"
+              onClick={() =>
+                setValues((prev) => ({
+                  ...prev,
+                  choices: [...ensureChoiceSlots(prev.choices), ''],
+                }))
+              }
+              className="text-sm font-medium text-amber-100 hover:text-amber-50"
+            >
+              Add choice
+            </button>
           </div>
+        ) : (
+          <div className="space-y-2">
+            <label className="text-xs font-semibold uppercase tracking-[0.2em] text-white/42">
+              Expected answer
+            </label>
+            <input
+              value={values.textAnswer}
+              onChange={(event) =>
+                setValues((prev) => ({ ...prev, textAnswer: event.target.value }))
+              }
+              placeholder="Ideal short response"
+              className="input-field"
+            />
+          </div>
+        )}
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="space-y-2">
+            <label className="text-xs font-semibold uppercase tracking-[0.2em] text-white/42">
+              Instructions
+            </label>
+            <textarea
+              value={values.instructionsMd}
+              onChange={(event) =>
+                setValues((prev) => ({ ...prev, instructionsMd: event.target.value }))
+              }
+              rows={3}
+              className="input-field"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-semibold uppercase tracking-[0.2em] text-white/42">
+              Hints
+            </label>
+            <textarea
+              value={values.hintsText}
+              onChange={(event) =>
+                setValues((prev) => ({ ...prev, hintsText: event.target.value }))
+              }
+              rows={3}
+              className="input-field"
+            />
+          </div>
+        </div>
+
+        {formError || error ? <p className="text-sm text-rose-200">{formError || error}</p> : null}
+
+        <div className="flex justify-end gap-3">
           <button
             type="button"
-            onClick={() =>
-              setValues((prev) => ({
-                ...prev,
-                choices: [...ensureChoiceSlots(prev.choices), ''],
-              }))
-            }
-            className="text-xs font-medium text-primary hover:text-primary/80"
+            className="btn-secondary"
+            onClick={() => {
+              setValues(activityToFormValues(activity));
+              setFormError(null);
+              onCancel();
+            }}
+            disabled={busy}
           >
-            Add choice
+            Cancel
+          </button>
+          <button type="submit" className="btn-primary" disabled={busy}>
+            {busy ? 'Saving...' : 'Save changes'}
           </button>
         </div>
-      ) : (
-        <div className="space-y-2">
-          <label className="text-xs font-semibold text-muted-foreground">Expected answer</label>
-          <input
-            value={values.textAnswer}
-            onChange={(event) => setValues((prev) => ({ ...prev, textAnswer: event.target.value }))}
-            placeholder="Ideal short response"
-            className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-          />
-        </div>
-      )}
-
-      <div className="space-y-2">
-        <label className="text-xs font-semibold text-muted-foreground">
-          Instructions (optional)
-        </label>
-        <textarea
-          value={values.instructionsMd}
-          onChange={(event) =>
-            setValues((prev) => ({ ...prev, instructionsMd: event.target.value }))
-          }
-          rows={3}
-          className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-        />
-      </div>
-
-      <div className="space-y-2">
-        <label className="text-xs font-semibold text-muted-foreground">Hints (one per line)</label>
-        <textarea
-          value={values.hintsText}
-          onChange={(event) => setValues((prev) => ({ ...prev, hintsText: event.target.value }))}
-          rows={3}
-          className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-        />
-      </div>
-
-      {(formError || error) && <p className="text-xs text-destructive">{formError || error}</p>}
-
-      <div className="flex justify-end gap-2">
-        <button
-          type="button"
-          className="px-3 py-2 rounded-lg border border-border text-foreground text-sm hover:bg-secondary transition"
-          onClick={() => {
-            setValues(activityToFormValues(activity));
-            setFormError(null);
-            onCancel();
-          }}
-          disabled={busy}
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          className="px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-60 hover:bg-primary/90 transition"
-          disabled={busy}
-        >
-          {busy ? 'Saving...' : 'Save changes'}
-        </button>
       </div>
     </form>
   );

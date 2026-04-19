@@ -1,37 +1,30 @@
-/**
- * @file Student lesson player — drives the per-activity flow students see.
- *
- * Route: /student/lesson/:lessonId
- * Auth: STUDENT (enforced by clientLoader via requireClientUser)
- * Loads: lesson + activities for the lesson, then walks up to module + course
- *        for breadcrumbs (sequential because module/course depend on lesson).
- * Owns: activity progression (idx), MCQ/SHORT_TEXT submission, per-activity
- *       result state, knowledge-level pre-chat modal, optional
- *       post-submission feedback prompt, and orchestration of StudentAiChat
- *       through a forward-ref handle (sendGuidePrompt / pushGuideMessage).
- * Gotchas:
- *   - Bug-report context is pushed via setBugReportContext on every relevant
- *     state change so submitted reports include {course, module, lesson,
- *     activity}. The teardown effect MUST clear it on unmount, otherwise the
- *     next page would inherit stale hierarchy.
- *   - Knowledge-level modal blocks "Guide me" until the student picks a level
- *     (currentKnowledgeLevel gates the button).
- *   - The chat is keyed by activity.id so it remounts per activity, ensuring
- *     no cross-activity message leakage.
- * Related: components/StudentAiChat, components/StudentActivityFeedbackCard,
- *          components/bug-report/useBugReport
- */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router';
+import {
+  ArrowLeft,
+  ArrowRight,
+  BrainCircuit,
+  CheckCircle2,
+  ChevronRight,
+  Sparkles,
+} from 'lucide-react';
+import {
+  AppBackdrop,
+  AppContainer,
+  DashboardCard,
+  DashboardHero,
+  SectionEyebrow,
+  StatPill,
+} from '~/components/AppShell';
 import Nav from '../components/Nav';
 import { ProgressBar } from '../components/ProgressBar';
 import StudentActivityFeedbackCard from '../components/StudentActivityFeedbackCard';
 import StudentAiChat, { type StudentAiChatHandle } from '../components/StudentAiChat';
 import {
   Breadcrumb,
-  BreadcrumbList,
   BreadcrumbItem,
   BreadcrumbLink,
+  BreadcrumbList,
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '../components/ui/breadcrumb';
@@ -60,8 +53,6 @@ type FeedbackApi = typeof api & {
   ) => Promise<{ ok?: boolean }>;
 };
 
-/** Fresh per-activity feedback record. Use this rather than a shared module
- * constant so each activity entry is a distinct mutable object. */
 function createFeedbackState(): StudentFeedbackState {
   return {
     rating: null,
@@ -75,11 +66,6 @@ function createFeedbackState(): StudentFeedbackState {
   };
 }
 
-/**
- * Resolves the lesson, its activities, and the parent module/course needed
- * for breadcrumbs. Lesson + activities run in parallel; module/course are
- * sequential because their IDs come out of the lesson row.
- */
 export async function clientLoader({ params }: Route.ClientLoaderArgs) {
   await requireClientUser('STUDENT');
   const lessonId = Number(params.lessonId);
@@ -104,12 +90,6 @@ export async function clientLoader({ params }: Route.ClientLoaderArgs) {
   return { course, module, lesson, activities };
 }
 
-/**
- * Lesson-player route component. Walks the student through activities one at
- * a time, owns answer submission, integrates the AI chat sidebar, and pushes
- * hierarchical context to the bug-report provider so submitted reports can
- * pinpoint the activity that triggered them.
- */
 export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps) {
   const { user } = useLocalUser();
   const { setContext: setBugReportContext, clearContext: clearBugReportContext } = useBugReport();
@@ -122,8 +102,6 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
   const [result, setResult] = useState<string | null>(null);
   const [wasCorrect, setWasCorrect] = useState(false);
   const [prevActivityId, setPrevActivityId] = useState<number | null>(null);
-
-  // Pre-chat context for AI guidance
   const [showKnowledgeModal, setShowKnowledgeModal] = useState(false);
   const [tempKnowledgeLevel, setTempKnowledgeLevel] = useState('');
   const [knowledgeLevels, setKnowledgeLevels] = useState<Record<number, string>>({});
@@ -133,10 +111,6 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
   >({});
   const chatRef = useRef<StudentAiChatHandle>(null);
 
-  // React 19 derived-state-during-render pattern: when the loader returns a
-  // new activities array (e.g. on navigation back to this route), reset the
-  // local mutable copy used for completion-status overlays. This avoids the
-  // flash of stale data that a useEffect-based reset would cause.
   const [prevActivities, setPrevActivities] = useState(activities);
   if (activities !== prevActivities) {
     setPrevActivities(activities);
@@ -146,12 +120,10 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
   const activity = orderedActivities[idx];
   const canNext = idx < orderedActivities.length - 1;
   const canPrev = idx > 0;
-
   const questionChunks = useMemo(
     () => (activity?.question || '').split(/\n/),
     [activity?.question],
   );
-
   const currentKnowledgeLevel = activity ? (knowledgeLevels[activity.id] ?? null) : null;
   const currentTopicId = activity
     ? (topicSelection[activity.id] ?? activity.mainTopic?.id ?? null)
@@ -162,9 +134,6 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
   const studentAnswer = activity ? (activity.type === 'MCQ' ? mcq : text) : null;
   const isUserReady = Boolean(user);
 
-  // Reset per-activity scratch state (answer inputs, last result, modal) the
-  // moment the active activity changes. Done during render rather than in an
-  // effect so the new activity never renders with the previous answer.
   const currentActivityId = activity?.id ?? null;
   if (currentActivityId !== prevActivityId) {
     setPrevActivityId(currentActivityId);
@@ -184,7 +153,11 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
       if (activity.type === 'MCQ') payload.answerOption = mcq;
       else payload.answerText = text;
       const res = await api.submitAnswer(activity.id, payload);
-      setResult(res.isCorrect ? 'Correct!' : 'Not quite. Keep going!');
+      setResult(
+        res.isCorrect
+          ? 'Correct. Keep the momentum.'
+          : 'Not quite yet. Use the guidance rail and try again.',
+      );
 
       setOrderedActivities((prev) =>
         prev.map((a, i) =>
@@ -197,7 +170,7 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
       if (res.isCorrect) {
         setWasCorrect(true);
         chatRef.current?.pushGuideMessage(
-          res.message || 'Great job! Proceed when you are ready for the next question.',
+          res.message || 'Great job. You can move ahead, or use the chat to deepen the concept.',
         );
       } else {
         setWasCorrect(false);
@@ -216,15 +189,10 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
         }
         return {
           ...prev,
-          [activity.id]: {
-            ...current,
-            promptShown: true,
-            promptVisible: true,
-            error: null,
-          },
+          [activity.id]: { ...current, promptShown: true, promptVisible: true, error: null },
         };
       });
-    } catch (e) {
+    } catch {
       setResult('There was a problem submitting.');
       setWasCorrect(false);
     } finally {
@@ -276,21 +244,14 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
 
   const handleFeedbackRating = useCallback(
     (rating: number) => {
-      updateFeedbackState((current) => ({
-        ...current,
-        rating,
-        error: null,
-      }));
+      updateFeedbackState((current) => ({ ...current, rating, error: null }));
     },
     [updateFeedbackState],
   );
 
   const handleFeedbackNote = useCallback(
     (note: string) => {
-      updateFeedbackState((current) => ({
-        ...current,
-        note,
-      }));
+      updateFeedbackState((current) => ({ ...current, note }));
     },
     [updateFeedbackState],
   );
@@ -306,24 +267,16 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
 
   const handleSubmitFeedback = useCallback(async () => {
     if (!activity || !currentFeedback.rating) return;
-
-    updateFeedbackState((current) => ({
-      ...current,
-      saving: true,
-      error: null,
-    }));
-
+    updateFeedbackState((current) => ({ ...current, saving: true, error: null }));
     try {
       const feedbackApi = api as FeedbackApi;
       if (typeof feedbackApi.submitActivityFeedback !== 'function') {
         throw new Error('Feedback service not available');
       }
-
       await feedbackApi.submitActivityFeedback(activity.id, {
         rating: currentFeedback.rating,
         note: currentFeedback.note.trim() || undefined,
       });
-
       updateFeedbackState((current) => ({
         ...current,
         saving: false,
@@ -332,7 +285,7 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
         dismissed: false,
         error: null,
       }));
-    } catch (error) {
+    } catch {
       updateFeedbackState((current) => ({
         ...current,
         saving: false,
@@ -342,9 +295,7 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
   }, [activity, currentFeedback.note, currentFeedback.rating, updateFeedbackState]);
 
   const handleConfirmKnowledge = () => {
-    if (!activity || !tempKnowledgeLevel) {
-      return;
-    }
+    if (!activity || !tempKnowledgeLevel) return;
     setKnowledgeLevels((prev) => ({ ...prev, [activity.id]: tempKnowledgeLevel }));
     setShowKnowledgeModal(false);
   };
@@ -353,8 +304,6 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
     setShowKnowledgeModal(false);
   };
 
-  // Push the current hierarchy into the bug-report provider so any submission
-  // from the floating widget includes {course, module, lesson, activity}.
   useEffect(() => {
     setBugReportContext({
       courseOfferingId: course?.id ?? module?.courseOfferingId ?? null,
@@ -364,7 +313,6 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
     });
   }, [
     activity?.id,
-    clearBugReportContext,
     course?.id,
     lesson?.id,
     module?.courseOfferingId,
@@ -372,9 +320,6 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
     setBugReportContext,
   ]);
 
-  // Critical cleanup: bug-report context lives in a higher-level provider, so
-  // leaving it set after unmount would leak this lesson's IDs into reports
-  // submitted from unrelated pages.
   useEffect(() => {
     return () => {
       clearBugReportContext();
@@ -390,152 +335,148 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
       ]
     : [];
 
+  const completedCount = orderedActivities.filter((a) => a.completionStatus === 'correct').length;
+
   return (
-    <div className="min-h-dvh bg-background">
+    <main className="app-shell">
+      <AppBackdrop pattern="grid" />
       <Nav />
 
-      {/* Background decoration */}
-      <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-primary/3 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
-        <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-accent/5 rounded-full blur-3xl translate-y-1/2 -translate-x-1/3" />
-      </div>
-
-      <div className="container mx-auto px-6 py-8">
-        {/* Breadcrumb */}
-        <Breadcrumb className="mb-6 animate-fade-in" data-tour="student-lesson-breadcrumb">
+      <AppContainer className="space-y-8 pb-12 pt-8">
+        <Breadcrumb className="px-1 text-white/54" data-tour="student-lesson-breadcrumb">
           <BreadcrumbList>
             <BreadcrumbItem>
               <BreadcrumbLink asChild>
-                <Link
-                  to="/student"
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                >
+                <Link to="/student" className="hover:text-white">
                   My Courses
                 </Link>
               </BreadcrumbLink>
             </BreadcrumbItem>
-            <BreadcrumbSeparator className="text-border">/</BreadcrumbSeparator>
+            <BreadcrumbSeparator className="text-white/24">/</BreadcrumbSeparator>
             <BreadcrumbItem>
               {course && module ? (
                 <BreadcrumbLink asChild>
                   <Link
                     to={`/student/courses/${module.courseOfferingId}`}
-                    className="text-muted-foreground hover:text-foreground transition-colors"
+                    className="hover:text-white"
                   >
                     {course.title}
                   </Link>
                 </BreadcrumbLink>
               ) : (
-                <BreadcrumbPage>Course</BreadcrumbPage>
+                <BreadcrumbPage className="text-white">Course</BreadcrumbPage>
               )}
             </BreadcrumbItem>
-            <BreadcrumbSeparator className="text-border">/</BreadcrumbSeparator>
+            <BreadcrumbSeparator className="text-white/24">/</BreadcrumbSeparator>
             <BreadcrumbItem>
               {module && lesson ? (
                 <BreadcrumbLink asChild>
-                  <Link
-                    to={`/student/module/${lesson.moduleId}`}
-                    className="text-muted-foreground hover:text-foreground transition-colors"
-                  >
+                  <Link to={`/student/module/${lesson.moduleId}`} className="hover:text-white">
                     {module.title}
                   </Link>
                 </BreadcrumbLink>
               ) : (
-                <BreadcrumbPage>Module</BreadcrumbPage>
+                <BreadcrumbPage className="text-white">Module</BreadcrumbPage>
               )}
             </BreadcrumbItem>
-            <BreadcrumbSeparator className="text-border">/</BreadcrumbSeparator>
+            <BreadcrumbSeparator className="text-white/24">/</BreadcrumbSeparator>
             <BreadcrumbItem>
-              <BreadcrumbPage className="font-medium text-foreground">
-                {lesson?.title || 'Lesson'}
-              </BreadcrumbPage>
+              <BreadcrumbPage className="text-white">{lesson?.title || 'Lesson'}</BreadcrumbPage>
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
 
-        {/* Lesson Progress */}
-        {orderedActivities.length > 0 && (
-          <div className="mb-8 animate-fade-up">
-            <div className="card-editorial p-5" data-tour="student-lesson-progress">
-              <div className="flex items-center gap-4 mb-3">
-                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-                  <svg
-                    className="w-5 h-5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342"
-                    />
-                  </svg>
-                </div>
-                <div className="flex-1">
-                  <h1 className="font-display text-xl font-bold text-foreground">
-                    {lesson?.title || 'Lesson'}
-                  </h1>
-                  <p className="text-sm text-muted-foreground">
-                    Question {idx + 1} of {orderedActivities.length}
-                  </p>
-                </div>
-              </div>
-              <ProgressBar
-                completed={orderedActivities.filter((a) => a.completionStatus === 'correct').length}
-                total={orderedActivities.length}
-                size="md"
-                showLabel={false}
-              />
+        <DashboardHero
+          eyebrow={<SectionEyebrow tone="cool">Lesson player</SectionEyebrow>}
+          title={lesson?.title || 'Lesson'}
+          description="A focused activity rail on the left. AI guidance on the right. Progress, answer state, and feedback now live in one intentional flow."
+          aside={
+            <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1">
+              <StatPill label="Question" value={`${idx + 1}/${orderedActivities.length || 1}`} />
+              <StatPill label="Completed" value={completedCount} />
+              <StatPill label="Mode" value={activity?.type || 'Lesson'} />
             </div>
-          </div>
-        )}
+          }
+        />
 
-        <div className="grid gap-8 lg:grid-cols-[3fr_2fr]">
-          {/* Main content area */}
-          <div className="space-y-6 animate-fade-up delay-150">
-            {/* Question card */}
-            <div className="card-editorial p-6" data-tour="student-question-card">
-              <div className="flex items-center gap-2 mb-4">
-                <span className="tag tag-primary">Question</span>
-                {activity?.mainTopic && (
-                  <span className="tag tag-accent">{activity.mainTopic.name}</span>
-                )}
+        {orderedActivities.length > 0 ? (
+          <DashboardCard className="p-5" data-tour="student-lesson-progress">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <div className="text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-white/40">
+                  Lesson progress
+                </div>
+                <div className="mt-2 text-lg font-semibold text-white">
+                  Question {idx + 1} of {orderedActivities.length}
+                </div>
               </div>
-              <div className="space-y-3">
+              <div className="tag tag-primary">{completedCount} solved</div>
+            </div>
+            <ProgressBar
+              completed={completedCount}
+              total={orderedActivities.length}
+              size="lg"
+              showLabel={false}
+              className="mt-4"
+            />
+          </DashboardCard>
+        ) : null}
+
+        <div className="grid gap-8 xl:grid-cols-[minmax(0,1.15fr)_minmax(25rem,0.85fr)]">
+          <div className="space-y-6">
+            <DashboardCard className="p-6" data-tour="student-question-card">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="tag tag-primary">Question</div>
+                {activity?.mainTopic ? (
+                  <div className="tag tag-accent">{activity.mainTopic.name}</div>
+                ) : null}
+              </div>
+              <div className="mt-6 space-y-4">
                 {questionChunks.map((line, index) => (
-                  <p key={index} className="text-lg text-foreground leading-relaxed">
+                  <p key={index} className="text-lg leading-8 text-white">
                     {line}
                   </p>
                 ))}
               </div>
-              {activity?.secondaryTopics && activity.secondaryTopics.length > 0 && (
-                <div className="mt-4 pt-4 border-t border-border flex flex-wrap gap-2">
-                  <span className="text-xs text-muted-foreground">Also covers:</span>
+              {activity?.secondaryTopics.length ? (
+                <div className="mt-6 flex flex-wrap gap-2 border-t border-white/10 pt-5">
                   {activity.secondaryTopics.map((topic) => (
-                    <span key={topic.id} className="text-xs text-muted-foreground">
+                    <span
+                      key={topic.id}
+                      className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/60"
+                    >
                       {topic.name}
                     </span>
                   ))}
                 </div>
-              )}
-            </div>
+              ) : null}
+            </DashboardCard>
 
-            {/* Answer card */}
-            <div className="card-editorial p-6 space-y-5" data-tour="student-answer-card">
-              <h2 className="font-display text-lg font-bold text-foreground">Your Answer</h2>
+            <DashboardCard className="p-6" data-tour="student-answer-card">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-white/40">
+                    Response
+                  </div>
+                  <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-white">
+                    Work the problem
+                  </h2>
+                </div>
+                <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs uppercase tracking-[0.18em] text-white/42">
+                  {activity?.type === 'MCQ' ? 'Select one' : 'Write it out'}
+                </div>
+              </div>
 
               {activity?.type === 'MCQ' ? (
                 Array.isArray(activity?.options?.choices) ? (
-                  <div className="space-y-3">
+                  <div className="mt-6 space-y-3">
                     {activity.options.choices.map((choice, i) => (
                       <label
                         key={i}
-                        className={`flex items-start gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                        className={`flex cursor-pointer items-start gap-4 rounded-[1.2rem] border px-4 py-4 transition ${
                           mcq === i
-                            ? 'border-primary bg-primary/5 shadow-sm'
-                            : 'border-border hover:border-muted-foreground/30 hover:bg-muted/30'
+                            ? 'border-amber-300/20 bg-amber-300/10'
+                            : 'border-white/10 bg-white/4 hover:bg-white/8'
                         }`}
                       >
                         <input
@@ -546,200 +487,99 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
                           onChange={() => setMcq(i)}
                         />
                         <div
-                          className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0 ${
-                            mcq === i
-                              ? 'bg-primary text-primary-foreground'
-                              : 'bg-secondary text-muted-foreground'
-                          }`}
+                          className={`flex h-9 w-9 items-center justify-center rounded-[0.9rem] text-sm font-semibold ${mcq === i ? 'bg-amber-300 text-slate-950' : 'bg-white/10 text-white/64'}`}
                         >
                           {String.fromCharCode(65 + i)}
                         </div>
-                        <span className="text-foreground pt-1">{choice}</span>
+                        <span className="pt-1 text-white/90">{choice}</span>
                       </label>
                     ))}
                   </div>
                 ) : (
-                  <div className="text-sm text-destructive bg-destructive/10 rounded-xl p-4">
+                  <div className="mt-6 rounded-[1rem] border border-rose-300/18 bg-rose-300/10 p-4 text-sm text-rose-100">
                     This question's options are misconfigured.
                   </div>
                 )
               ) : (
-                <input
+                <textarea
                   value={text}
                   onChange={(e) => setText(e.target.value)}
                   placeholder="Type your answer..."
-                  className="input-field text-lg"
+                  className="input-field mt-6 min-h-32 text-base"
                 />
               )}
 
-              {/* Actions */}
-              <div className="flex flex-wrap items-center gap-3 pt-2">
+              <div className="mt-6 flex flex-wrap items-center gap-3">
                 <button
+                  type="button"
                   onClick={submit}
                   disabled={
                     submitting || (activity?.type === 'MCQ' ? mcq === null : text.trim() === '')
                   }
                   className="btn-primary"
                 >
-                  {submitting ? (
-                    <>
-                      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                        />
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                        />
-                      </svg>
-                      Submitting...
-                    </>
-                  ) : (
-                    <>
-                      <svg
-                        className="w-4 h-4"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={2}
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                        />
-                      </svg>
-                      Submit Answer
-                    </>
-                  )}
+                  {submitting ? 'Submitting...' : 'Submit answer'}
                 </button>
 
                 <button
+                  type="button"
                   onClick={handleGuideMe}
                   disabled={wasCorrect || !currentKnowledgeLevel || !isUserReady}
                   className="btn-secondary"
                   data-tour="student-guide-button"
                 >
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"
-                    />
-                  </svg>
+                  <Sparkles className="h-4 w-4" />
                   Guide me
                 </button>
 
                 <div className="flex-1" />
 
-                <div className="flex items-center gap-2">
-                  <button
-                    disabled={!canPrev}
-                    onClick={() => {
-                      setIdx((i) => Math.max(0, i - 1));
-                      resetForNavigation();
-                    }}
-                    className="btn-ghost"
-                  >
-                    <svg
-                      className="w-4 h-4"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={2}
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"
-                      />
-                    </svg>
-                    Prev
-                  </button>
-                  <button
-                    disabled={!canNext}
-                    onClick={() => {
-                      setIdx((i) => Math.min(orderedActivities.length - 1, i + 1));
-                      resetForNavigation();
-                    }}
-                    className="btn-ghost"
-                  >
-                    Next
-                    <svg
-                      className="w-4 h-4"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={2}
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"
-                      />
-                    </svg>
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  disabled={!canPrev}
+                  onClick={() => {
+                    setIdx((i) => Math.max(0, i - 1));
+                    resetForNavigation();
+                  }}
+                  className="btn-secondary"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Prev
+                </button>
+                <button
+                  type="button"
+                  disabled={!canNext}
+                  onClick={() => {
+                    setIdx((i) => Math.min(orderedActivities.length - 1, i + 1));
+                    resetForNavigation();
+                  }}
+                  className="btn-secondary"
+                >
+                  Next
+                  <ArrowRight className="h-4 w-4" />
+                </button>
               </div>
 
-              {/* Result feedback */}
-              {result && (
+              {result ? (
                 <div
-                  className={`rounded-xl p-4 flex items-center gap-3 animate-scale-in ${
-                    wasCorrect
-                      ? 'bg-accent/20 border border-accent text-accent-foreground'
-                      : 'bg-secondary border border-border text-foreground'
-                  }`}
+                  className={`mt-6 rounded-[1.2rem] border px-4 py-4 ${wasCorrect ? 'border-emerald-300/18 bg-emerald-300/10 text-emerald-100' : 'border-white/10 bg-white/6 text-white/82'}`}
                 >
-                  {wasCorrect ? (
-                    <svg
-                      className="w-5 h-5 text-accent-foreground"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={2}
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                      />
-                    </svg>
-                  ) : (
-                    <svg
-                      className="w-5 h-5 text-muted-foreground"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={2}
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
-                      />
-                    </svg>
-                  )}
-                  <span className="font-medium">{result}</span>
+                  <div className="flex items-center gap-3">
+                    {wasCorrect ? (
+                      <CheckCircle2 className="h-5 w-5" />
+                    ) : (
+                      <BrainCircuit className="h-5 w-5" />
+                    )}
+                    <span className="font-medium">{result}</span>
+                  </div>
                 </div>
-              )}
+              ) : null}
 
               {activity &&
-                currentFeedback.promptShown &&
-                !currentFeedback.dismissed &&
-                (currentFeedback.promptVisible || currentFeedback.submitted) && (
+              currentFeedback.promptShown &&
+              !currentFeedback.dismissed &&
+              (currentFeedback.promptVisible || currentFeedback.submitted) ? (
+                <div className="mt-6">
                   <StudentActivityFeedbackCard
                     rating={currentFeedback.rating}
                     note={currentFeedback.note}
@@ -751,12 +591,12 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
                     onSubmit={handleSubmitFeedback}
                     onDismiss={handleDismissFeedback}
                   />
-                )}
-            </div>
+                </div>
+              ) : null}
+            </DashboardCard>
           </div>
 
-          {/* AI Chat sidebar */}
-          <div className="animate-slide-in-right">
+          <div>
             <StudentAiChat
               key={activity?.id ?? 'none'}
               ref={chatRef}
@@ -773,79 +613,64 @@ export default function StudentLessonPlayer({ loaderData }: Route.ComponentProps
           </div>
         </div>
 
-        {/* Pre-Chat Modal */}
-        {showKnowledgeModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/20 backdrop-blur-sm p-4 animate-fade-in">
-            <div className="max-w-lg w-full card-editorial p-8 space-y-6 animate-scale-in">
-              <div>
-                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary mb-4">
-                  <svg
-                    className="w-6 h-6"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
+        {showKnowledgeModal ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-md">
+            <div className="w-full max-w-2xl rounded-[2rem] border border-white/10 bg-[#0e1528]/95 p-8 shadow-[0_30px_90px_rgba(3,7,18,0.45)]">
+              <div className="text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-white/40">
+                Personalize guidance
+              </div>
+              <h2 className="mt-3 text-3xl font-semibold tracking-[-0.05em] text-white">
+                Set your comfort level before the AI steps in.
+              </h2>
+              <p className="mt-3 text-white/60">
+                This helps the study buddy decide whether to explain fundamentals, coach your next
+                move, or push you harder.
+              </p>
+
+              <div className="mt-6 grid gap-3 sm:grid-cols-3">
+                {[
+                  { value: 'beginner', label: 'Beginner', desc: "I'm new to this" },
+                  { value: 'intermediate', label: 'Intermediate', desc: 'I know some of it' },
+                  { value: 'advanced', label: 'Advanced', desc: 'Push me with tighter hints' },
+                ].map((level) => (
+                  <button
+                    key={level.value}
+                    type="button"
+                    onClick={() => setTempKnowledgeLevel(level.value)}
+                    className={`rounded-[1.4rem] border p-4 text-left ${
+                      tempKnowledgeLevel === level.value
+                        ? 'border-amber-300/20 bg-amber-300/10'
+                        : 'border-white/10 bg-white/4'
+                    }`}
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"
-                    />
-                  </svg>
-                </div>
-                <h2 className="font-display text-2xl font-bold text-foreground">
-                  Before we start...
-                </h2>
-                <p className="text-muted-foreground mt-1">
-                  Help me personalize your learning experience!
-                </p>
+                    <div className="text-lg font-semibold text-white">{level.label}</div>
+                    <div className="mt-2 text-sm text-white/54">{level.desc}</div>
+                  </button>
+                ))}
               </div>
 
-              {/* Knowledge Level */}
-              <div className="space-y-3">
-                <label className="block text-sm font-semibold text-foreground">
-                  What's your knowledge level on this topic?
-                </label>
-                <div className="grid grid-cols-3 gap-3">
-                  {[
-                    { value: 'beginner', label: 'Beginner', desc: "I'm new to this" },
-                    { value: 'intermediate', label: 'Intermediate', desc: 'Some experience' },
-                    { value: 'advanced', label: 'Advanced', desc: 'Quite experienced' },
-                  ].map((level) => (
-                    <button
-                      key={level.value}
-                      type="button"
-                      onClick={() => setTempKnowledgeLevel(level.value)}
-                      className={`p-4 rounded-xl border-2 text-left transition-all ${
-                        tempKnowledgeLevel === level.value
-                          ? 'border-primary bg-primary/5'
-                          : 'border-border hover:border-muted-foreground/30'
-                      }`}
-                    >
-                      <div className="font-semibold text-foreground text-sm">{level.label}</div>
-                      <div className="text-xs text-muted-foreground mt-0.5">{level.desc}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-3 pt-2">
-                <button onClick={handleCancelKnowledge} className="btn-secondary flex-1">
+              <div className="mt-8 flex gap-3">
+                <button
+                  type="button"
+                  onClick={handleCancelKnowledge}
+                  className="btn-secondary flex-1"
+                >
                   Cancel
                 </button>
                 <button
+                  type="button"
                   onClick={handleConfirmKnowledge}
                   disabled={!tempKnowledgeLevel}
                   className="btn-primary flex-1"
                 >
-                  Start Guidance
+                  Start guidance
+                  <ChevronRight className="h-4 w-4" />
                 </button>
               </div>
             </div>
           </div>
-        )}
-      </div>
-    </div>
+        ) : null}
+      </AppContainer>
+    </main>
   );
 }

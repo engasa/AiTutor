@@ -21,6 +21,14 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import BugReportsTab from '~/components/admin/BugReportsTab';
+import {
+  AppBackdrop,
+  AppContainer,
+  DashboardCard,
+  DashboardHero,
+  SectionEyebrow,
+  StatPill,
+} from '~/components/AppShell';
 import Nav from '~/components/Nav';
 import api from '~/lib/api';
 import type {
@@ -344,28 +352,25 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
   };
 
   return (
-    <div className="min-h-dvh bg-background">
+    <main className="app-shell">
+      <AppBackdrop pattern="grid" />
       <Nav />
 
-      {/* Background decoration */}
-      <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-1/2 w-[1000px] h-[600px] bg-primary/3 rounded-full blur-3xl -translate-y-1/2 -translate-x-1/2" />
-        <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-accent/5 rounded-full blur-3xl translate-y-1/3 translate-x-1/4" />
-        <div className="absolute inset-0 grid-lines opacity-30" />
-      </div>
+      <AppContainer className="space-y-8 pb-12 pt-8">
+        <DashboardHero
+          eyebrow={<SectionEyebrow tone="cool">Admin command surface</SectionEyebrow>}
+          title="Govern access, models, and platform health."
+          description="The admin experience now reads like a control surface rather than a settings dump. Use the tabs below to move between people, enrollments, AI policy, and bug triage."
+          aside={
+            <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1">
+              <StatPill label="Users" value={users.length} />
+              <StatPill label="Courses" value={courses.length} />
+              <StatPill label="Key source" value={sourceTag.label} />
+            </div>
+          }
+        />
 
-      <div className="container mx-auto px-6 py-10 space-y-8">
-        <header className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 animate-fade-up">
-          <div className="space-y-2">
-            <p className="text-sm font-medium text-muted-foreground">Admin</p>
-            <h1 className="font-display text-3xl sm:text-4xl font-bold tracking-tight text-foreground">
-              Settings
-            </h1>
-          </div>
-          <div className={sourceTag.className}>{sourceTag.label}</div>
-        </header>
-
-        <div className="flex flex-wrap gap-3 animate-fade-up delay-150">
+        <div className="flex flex-wrap gap-3">
           <button
             type="button"
             onClick={() => setActiveTab('users')}
@@ -398,10 +403,10 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
 
         {(error || message) && (
           <div
-            className={`rounded-xl border px-4 py-3 text-sm ${
+            className={`rounded-[1.2rem] border px-4 py-3 text-sm ${
               error
-                ? 'bg-destructive/10 border-destructive/20 text-destructive'
-                : 'bg-accent/10 border-accent/20 text-accent-foreground'
+                ? 'border-rose-300/18 bg-rose-300/10 text-rose-100'
+                : 'border-cyan-300/18 bg-cyan-300/10 text-cyan-100'
             }`}
           >
             {error ?? message}
@@ -409,10 +414,12 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
         )}
 
         {activeTab === 'users' ? (
-          <div className="card-editorial p-6 sm:p-8 space-y-6 animate-fade-up delay-150">
+          <DashboardCard className="space-y-6 p-6 sm:p-8">
             <div className="space-y-2">
-              <h2 className="font-display text-xl font-bold text-foreground">User Management</h2>
-              <p className="text-sm text-muted-foreground max-w-2xl">
+              <h2 className="text-2xl font-semibold tracking-[-0.04em] text-white">
+                User Management
+              </h2>
+              <p className="max-w-2xl text-sm text-white/58">
                 User roles are now read-only in AI Tutor. Identity and role changes are managed in
                 EduAI and synced on sign-in.
               </p>
@@ -420,7 +427,7 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
 
             <div className="space-y-3">
               {users.length === 0 ? (
-                <div className="rounded-xl border border-border px-4 py-6 text-sm text-muted-foreground">
+                <div className="rounded-[1.2rem] border border-white/10 px-4 py-6 text-sm text-white/52">
                   No users found.
                 </div>
               ) : (
@@ -428,39 +435,41 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
                   return (
                     <div
                       key={user.id}
-                      className="flex flex-col gap-4 rounded-2xl border border-border/70 bg-card/80 px-4 py-4 lg:flex-row lg:items-center lg:justify-between"
+                      className="flex flex-col gap-4 rounded-[1.4rem] border border-white/10 bg-black/18 px-4 py-4 lg:flex-row lg:items-center lg:justify-between"
                     >
                       <div className="space-y-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="font-semibold text-foreground">{user.name}</h3>
+                          <h3 className="font-semibold text-white">{user.name}</h3>
                           <span className="tag">{user.role}</span>
                         </div>
-                        <p className="text-sm text-muted-foreground">{user.email}</p>
+                        <p className="text-sm text-white/56">{user.email}</p>
                       </div>
                     </div>
                   );
                 })
               )}
             </div>
-          </div>
+          </DashboardCard>
         ) : activeTab === 'enrollments' ? (
-          <div className="card-editorial p-6 sm:p-8 space-y-6 animate-fade-up delay-150">
+          <DashboardCard className="space-y-6 p-6 sm:p-8">
             <div className="space-y-2">
-              <h2 className="font-display text-xl font-bold text-foreground">Course Enrollments</h2>
-              <p className="text-sm text-muted-foreground max-w-2xl">
+              <h2 className="text-2xl font-semibold tracking-[-0.04em] text-white">
+                Course Enrollments
+              </h2>
+              <p className="max-w-2xl text-sm text-white/58">
                 Students only see courses they are enrolled in. Use this tab to manage those
                 relationships directly.
               </p>
             </div>
 
             {courses.length === 0 ? (
-              <div className="rounded-xl border border-border px-4 py-6 text-sm text-muted-foreground">
+              <div className="rounded-[1.2rem] border border-white/10 px-4 py-6 text-sm text-white/52">
                 No courses found.
               </div>
             ) : (
               <>
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-foreground">Select course</label>
+                  <label className="block text-sm font-medium text-white">Select course</label>
                   <select
                     value={selectedCourseId ?? ''}
                     onChange={(e) => {
@@ -478,19 +487,19 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
                 </div>
 
                 {loadingEnrollments ? (
-                  <div className="rounded-xl border border-border px-4 py-6 text-sm text-muted-foreground">
-                    Loading enrollments…
+                  <div className="rounded-[1.2rem] border border-white/10 px-4 py-6 text-sm text-white/52">
+                    Loading enrollments...
                   </div>
                 ) : !courseEnrollments ? (
-                  <div className="rounded-xl border border-border px-4 py-6 text-sm text-muted-foreground">
+                  <div className="rounded-[1.2rem] border border-white/10 px-4 py-6 text-sm text-white/52">
                     Choose a course to manage its enrollments.
                   </div>
                 ) : (
                   <div className="grid gap-6 lg:grid-cols-2">
-                    <div className="space-y-4 rounded-2xl border border-border/70 bg-card/80 p-5">
+                    <div className="space-y-4 rounded-[1.4rem] border border-white/10 bg-black/18 p-5">
                       <div className="space-y-1">
-                        <h3 className="font-semibold text-foreground">Add Student</h3>
-                        <p className="text-sm text-muted-foreground">
+                        <h3 className="font-semibold text-white">Add Student</h3>
+                        <p className="text-sm text-white/58">
                           Only student accounts can be enrolled in a course.
                         </p>
                       </div>
@@ -524,17 +533,17 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
                       </button>
                     </div>
 
-                    <div className="space-y-4 rounded-2xl border border-border/70 bg-card/80 p-5">
+                    <div className="space-y-4 rounded-[1.4rem] border border-white/10 bg-black/18 p-5">
                       <div className="space-y-1">
-                        <h3 className="font-semibold text-foreground">Enrolled Students</h3>
-                        <p className="text-sm text-muted-foreground">
+                        <h3 className="font-semibold text-white">Enrolled Students</h3>
+                        <p className="text-sm text-white/58">
                           Removing an enrollment immediately removes course visibility for that
                           student.
                         </p>
                       </div>
 
                       {courseEnrollments.enrolledStudents.length === 0 ? (
-                        <div className="rounded-xl border border-border px-4 py-6 text-sm text-muted-foreground">
+                        <div className="rounded-[1.2rem] border border-white/10 px-4 py-6 text-sm text-white/52">
                           No students are enrolled in this course yet.
                         </div>
                       ) : (
@@ -542,11 +551,11 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
                           {courseEnrollments.enrolledStudents.map((student) => (
                             <div
                               key={student.id}
-                              className="flex flex-col gap-3 rounded-xl border border-border px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
+                              className="flex flex-col gap-3 rounded-[1.2rem] border border-white/10 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
                             >
                               <div className="space-y-1">
-                                <div className="font-medium text-foreground">{student.name}</div>
-                                <div className="text-sm text-muted-foreground">{student.email}</div>
+                                <div className="font-medium text-white">{student.name}</div>
+                                <div className="text-sm text-white/56">{student.email}</div>
                               </div>
                               <button
                                 type="button"
@@ -565,10 +574,10 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
                 )}
               </>
             )}
-          </div>
+          </DashboardCard>
         ) : activeTab === 'settings' ? (
-          <div className="space-y-6 animate-fade-up delay-150">
-            <div className="card-editorial p-6 sm:p-8 space-y-6">
+          <div className="space-y-6">
+            <DashboardCard className="space-y-6 p-6 sm:p-8">
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className="font-display text-xl font-bold text-foreground">AI loop policy</h2>
@@ -851,9 +860,9 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
                   </div>
                 </div>
               </div>
-            </div>
+            </DashboardCard>
 
-            <div className="card-editorial p-6 sm:p-8 space-y-6">
+            <DashboardCard className="space-y-6 p-6 sm:p-8">
               <div className="space-y-2">
                 <h2 className="font-display text-xl font-bold text-foreground">EduAI API Key</h2>
                 <p className="text-sm text-muted-foreground max-w-2xl">
@@ -919,13 +928,15 @@ export default function AdminHome({ loaderData }: Route.ComponentProps) {
                   {clearing ? 'Clearing…' : 'Clear override'}
                 </button>
               </div>
-            </div>
+            </DashboardCard>
           </div>
         ) : (
-          <BugReportsTab initialReports={loaderData.bugReports} />
+          <DashboardCard className="p-4 sm:p-6">
+            <BugReportsTab initialReports={loaderData.bugReports} />
+          </DashboardCard>
         )}
-      </div>
-    </div>
+      </AppContainer>
+    </main>
   );
 }
 
