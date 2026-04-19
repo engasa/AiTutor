@@ -1,9 +1,11 @@
 {
   "cli_version": "0.5.1",
   "checkpoint_id": "8f1aab3456a7",
+  "session_id": "ce7c0f33-c988-4c4d-9a16-f2336054d40a",
   "strategy": "manual-commit",
+  "created_at": "2026-04-19T02:11:08.079276Z",
   "branch": "codex-skill-redesign",
-  "checkpoints_count": 5,
+  "checkpoints_count": 4,
   "files_touched": [
     "app/README.md",
     "app/app.css",
@@ -38,25 +40,26 @@
     "server/src/services/enrollmentSync.js",
     "server/test/integration/bugReports.test.js"
   ],
-  "sessions": [
-    {
-      "metadata": "/8f/1aab3456a7/0/metadata.json",
-      "transcript": "/8f/1aab3456a7/0/full.jsonl",
-      "content_hash": "/8f/1aab3456a7/0/content_hash.txt",
-      "prompt": "/8f/1aab3456a7/0/prompt.txt"
-    },
-    {
-      "metadata": "/8f/1aab3456a7/1/metadata.json",
-      "transcript": "/8f/1aab3456a7/1/full.jsonl",
-      "content_hash": "/8f/1aab3456a7/1/content_hash.txt",
-      "prompt": "/8f/1aab3456a7/1/prompt.txt"
-    }
-  ],
+  "agent": "Claude Code",
+  "model": "composer-2",
+  "turn_id": "926d85b36543",
   "token_usage": {
-    "input_tokens": 30997,
+    "input_tokens": 0,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 17332,
-    "output_tokens": 98,
-    "api_call_count": 3
+    "cache_read_tokens": 0,
+    "output_tokens": 0,
+    "api_call_count": 0
+  },
+  "session_metrics": {
+    "turn_count": 6
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-19T02:11:08.067422Z",
+    "agent_lines": 684,
+    "human_added": 0,
+    "human_modified": 799,
+    "human_removed": 246,
+    "total_committed": 1483,
+    "agent_percentage": 46.12272420768712
   }
 }

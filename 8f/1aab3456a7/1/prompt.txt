@@ -1,0 +1,18 @@
+So I have a server that i want basically opencode run in server mode aka opencode serve and then attach to my mac here where I am talking to you to enable remote connections. The server is at ssh root@ashburn
+
+---
+
+So I have a server that i want basically opencode run in server mode aka opencode serve and then attach to my mac here where I am talking to you to enable remote connections. The server is at ssh root@ashburn
+
+---
+
+to do this as of now I need you to update opencode cli to latest by doing opencode upgrade and then do OPENCODE_EXPERIMENTAL_WORKSPACES=true opencode
+so that the feature is enabled, also that server alr has cf tunnel which has opencode web running also see if we dont mess up that and then ideally bind the local host on the server w cf tunnel so I can attach it to my opencode here on my mac
+
+---
+
+i think you should be able to do ssh root@ashburn and do all of this for me
+
+---
+
+i think you should be able to do ssh root@ashburn and do all of this for me
