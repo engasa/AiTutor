@@ -1,0 +1,1 @@
+I need you to create a worktree from the branch claude-redesign as a base, create a worktree above the Repo and come back to me when you are done
