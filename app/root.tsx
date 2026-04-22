@@ -13,23 +13,10 @@ import { AuthProvider } from '~/hooks/useLocalUser';
 import { TourProvider } from '~/components/TourProvider';
 import { BugReportProvider } from '~/components/bug-report/BugReportProvider';
 
-// Theme script runs before React hydration to prevent flash
-// Sets dark class on <html> based on localStorage or system preference
+// Theme script runs before React hydration to prevent flash.
+// The app currently forces dark mode globally.
 const themeScript = `(function(){
-  try {
-    var stored = localStorage.getItem("theme");
-    if (stored === "dark") {
-      document.documentElement.classList.add("dark");
-      return;
-    }
-    if (stored === "light") {
-      document.documentElement.classList.remove("dark");
-      return;
-    }
-  } catch (e) {}
-  if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
-    document.documentElement.classList.add("dark");
-  }
+  document.documentElement.classList.add("dark");
 })();`;
 
 export const links: Route.LinksFunction = () => [
@@ -66,7 +53,7 @@ export function HydrateFallback() {
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className="dark" suppressHydrationWarning>
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
