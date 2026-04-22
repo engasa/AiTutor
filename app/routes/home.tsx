@@ -49,6 +49,39 @@ function extractErrorMessage(error: unknown) {
   return error.message || 'Could not start EduAI sign-in';
 }
 
+const HUB_POSITION = { x: 200, y: 200 };
+
+const VISUAL_NODES = [
+  {
+    label: 'Curriculum',
+    icon: <Library className="h-5 w-5" />,
+    x: 116,
+    y: 98,
+    delayClassName: '',
+  },
+  {
+    label: 'AI Insights',
+    icon: <Sparkles className="h-5 w-5" />,
+    x: 316,
+    y: 122,
+    delayClassName: 'delay-300',
+  },
+  {
+    label: 'Progress',
+    icon: <LineChart className="h-5 w-5" />,
+    x: 82,
+    y: 306,
+    delayClassName: 'delay-500',
+  },
+  {
+    label: 'Dashboard',
+    icon: <LayoutDashboard className="h-5 w-5" />,
+    x: 294,
+    y: 350,
+    delayClassName: 'delay-700',
+  },
+] as const;
+
 export default function Home() {
   const navigate = useNavigate();
   const { user, isInitializing } = useLocalUser();
@@ -122,48 +155,33 @@ export default function Home() {
               <BrainCircuit className="h-16 w-16 text-primary" />
             </div>
 
-            <div className="absolute top-[10%] left-[20%] z-20 animate-float">
-              <FloatingNode icon={<Library className="h-5 w-5" />} label="Curriculum" />
-            </div>
-            <div className="delay-300 absolute top-[20%] right-[10%] z-20 animate-float">
-              <FloatingNode icon={<Sparkles className="h-5 w-5" />} label="AI Insights" />
-            </div>
-            <div className="delay-500 absolute bottom-[20%] left-[10%] z-20 animate-float">
-              <FloatingNode icon={<LineChart className="h-5 w-5" />} label="Progress" />
-            </div>
-            <div className="delay-700 absolute right-[20%] bottom-[10%] z-20 animate-float">
-              <FloatingNode icon={<LayoutDashboard className="h-5 w-5" />} label="Dashboard" />
-            </div>
-
             <svg
               className="pointer-events-none absolute inset-0 z-10 h-full w-full text-primary opacity-20"
               viewBox="0 0 400 400"
             >
-              <path
-                d="M200 200 L120 100"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeDasharray="4 4"
-              />
-              <path
-                d="M200 200 L320 120"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeDasharray="4 4"
-              />
-              <path
-                d="M200 200 L80 280"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeDasharray="4 4"
-              />
-              <path
-                d="M200 200 L280 320"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeDasharray="4 4"
-              />
+              {VISUAL_NODES.map((node) => (
+                <path
+                  key={node.label}
+                  d={`M${HUB_POSITION.x} ${HUB_POSITION.y} L${node.x} ${node.y}`}
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeDasharray="4 4"
+                />
+              ))}
             </svg>
+
+            {VISUAL_NODES.map((node) => (
+              <div
+                key={node.label}
+                className={`${node.delayClassName} absolute z-20 animate-float -translate-x-1/2 -translate-y-1/2`}
+                style={{
+                  left: `${(node.x / 400) * 100}%`,
+                  top: `${(node.y / 400) * 100}%`,
+                }}
+              >
+                <FloatingNode icon={node.icon} label={node.label} />
+              </div>
+            ))}
           </div>
         </div>
       </div>
