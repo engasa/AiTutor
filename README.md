@@ -4,14 +4,14 @@ An AI-powered educational platform with a two-agent supervisor system that ensur
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
+| Layer    | Technology                                                    |
+| -------- | ------------------------------------------------------------- |
 | Frontend | React Router v7 (SPA mode), Vite 8, TailwindCSS v4, shadcn/ui |
-| Backend | Express 5, Prisma ORM, PostgreSQL 16 |
-| Auth | Better Auth (session-based) |
-| AI | Two-agent supervisor system via EduAI API |
-| Testing | Vitest, Supertest |
-| Tooling | Bun, oxlint, oxfmt, tsgo, knip |
+| Backend  | Express 5, Prisma ORM, PostgreSQL 16                          |
+| Auth     | Better Auth (session-based)                                   |
+| AI       | Two-agent supervisor system via EduAI API                     |
+| Testing  | Vitest, Supertest                                             |
+| Tooling  | Bun, oxlint, oxfmt, tsgo, knip                                |
 
 ## Prerequisites
 
@@ -26,7 +26,7 @@ An AI-powered educational platform with a two-agent supervisor system that ensur
 bun install
 cd server && bun install && cd ..
 
-# 2. Start PostgreSQL
+# 2. Start PostgreSQL (If using docker, if using a DB server change the DATABASE_URL env instead. )
 docker compose up -d db
 
 # 3. Configure environment
@@ -96,12 +96,12 @@ Each level supports publish/unpublish gating — unpublished parents hide their 
 
 ### Roles
 
-| Role | Access |
-|------|--------|
-| **Student** | Enrolled courses, activities, AI chat modes |
+| Role          | Access                                               |
+| ------------- | ---------------------------------------------------- |
+| **Student**   | Enrolled courses, activities, AI chat modes          |
 | **Professor** | Full course management, content authoring, analytics |
-| **TA** | Assigned course assistance |
-| **Admin** | User management, system settings, AI model config |
+| **TA**        | Assigned course assistance                           |
+| **Admin**     | User management, system settings, AI model config    |
 
 ### AI Tutoring — Two-Agent Supervisor System
 
@@ -120,47 +120,48 @@ Activities require a **main topic** and support multiple **secondary topics** fo
 
 Copy `server/.env.example` to `server/.env` and configure:
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `DATABASE_URL` | Yes | PostgreSQL connection string |
-| `BETTER_AUTH_SECRET` | Yes | Session signing secret |
-| `BETTER_AUTH_URL` | Yes | Auth endpoint base URL |
-| `PORT` | No | API port (default: `4000`) |
-| `COOKIE_DOMAIN` | No | Cookie domain (default: `localhost`) |
-| `EDUAI_API_KEY` | For AI | EduAI API key |
-| `EDUAI_BASE_URL` | For AI | EduAI API base URL |
-| `EDUAI_MODEL` | For AI | Model identifier (e.g., `google:gemini-2.5-flash`) |
-| `AI_SUPERVISOR_ENABLED` | No | Enable two-agent review (default: `true`) |
+| Variable                | Required | Description                                        |
+| ----------------------- | -------- | -------------------------------------------------- |
+| `DATABASE_URL`          | Yes      | PostgreSQL connection string                       |
+| `BETTER_AUTH_SECRET`    | Yes      | Session signing secret                             |
+| `BETTER_AUTH_URL`       | Yes      | Auth endpoint base URL                             |
+| `PORT`                  | No       | API port (default: `4000`)                         |
+| `COOKIE_DOMAIN`         | No       | Cookie domain (default: `localhost`)               |
+| `EDUAI_API_KEY`         | For AI   | EduAI API key                                      |
+| `EDUAI_BASE_URL`        | For AI   | EduAI API base URL                                 |
+| `EDUAI_MODEL`           | For AI   | Model identifier (e.g., `google:gemini-2.5-flash`) |
+| `AI_SUPERVISOR_ENABLED` | No       | Enable two-agent review (default: `true`)          |
 
 Frontend env var:
+
 - `VITE_API_URL` — API server URL (default: `http://localhost:4000`)
 
 ## Scripts
 
 ### Root (frontend)
 
-| Command | Description |
-|---------|-------------|
-| `bun run dev` | Start Vite dev server |
-| `bun run build` | Production build |
-| `bun run typecheck` | React Router typegen + `tsc` |
+| Command                  | Description                                 |
+| ------------------------ | ------------------------------------------- |
+| `bun run dev`            | Start Vite dev server                       |
+| `bun run build`          | Production build                            |
+| `bun run typecheck`      | React Router typegen + `tsc`                |
 | `bun run typecheck:fast` | React Router typegen + `tsgo` (~10x faster) |
-| `bun run lint` | Run oxlint on all source files |
-| `bun run format` | Format with oxfmt |
-| `bun run knip` | Detect dead code/exports |
-| `bun run test` | Run frontend tests |
+| `bun run lint`           | Run oxlint on all source files              |
+| `bun run format`         | Format with oxfmt                           |
+| `bun run knip`           | Detect dead code/exports                    |
+| `bun run test`           | Run frontend tests                          |
 
 ### Server
 
-| Command | Description |
-|---------|-------------|
-| `bun run dev` | Start API with nodemon (auto-reload) |
-| `bun run start` | Production start |
-| `bun run seed` | Seed database with demo data |
-| `bun run test` | Run all tests (unit + integration) |
-| `bun run test:unit` | Unit tests only (no DB required) |
+| Command                    | Description                                  |
+| -------------------------- | -------------------------------------------- |
+| `bun run dev`              | Start API with nodemon (auto-reload)         |
+| `bun run start`            | Production start                             |
+| `bun run seed`             | Seed database with demo data                 |
+| `bun run test`             | Run all tests (unit + integration)           |
+| `bun run test:unit`        | Unit tests only (no DB required)             |
 | `bun run test:integration` | Integration tests only (requires PostgreSQL) |
-| `bun run test:watch` | Watch mode |
+| `bun run test:watch`       | Watch mode                                   |
 
 ## Testing
 
